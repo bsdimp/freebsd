@@ -47,7 +47,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/acpica/acpivar.h>
 
 #include <dev/mmc/bridge.h>
-#include <dev/mmc/mmcreg.h>
+#include <cam/mmc/mmcreg.h>
 #include <dev/mmc/mmcbrvar.h>
 
 #include "sdhci.h"
