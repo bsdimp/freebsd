@@ -8,6 +8,11 @@ SUBDIR+=		ficl
 SUBDIR+=		forth
 .endif
 
+.if ${MK_LUA} != "no"
+# Build the add-in Lua interpreter.
+SUBDIR+=		liblua
+.endif
+
 SUBDIR+=		common
 
 .include <bsd.arch.inc.mk>
