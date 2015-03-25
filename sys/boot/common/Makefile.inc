@@ -64,6 +64,11 @@ SRCS+=	interp_forth.c
 .include "${SRCTOP}/sys/boot/Makefile.ficl"
 .endif
 
+# Lua interpreter
+.if defined(BOOT_LUA)
+SRCS+=	interp_lua.c
+.endif
+
 .if defined(BOOT_PROMPT_123)
 CFLAGS+=	-DBOOT_PROMPT_123
 .endif
