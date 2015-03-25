@@ -180,6 +180,7 @@ __DEFAULT_NO_OPTIONS = \
     GNU_GREP_COMPAT \
     HESIOD \
     LIBSOFT \
+    LUA \
     NAND \
     OFED \
     OPENLDAP \
@@ -190,8 +191,7 @@ __DEFAULT_NO_OPTIONS = \
     SORT_THREADS \
     SVN \
     ZONEINFO_LEAPSECONDS_SUPPORT \
-    ZONEINFO_OLD_TIMEZONES_SUPPORT \
-
+    ZONEINFO_OLD_TIMEZONES_SUPPORT
 
 #
 # Default behaviour of some options depends on the architecture.  Unfortunately
