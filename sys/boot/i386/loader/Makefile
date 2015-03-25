@@ -57,6 +57,11 @@ LIBFICL=	${.OBJDIR}/../../ficl/libficl.a
 .endif
 .endif
 
+.if ${MK_LUA} != "no"
+BOOT_LUA=	yes
+LIBLUA=		${.OBJDIR}/../../liblua/liblua.a
+.endif
+
 .if defined(LOADER_BZIP2_SUPPORT)
 CFLAGS+=	-DLOADER_BZIP2_SUPPORT
 .endif
@@ -127,8 +132,8 @@ FILES+=	loader.rc menu.rc
 # XXX crt0.o needs to be first for pxeboot(8) to work
 OBJS=	${BTXCRT}
 
-DPADD=	${LIBFICL} ${LIBFIREWIRE} ${LIBZFSBOOT} ${LIBI386} ${LIBGELIBOOT} ${LIBSTAND}
-LDADD=	${LIBFICL} ${LIBFIREWIRE} ${LIBZFSBOOT} ${LIBI386} ${LIBGELIBOOT} ${LIBSTAND}
+DPADD=	${LIBFICL} ${LIBLUA} ${LIBFIREWIRE} ${LIBZFSBOOT} ${LIBI386} ${LIBGELIBOOT} ${LIBSTAND}
+LDADD=	${LIBFICL} ${LIBLUA} ${LIBFIREWIRE} ${LIBZFSBOOT} ${LIBI386} ${LIBGELIBOOT} ${LIBSTAND}
 
 .include <bsd.prog.mk>
 
