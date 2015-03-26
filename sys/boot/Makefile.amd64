@@ -13,4 +13,8 @@ SUBDIR+=		geli
 SUBDIR+=		ficl32
 .endif
 
+.if ${MK_LUA} != "no"
+SUBDIR+=		liblua32
+.endif
+
 SUBDIR+=		i386
