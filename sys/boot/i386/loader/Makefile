@@ -126,11 +126,33 @@ FILES=	${LOADER}
 FILESMODE_${LOADER}= ${BINMODE} -b
 
 .if !defined(LOADER_ONLY)
+FILES+= loader.conf
+.if defined(BOOT_FORTH)
 .PATH: ${.CURDIR}/../../forth
 .include	"${.CURDIR}/../../forth/Makefile.inc"
 FILES+=	pcibios.4th
-
-FILES+=	loader.rc menu.rc
+FILES+=	loader.help loader.4th support.4th
+FILES+= screen.4th frames.4th beastie.4th
+FILES+= brand.4th check-password.4th color.4th delay.4th
+FILES+= menu.4th menu-commands.4th menusets.4th shortcuts.4th version.4th
+FILES+= pcibios.4th
+.if !exists(${DESTDIR}/boot/loader.rc)
+FILES+=	loader.rc
+.endif
+.if !exists(${DESTDIR}/boot/menu.rc)
+FILES+= menu.rc
+.endif
+.endif
+.if defined(BOOT_LUA)
+FILES+=	config.lua core.lua drawer.lua password.lua screen.lua
+.if !exists(${DESTDIR}/boot/loader.lua)
+FILES+=	loader.lua
+.endif
+.if !exists(${DESTDIR}/boot/menu.lua)
+FILES+= menu.lua
+.endif
+.endif
+FILESDIR_loader.conf=	/boot/defaults
 .endif
 
 # XXX crt0.o needs to be first for pxeboot(8) to work
