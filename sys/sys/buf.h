@@ -397,7 +397,7 @@ struct cluster_save {
 #ifdef _KERNEL
 
 static __inline int
-bwrite(struct buf *bp)
+bo_write(struct buf *bp)
 {
 
 	KASSERT(bp->b_bufobj != NULL, ("bwrite: no bufobj bp=%p", bp));
@@ -526,6 +526,7 @@ void	bremfreef(struct buf *);	/* XXX Force bremfree, only for nfs. */
 		0, NULL, bpp)
 int	breadn_flags(struct vnode *, daddr_t, int, daddr_t *, int *, int,
 	    struct ucred *, int, void (*)(struct buf *), struct buf **);
+int	bwrite(struct buf *);
 void	bdwrite(struct buf *);
 void	bawrite(struct buf *);
 void	babarrierwrite(struct buf *);

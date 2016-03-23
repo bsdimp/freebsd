@@ -2214,9 +2214,6 @@ int
 bufwrite(struct buf *bp)
 {
 	int oldflags;
-	struct vnode *vp;
-	long space;
-	int vp_md;
 
 	CTR3(KTR_BUF, "bufwrite(%p) vp %p flags %X", bp, bp->b_vp, bp->b_flags);
 	if ((bp->b_bufobj->bo_flag & BO_DEAD) != 0) {
@@ -2239,12 +2236,6 @@ bufwrite(struct buf *bp)
 
 	KASSERT(!(bp->b_vflags & BV_BKGRDINPROG),
 	    ("FFS background buffer should not get here %p", bp));
-
-	vp = bp->b_vp;
-	if (vp)
-		vp_md = vp->v_vflag & VV_MD;
-	else
-		vp_md = 0;
 
 	/*
 	 * Mark the buffer clean.  Increment the bufobj write count
@@ -2288,17 +2279,6 @@ bufwrite(struct buf *bp)
 		int rtval = bufwait(bp);
 		brelse(bp);
 		return (rtval);
-	} else if (space > hirunningspace) {
-		/*
-		 * don't allow the async write to saturate the I/O
-		 * system.  We will not deadlock here because
-		 * we are blocking waiting for I/O that is already in-progress
-		 * to complete. We do not block here if it is the update
-		 * or syncer daemon trying to clean up as that can lead
-		 * to deadlock.
-		 */
-		if ((curthread->td_pflags & TDP_NORUNNINGBUF) == 0 && !vp_md)
-			waitrunningbufspace();
 	}
 
 	return (0);
@@ -3390,6 +3370,12 @@ buf_daemon()
 		mtx_unlock(&bdlock);
 
 		kthread_suspend_check();
+
+		/*
+		 * XXX imp XXX
+		 * This is an ideal place to deal with back pressure from the lower
+		 * layers.
+		 */
 
 		/*
 		 * Save speedupreq for this pass and reset to capture new
@@ -5318,6 +5304,52 @@ end_pages:
 		goto again;
 	VM_OBJECT_WUNLOCK(object);
 	return (error != 0 ? VM_PAGER_ERROR : VM_PAGER_OK);
+}
+
+/*
+ * write the buffer
+ */
+int
+bwrite(struct buf *bp)
+{
+	int rv, oldflags, vp_md;
+	long space;
+
+	/*
+	 * Normal bwrites buffer writes. This interface will replicate the
+	 * historic behavior of bwrite. The buffer will be written. If it is an
+	 * asncy buffer, and certain somewhat arbitrary conditions aren't true,
+	 * and we've push too much I/O down the stack(hirunningspace), we'll
+	 * sleep here after submitting it until we fall below a low water mark
+	 * (lorunningspace).
+	 */
+	bp->b_runningbufspace = bp->b_bufsize;
+	space = atomic_fetchadd_long(&runningbufspace, bp->b_runningbufspace);
+	oldflags = bp->b_flags;
+	vp_md = bp->b_vp ? bp->b_vp->v_vflag & VV_MD : 0;
+
+	rv = bo_write(bp);
+
+	/*
+	 * Invalid buffers never stall the pipeline since they return
+	 * immediately. Don't block since no I/O is actually being done.
+	 */
+	if (oldflags & B_INVAL)
+		return (0);
+
+	if (rv == 0 && (oldflags & B_ASYNC) && space > hirunningspace) {
+		/*
+		 * don't allow the async write to saturate the I/O system.  We
+		 * will not deadlock here because we are blocking waiting for
+		 * I/O that is already in-progress to complete. We do not block
+		 * here if it is the update or syncer daemon trying to clean up
+		 * as that can lead to deadlock.
+		 */
+		if ((curthread->td_pflags & TDP_NORUNNINGBUF) == 0 && !vp_md)
+			waitrunningbufspace();
+	}
+
+	return (rv);
 }
 
 #include "opt_ddb.h"
