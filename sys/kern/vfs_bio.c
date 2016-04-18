@@ -2253,22 +2253,6 @@ bufwrite(struct buf *bp)
 
 	vfs_busy_pages(bp, 1);
 
-	/*
-	 * Normal bwrites pipeline writes
-	 */
-	bp->b_runningbufspace = bp->b_bufsize;
-	space = atomic_fetchadd_long(&runningbufspace, bp->b_runningbufspace);
-
-	if (!TD_IS_IDLETHREAD(curthread)) {
-#ifdef RACCT
-		if (racct_enable) {
-			PROC_LOCK(curproc);
-			racct_add_buf(curproc, bp, 1);
-			PROC_UNLOCK(curproc);
-		}
-#endif /* RACCT */
-		curthread->td_ru.ru_oublock++;
-	}
 	if (oldflags & B_ASYNC)
 		BUF_KERNPROC(bp);
 	bp->b_iooffset = dbtob(bp->b_blkno);
@@ -5327,6 +5311,21 @@ bwrite(struct buf *bp)
 	space = atomic_fetchadd_long(&runningbufspace, bp->b_runningbufspace);
 	oldflags = bp->b_flags;
 	vp_md = bp->b_vp ? bp->b_vp->v_vflag & VV_MD : 0;
+
+	/*
+	 * Check RACCT limits here to allow some system processes to
+	 * bypass these checks when they use bo_write directly.
+	 */
+	if (!TD_IS_IDLETHREAD(curthread)) {
+#ifdef RACCT
+		if (racct_enable) {
+			PROC_LOCK(curproc);
+			racct_add_buf(curproc, bp, 1);
+			PROC_UNLOCK(curproc);
+		}
+#endif /* RACCT */
+		curthread->td_ru.ru_oublock++;
+	}
 
 	rv = bo_write(bp);
 
