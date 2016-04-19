@@ -902,10 +902,9 @@ runningbufwakeup(struct buf *bp)
 	bspace = bp->b_runningbufspace;
 	if (bspace == 0)
 		return;
-	space = atomic_fetchadd_long(&runningbufspace, -bspace);
+	space = runningbuf_put(bp, bspace);
 	KASSERT(space >= bspace, ("runningbufspace underflow %ld %ld",
 	    space, bspace));
-	bp->b_runningbufspace = 0;
 	/*
 	 * Only acquire the lock and wakeup on the transition from exceeding
 	 * the threshold to falling below it.
@@ -5307,8 +5306,7 @@ bwrite(struct buf *bp)
 	 * sleep here after submitting it until we fall below a low water mark
 	 * (lorunningspace).
 	 */
-	bp->b_runningbufspace = bp->b_bufsize;
-	space = atomic_fetchadd_long(&runningbufspace, bp->b_runningbufspace);
+	space = runningbuf_get(bp, bp->b_bufsize);
 	oldflags = bp->b_flags;
 	vp_md = bp->b_vp ? bp->b_vp->v_vflag & VV_MD : 0;
 

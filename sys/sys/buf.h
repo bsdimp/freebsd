@@ -506,6 +506,26 @@ buf_mapped(struct buf *bp)
 	return (bp->b_data != unmapped_buf);
 }
 
+/*
+ * Account for a buffer completing in the running totals
+ */
+static inline long
+runningbuf_put(struct buf *bp, long bspace)
+{
+	bp->b_runningbufspace = 0;
+	return atomic_fetchadd_long(&runningbufspace, -bspace);
+}
+
+/*
+ * Account for a buffer being sent down the stack
+ */
+static inline long
+runningbuf_get(struct buf *bp, long bspace)
+{
+	bp->b_runningbufspace = bspace;
+	return atomic_fetchadd_long(&runningbufspace, bspace);
+}
+
 void	runningbufwakeup(struct buf *);
 void	waitrunningbufspace(void);
 caddr_t	kern_vfs_bio_buffer_alloc(caddr_t v, long physmem_est);
