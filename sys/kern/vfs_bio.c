@@ -316,6 +316,12 @@ SYSCTL_INT(_vfs, OID_AUTO, unmapped_buf_allowed, CTLFLAG_RD,
 int maxbcachebuf = MAXBCACHEBUF;
 SYSCTL_INT(_vfs, OID_AUTO, maxbcachebuf, CTLFLAG_RDTUN, &maxbcachebuf, 0,
     "Maximum size of a buffer cache block");
+static int bp_type;
+SYSCTL_INT(_vfs, OID_AUTO, back_pressure_type, CTLFLAG_RD | CTLFLAG_TUN, &bp_type, 0,
+    "Backpressure type. "
+    "0 - global running buf. "
+    "1 - per bufobj running buf. "
+    "2 - per bufobj lower layer hints. ");
 
 /*
  * This lock synchronizes access to bd_request.
