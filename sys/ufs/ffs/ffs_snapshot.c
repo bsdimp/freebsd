@@ -2441,8 +2441,8 @@ ffs_copyonwrite(devvp, bp)
 	lockmgr(vp->v_vnlock, LK_RELEASE, NULL);
 	td->td_pflags = (td->td_pflags & ~TDP_NORUNNINGBUF) |
 		prev_norunningbuf;
-	if (launched_async_io && (td->td_pflags & TDP_NORUNNINGBUF) == 0)
-		waitrunningbufspace();
+	if (launched_async_io)
+		waitrunningbufspace(bp);
 	/*
 	 * I/O on bp will now be started, so count it in runningbufspace.
 	 */

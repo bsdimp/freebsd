@@ -527,7 +527,7 @@ runningbuf_get(struct buf *bp, long bspace)
 }
 
 void	runningbufwakeup(struct buf *);
-void	waitrunningbufspace(void);
+void	waitrunningbufspace(struct buf *);
 caddr_t	kern_vfs_bio_buffer_alloc(caddr_t v, long physmem_est);
 void	bufinit(void);
 void	bufshutdown(int);

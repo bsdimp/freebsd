@@ -935,7 +935,7 @@ runningbufwakeup(struct buf *bp)
  *	caller's write has reached the device.
  */
 void
-waitrunningbufspace(void)
+waitrunningbufspace(struct buf *bp)
 {
 
 	mtx_lock(&rbreqlock);
@@ -3561,7 +3561,7 @@ flushbufqueues(struct vnode *lvp, struct bufdomain *bd, int target,
 			 */
 			if (curproc == bufdaemonproc &&
 			    runningbufspace > hirunningspace)
-				waitrunningbufspace();
+				waitrunningbufspace(bp);
 			continue;
 		}
 		vn_finished_write(mp);
@@ -5349,7 +5349,7 @@ bwrite(struct buf *bp)
 		 * as that can lead to deadlock.
 		 */
 		if ((curthread->td_pflags & TDP_NORUNNINGBUF) == 0 && !vp_md)
-			waitrunningbufspace();
+			waitrunningbufspace(bp);
 	}
 
 	return (rv);
