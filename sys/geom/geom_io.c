@@ -158,6 +158,8 @@ g_new_bio(void)
 		CTRSTACK(KTR_GEOM, &st, 3, 0);
 	}
 #endif
+	if (bp)
+		bp->bio_prio = BIO_PRIO_NORMAL;
 	return (bp);
 }
 
@@ -176,6 +178,7 @@ g_alloc_bio(void)
 		CTRSTACK(KTR_GEOM, &st, 3, 0);
 	}
 #endif
+	bp->bio_prio = BIO_PRIO_NORMAL;
 	return (bp);
 }
 
@@ -219,9 +222,11 @@ g_clone_bio(struct bio *bp)
 		bp2->bio_ma_n = bp->bio_ma_n;
 		bp2->bio_ma_offset = bp->bio_ma_offset;
 		bp2->bio_attribute = bp->bio_attribute;
+		bp2->bio_prio = bp->bio_prio;
 		if (bp->bio_cmd == BIO_ZONE)
 			bcopy(&bp->bio_zone, &bp2->bio_zone,
 			    sizeof(bp->bio_zone));
+		bp2->bio_prio = bp->bio_prio;
 		/* Inherit classification info from the parent */
 		bp2->bio_classifier1 = bp->bio_classifier1;
 		bp2->bio_classifier2 = bp->bio_classifier2;
@@ -258,6 +263,7 @@ g_duplicate_bio(struct bio *bp)
 	bp2->bio_ma_n = bp->bio_ma_n;
 	bp2->bio_ma_offset = bp->bio_ma_offset;
 	bp2->bio_attribute = bp->bio_attribute;
+	bp2->bio_prio = bp->bio_prio;
 	bp->bio_children++;
 #ifdef KTR
 	if ((KTR_COMPILE & KTR_GEOM) && (ktr_mask & KTR_GEOM)) {
@@ -276,6 +282,7 @@ g_reset_bio(struct bio *bp)
 {
 
 	bzero(bp, sizeof(*bp));
+	bp->bio_prio = BIO_PRIO_NORMAL;
 }
 
 void

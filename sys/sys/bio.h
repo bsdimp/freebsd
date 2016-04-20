@@ -66,6 +66,56 @@
 #define	BIO_UNMAPPED	0x10
 #define	BIO_TRANSIENT_MAPPING	0x20
 #define	BIO_VLIST	0x40
+#define	BIO_UNORDERED	0x80	/* Allowed to jump over BIO_ORDERED */
+
+/* bio_prio */
+	/*
+	 * Background I/O that shouldn't affect other I/O much. This
+	 * I/O should be done opportunistically, but can be deffered
+	 * indefinitely. BIO_UNORDERED flag typically set.
+	 */
+#define	BIO_PRIO_BG	0
+	/*
+	 * Normal I/O. This I/O shouldn't be delayed unduely, but may
+	 * be throttled.
+	 */
+#define	BIO_PRIO_NORMAL	10
+	/*
+	 * Metadata I/O. This I/O shouldn't be delayed needlessly or
+	 * throttled. It be moved, but not over BIO_ORDERED barriers.
+	 */
+#define	BIO_PRIO_META	20
+	/*
+	 * Urgent I/O. I/O that should be done ASAP to free up memory or
+	 * other resources. Can be coupled with BIO_UNORDERED for low
+	 * latency.
+	 */
+#define	BIO_PRIO_URGENT	30
+
+/* bio_prio */
+	/*
+	 * Background I/O that shouldn't affect other I/O much. This
+	 * I/O should be done opportunistically, but can be deffered
+	 * indefinitely. BIO_ORDERED need not be enforced for these
+	 * requests since they are a background operation.
+	 */
+#define	BIO_PRIO_BG	0
+	/*
+	 * Normal I/O. This I/O shouldn't be delayed, but can be moved
+	 * around between BIO_ORDERED barriers or throttled.
+	 */
+#define	BIO_PRIO_NORMAL	10
+	/*
+	 * Metadata I/O. This I/O shouldn't be delayed needlessly or
+	 * throttled. It be moved, but not over BIO_ORDERED barriers.
+	 */
+#define	BIO_PRIO_META	20
+	/*
+	 * Urgent I/O. I/O that should be done ASAP to free up memory or
+	 * other resources. It can ignore BIO_ORDERED barriers as it has
+	 * no consistency side effects.
+	 */
+#define	BIO_PRIO_URGENT	30
 
 #ifdef _KERNEL
 struct disk;
@@ -94,6 +144,7 @@ struct bio {
 	int	bio_ma_offset;		/* Offset in the first page of bio_ma. */
 	int	bio_ma_n;		/* Number of pages in bio_ma. */
 	int	bio_error;		/* Errno for BIO_ERROR. */
+	int	bio_prio;		/* Priority hint for I/O */
 	long	bio_resid;		/* Remaining I/O in bytes. */
 	void	(*bio_done)(struct bio *);
 	void	*bio_driver1;		/* Private use by the provider. */
