@@ -938,6 +938,29 @@ void
 waitrunningbufspace(struct buf *bp)
 {
 
+	/*
+	 * Thread is marked as special -> don't stall
+	 */
+	if (curthread->td_pflags & TDP_NORUNNINGBUF)
+		return;
+	/*
+	 * We have enough space still -> Don't stall. Note that we
+	 * used to test the old runningbufspace size against
+	 * this. There were no comments as to why, but this is
+	 * slightly different because we could be reading a stale or
+	 * newer version of runningbufspace than before. Some thought
+	 * is needed there, but I'm not seeing a race that matters.
+	 *
+	 * Note also this is a new test for the path from
+	 * ffs_copyonwrite, but the while loop just checks it
+	 * locked. However, runningbufspace can be updated with an
+	 * atomic add without a lock, so any races where aren't new.
+	 *
+	 * The checks here add a call on all I/O to this routine.
+	 * Hope that's not a problem.
+	 */
+	if (runningbufspace <= hirunningspace)
+		return;
 	mtx_lock(&rbreqlock);
 	while (runningbufspace > hirunningspace) {
 		runningbufreq = 1;
@@ -3559,9 +3582,7 @@ flushbufqueues(struct vnode *lvp, struct bufdomain *bd, int target,
 			 * Sleeping on runningbufspace while holding
 			 * vnode lock leads to deadlock.
 			 */
-			if (curproc == bufdaemonproc &&
-			    runningbufspace > hirunningspace)
-				waitrunningbufspace(bp);
+			waitrunningbufspace(bp);
 			continue;
 		}
 		vn_finished_write(mp);
@@ -5340,7 +5361,7 @@ bwrite(struct buf *bp)
 	if (oldflags & B_INVAL)
 		return (0);
 
-	if (rv == 0 && (oldflags & B_ASYNC) && space > hirunningspace) {
+	if (rv == 0 && (oldflags & B_ASYNC)) {
 		/*
 		 * don't allow the async write to saturate the I/O system.  We
 		 * will not deadlock here because we are blocking waiting for
@@ -5348,7 +5369,7 @@ bwrite(struct buf *bp)
 		 * here if it is the update or syncer daemon trying to clean up
 		 * as that can lead to deadlock.
 		 */
-		if ((curthread->td_pflags & TDP_NORUNNINGBUF) == 0 && !vp_md)
+		if (!vp_md)
 			waitrunningbufspace(bp);
 	}
 
