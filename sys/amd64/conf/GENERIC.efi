@@ -1,0 +1,3 @@
+include GENERIC
+device efirt
+# device efidev
