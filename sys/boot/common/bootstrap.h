@@ -33,24 +33,6 @@
 #include <sys/queue.h>
 #include <sys/linker_set.h>
 
-/*
- * Generic device specifier; architecture-dependant
- * versions may be larger, but should be allowed to
- * overlap.
- */
-struct devdesc
-{
-    struct devsw	*d_dev;
-    int			d_type;
-#define DEVT_NONE	0
-#define DEVT_DISK	1
-#define DEVT_NET	2
-#define	DEVT_CD		3
-#define DEVT_ZFS	4
-    int			d_unit;
-    void		*d_opendata;
-};
-
 /* Commands and return values; nonzero return sets command_errmsg != NULL */
 typedef int	(bootblk_cmd_t)(int argc, char *argv[]);
 #define	COMMAND_ERRBUFSZ	(256)
@@ -68,7 +50,7 @@ void	interact(const char *rc);
 int	include(const char *filename);
 
 /* interp_backslash.c */
-char	*backslash(char *str);
+char	*backslash(const char *str);
 
 /* interp_parse.c */
 int	parse(int *argc, char ***argv, const char *str);

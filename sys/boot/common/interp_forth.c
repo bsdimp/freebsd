@@ -144,36 +144,27 @@ bf_command(FICL_VM *vm)
 	} else {
 		result=BF_PARSE;
 	}
-    }
-    DEBUG("cmd '%s'", line);
-    
-    command_errmsg = command_errbuf;
-    command_errbuf[0] = 0;
-    if (!parse(&argc, &argv, line)) {
-	result = (cmd)(argc, argv);
-	free(argv);
-    } else {
-	result=BF_PARSE;
-    }
 
-    switch (result) {
-    case CMD_CRIT:
-	printf("%s\n", command_errmsg);
-	break;
-    case CMD_FATAL:
-	panic("%s\n", command_errmsg);
-    }
+	/* XXX Not sure about the rest of this -- imp */
 
-    free(line);
-    /*
-     * If there was error during nested ficlExec(), we may no longer have
-     * valid environment to return.  Throw all exceptions from here.
-     */
-    if (result != CMD_OK)
-	vmThrow(vm, result);
+	switch (result) {
+	case CMD_CRIT:
+		printf("%s\n", command_errmsg);
+		break;
+	case CMD_FATAL:
+		panic("%s\n", command_errmsg);
+	}
 
-    /* This is going to be thrown!!! */
-    stackPushINT(vm->pStack,result);
+	free(line);
+	/*
+	 * If there was error during nested ficlExec(), we may no longer have
+	 * valid environment to return.  Throw all exceptions from here.
+	 */
+	if (result != CMD_OK)
+		vmThrow(vm, result);
+
+	/* This is going to be thrown!!! */
+	stackPushINT(vm->pStack,result);
 }
 
 /*
@@ -267,13 +258,12 @@ bf_command(FICL_VM *vm)
 /*
  * Initialise the Forth interpreter, create all our commands as words.
  */
-void
+static void
 interp_forth_init(void *ctx)
 {
     struct interp_forth_softc   *softc;
     struct bootblk_command	**cmdp;
     char create_buf[41];	/* 31 characters-long builtins */
-    int fd;
     FICL_SYSTEM *bf_sys;
     FICL_VM	*bf_vm;
 
@@ -305,22 +295,26 @@ interp_forth_init(void *ctx)
     ficlSetEnv(bf_sys, "FreeBSD_version", __FreeBSD_version);
     ficlSetEnv(bf_sys, "loader_version", bootprog_rev);
 
+#if 0 /* XXX lost functionality -- imp */
     /* try to load and run init file if present */
     if (rc == NULL)
 	rc = "/boot/boot.4th";
     if (*rc != '\0') {
+        int fd;
+
 	fd = open(rc, O_RDONLY);
 	if (fd != -1) {
 	    (void)ficlExecFD(bf_vm, fd);
 	    close(fd);
 	}
     }
+#endif
 }
 
 /*
  * Feed a line of user input to the Forth interpreter
  */
-int
+static int
 interp_forth_run(void *ctx, const char *line)
 {
     struct interp_forth_softc *softc;
@@ -328,7 +322,7 @@ interp_forth_run(void *ctx, const char *line)
 
     softc = ctx;
 
-    result = ficlExec(softc->bf_vm, line);
+    result = ficlExec(softc->bf_vm, (char *)line);
 
     DEBUG("ficlExec '%s' = %d", line, result);
     switch (result) {
@@ -360,7 +354,7 @@ interp_forth_run(void *ctx, const char *line)
     return (result);
 }
 
-int
+static int
 interp_forth_incl(void *ctx, const char *filename)
 {
 	struct interp_forth_softc *softc;
