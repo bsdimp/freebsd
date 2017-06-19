@@ -3635,6 +3635,7 @@ geom/geom_ctl.c			standard
 geom/geom_dev.c			standard
 geom/geom_disk.c		standard
 geom/geom_dump.c		standard
+geom_geom_efi.c			standard
 geom/geom_event.c		standard
 geom/geom_fox.c			optional geom_fox
 geom/geom_flashmap.c		optional fdt cfi | fdt nand | fdt mx25l | mmcsd | fdt n25q
