@@ -349,6 +349,9 @@ void g_print_bio(struct bio *bp);
 int g_use_g_read_data(void *, off_t, void **, int);
 int g_use_g_write_data(void *, off_t, void *, int);
 
+/* geom_efi.c */
+int g_geom_efi_devpath(struct g_geom *gp, char *buffer, size_t buflen);
+
 /* geom_kern.c / geom_kernsim.c */
 
 #ifdef _KERNEL
