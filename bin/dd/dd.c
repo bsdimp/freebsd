@@ -136,12 +136,15 @@ setup(void)
 	u_int cnt;
 	cap_rights_t rights;
 	unsigned long cmds[] = { FIODTYPE, MTIOCTOP };
+	int oflags = 0;
 
+	if (ddflags & C_DIRECT)
+		oflags |= O_DIRECT;
 	if (in.name == NULL) {
 		in.name = "stdin";
 		in.fd = STDIN_FILENO;
 	} else {
-		in.fd = open(in.name, O_RDONLY, 0);
+		in.fd = open(in.name, O_RDONLY | oflags, 0);
 		if (in.fd == -1)
 			err(1, "%s", in.name);
 	}
@@ -161,16 +164,15 @@ setup(void)
 		out.fd = STDOUT_FILENO;
 		out.name = "stdout";
 	} else {
-#define	OFLAGS \
-    (O_CREAT | (ddflags & (C_SEEK | C_NOTRUNC) ? 0 : O_TRUNC))
-		out.fd = open(out.name, O_RDWR | OFLAGS, DEFFILEMODE);
+		oflags |= O_CREAT | (ddflags & (C_SEEK | C_NOTRUNC) ? 0 : O_TRUNC);
+		out.fd = open(out.name, O_RDWR | oflags, DEFFILEMODE);
 		/*
 		 * May not have read access, so try again with write only.
 		 * Without read we may have a problem if output also does
 		 * not support seeks.
 		 */
 		if (out.fd == -1) {
-			out.fd = open(out.name, O_WRONLY | OFLAGS, DEFFILEMODE);
+			out.fd = open(out.name, O_WRONLY | oflags, DEFFILEMODE);
 			out.flags |= NOREAD;
 			cap_rights_clear(&rights, CAP_READ);
 		}

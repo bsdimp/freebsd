@@ -215,6 +215,8 @@ Input records shorter than the conversion record size are padded with spaces.
 Input records longer than the conversion record size are truncated.
 The number of truncated input records, if any, are reported to the standard
 error output at the completion of the copy.
+.It Cm direct
+Open all files O_DIRECT to eliminate or reduce VM cache effects.
 .It Cm ebcdic , ibm , oldebcdic , oldibm
 The same as the
 .Cm block

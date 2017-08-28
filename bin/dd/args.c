@@ -317,6 +317,7 @@ static const struct conv {
 } clist[] = {
 	{ "ascii",	C_ASCII,	C_EBCDIC,	e2a_POSIX },
 	{ "block",	C_BLOCK,	C_UNBLOCK,	NULL },
+	{ "direct",	C_DIRECT,	0,		NULL },
 	{ "ebcdic",	C_EBCDIC,	C_ASCII,	a2e_POSIX },
 	{ "ibm",	C_EBCDIC,	C_ASCII,	a2ibm_POSIX },
 	{ "lcase",	C_LCASE,	C_UCASE,	NULL },
