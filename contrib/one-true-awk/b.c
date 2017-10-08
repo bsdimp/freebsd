@@ -71,6 +71,7 @@ static uschar	*lastre;	/* origin of last re */
 
 static	int setcnt;
 static	int poscnt;
+static  int subexprlvl; /* incremented in parenthesized subexpression */
 
 char	*patbeg;
 int	patlen;
@@ -675,14 +676,20 @@ Node *primary(void)
 	case '$':
 		rtok = relex();
 		return (unary(op2(CHAR, NIL, NIL)));
+	case ')':
+		np = op2(CHAR, NIL, itonp(')'));
+		rtok = relex();
+		return (unary(np));
 	case '(':
 		rtok = relex();
 		if (rtok == ')') {	/* special pleading for () */
 			rtok = relex();
 			return unary(op2(CCL, NIL, (Node *) tostring("")));
 		}
+		subexprlvl++;
 		np = regexp();
 		if (rtok == ')') {
+			subexprlvl--;
 			rtok = relex();
 			return (unary(np));
 		}
@@ -699,6 +706,9 @@ Node *concat(Node *np)
 	switch (rtok) {
 	case CHAR: case DOT: case ALL: case EMPTYRE: case CCL: case NCCL: case '$': case '(':
 		return (concat(op2(CAT, np, primary())));
+	case ')':
+		if (subexprlvl > 0)
+			return (concat(op2(CAT, np, primary())));
 	}
 	return (np);
 }
