@@ -852,9 +852,12 @@ int relex(void)		/* lexical analyzer for reparse */
 				    prestr[2 + cc->cc_namelen] == ']') {
 					prestr += cc->cc_namelen + 3;
 					for (i = 1; i < NCHARS; i++) {
-						if (!adjbuf((char **) &buf, &bufsz, bp-buf+1, 100, (char **) &bp, "relex2"))
+						if (!adjbuf((char **) &buf, &bufsz, bp-buf+2, 100, (char **) &bp, "relex2"))
 						    FATAL("out of space for reg expr %.10s...", lastre);
 						if (cc->cc_func(i)) {
+							if (i == '\\' || i == '-') { /* escape for cclenter */
+								*bp++ = '\\';
+							}
 							*bp++ = i;
 							n++;
 						}
