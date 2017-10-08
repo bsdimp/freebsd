@@ -22,10 +22,11 @@ ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ****************************************************************/
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+const char	*version = "version 20121220";
 
-const char	*version = "version 20121220 (FreeBSD)";
+#if HAVE_NBTOOL_CONFIG_H
+#include "nbtool_config.h"
+#endif
 
 #define DEBUG
 #include <stdio.h>
@@ -35,13 +36,13 @@ const char	*version = "version 20121220 (FreeBSD)";
 #include <string.h>
 #include <signal.h>
 #include "awk.h"
-#include "ytab.h"
+#include "awkgram.h"
 
 extern	char	**environ;
 extern	int	nfields;
 
 int	dbg	= 0;
-Awkfloat	srand_seed = 1;
+unsigned int srand_seed = 1;
 char	*cmdname;	/* gets argv[0] for error messages */
 extern	FILE	*yyin;	/* lex input file */
 char	*lexprog;	/* points to program argument if it exists */
@@ -49,20 +50,60 @@ extern	int errorflag;	/* non-zero if any syntax errors; set by yyerror */
 int	compile_time = 2;	/* for error printing: */
 				/* 2 = cmdline, 1 = compile, 0 = running */
 
-#define	MAX_PFILE	20	/* max number of -f's */
-
-char	*pfile[MAX_PFILE];	/* program filenames from -f's */
-int	npfile = 0;	/* number of filenames */
-int	curpfile = 0;	/* current filename */
+static char	**pfile = NULL;	/* program filenames from -f's */
+static size_t 	maxpfile = 0;	/* max program filenames */
+static size_t	npfile = 0;	/* number of filenames */
+static size_t	curpfile = 0;	/* current filename */
 
 int	safe	= 0;	/* 1 => "safe" mode */
+
+static char *
+setfs(char *p)
+{
+#ifdef notdef
+	/* wart: t=>\t */
+	if (p[0] == 't' && p[1] == 0)
+		return "\t";
+	else
+#endif
+	if (p[0] != 0)
+		return p;
+	return NULL;
+}
+
+static void fpecatch(int n
+#ifdef SA_SIGINFO
+	, siginfo_t *si, void *uc
+#endif
+)
+{
+#ifdef SA_SIGINFO
+	static const char *emsg[] = {
+	    "Unknown error",
+	    "Integer divide by zero",
+	    "Integer overflow",
+	    "Floating point divide by zero",
+	    "Floating point overflow",
+	    "Floating point underflow",
+	    "Floating point inexact result",
+	    "Invalid Floating point operation",
+	    "Subscript out of range",
+	};
+#endif
+	FATAL("floating point exception"
+#ifdef SA_SIGINFO
+	    ": %s\n", emsg[si->si_code >= 1 && si->si_code <= 8 ?
+	    si->si_code : 0]
+#endif
+	    );
+}
 
 int main(int argc, char *argv[])
 {
 	const char *fs = NULL;
+	char *fn;
 
-	setlocale(LC_CTYPE, "");
-	setlocale(LC_COLLATE, "");
+	setlocale(LC_ALL, "");
 	setlocale(LC_NUMERIC, "C"); /* for parsing cmdline & prog */
 	cmdname = argv[0];
 	if (argc == 1) {
@@ -71,10 +112,21 @@ int main(int argc, char *argv[])
 		  cmdname);
 		exit(1);
 	}
-	signal(SIGFPE, fpecatch);
 
+#ifdef SA_SIGINFO
+	{
+		struct sigaction sa;
+		sa.sa_sigaction = fpecatch;
+		sa.sa_flags = SA_SIGINFO;
+		sigemptyset(&sa.sa_mask);
+		(void)sigaction(SIGFPE, &sa, NULL);
+	}
+#else
+	(void)signal(SIGFPE, fpecatch);
+#endif
+	/* Set and keep track of the random seed */
 	srand_seed = 1;
-	srandom((unsigned long) srand_seed);
+	srand(srand_seed);
 
 	yyin = NULL;
 	symtab = makesymtab(NSYMTAB/NSYMTAB);
@@ -95,31 +147,32 @@ int main(int argc, char *argv[])
 				safe = 1;
 			break;
 		case 'f':	/* next argument is program filename */
-			if (argv[1][2] != 0) {  /* arg is -fsomething */
-				if (npfile >= MAX_PFILE - 1)
-					FATAL("too many -f options"); 
-				pfile[npfile++] = &argv[1][2];
-			} else {		/* arg is -f something */
-				argc--; argv++;
+			if (argv[1][2] != 0) /* arg is -fsomething */
+				fn = &argv[1][2];
+			else {
+				argc--;
+				argv++;
 				if (argc <= 1)
 					FATAL("no program filename");
-				if (npfile >= MAX_PFILE - 1)
-					FATAL("too many -f options"); 
-				pfile[npfile++] = argv[1];
+				fn = argv[1];
 			}
+			if (npfile >= maxpfile) {
+				maxpfile += 20;
+				pfile = realloc(pfile,
+				    maxpfile * sizeof(*pfile));
+				if (pfile == NULL)
+					FATAL("error allocating space for "
+					    "-f options"); 
+			}
+			pfile[npfile++] = fn;
 			break;
 		case 'F':	/* set field separator */
 			if (argv[1][2] != 0) {	/* arg is -Fsomething */
-				if (argv[1][2] == 't' && argv[1][3] == 0)	/* wart: t=>\t */
-					fs = "\t";
-				else if (argv[1][2] != 0)
-					fs = &argv[1][2];
+				fs = setfs(argv[1] + 2);
 			} else {		/* arg is -F something */
 				argc--; argv++;
-				if (argc > 1 && argv[1][0] == 't' && argv[1][1] == 0)	/* wart: t=>\t */
-					fs = "\t";
-				else if (argc > 1 && argv[1][0] != 0)
-					fs = &argv[1][0];
+				if (argc > 1)
+					fs = setfs(argv[1]);
 			}
 			if (fs == NULL || *fs == '\0')
 				WARNING("field separator FS is empty");
@@ -174,7 +227,6 @@ int main(int argc, char *argv[])
 	if (!safe)
 		envinit(environ);
 	yyparse();
-	setlocale(LC_NUMERIC, ""); /* back to whatever it is locally */
 	if (fs)
 		*FS = qstring(fs, '\0');
 	   dprintf( ("errorflag=%d\n", errorflag) );
