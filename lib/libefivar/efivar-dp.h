@@ -69,4 +69,7 @@ size_t efidp_size(const_efidp);
 int efivar_device_path_to_unix_path(const_efidp dp, char **dev, char **relpath, char **abspath);
 int efivar_unix_path_to_device_path(const char *path, efidp *dp);
 
+int efivar_device_path_to_ifnet(const_efidp dp, char **ifnet);
+int efivar_ifnet_to_device_path(const char *ifnet, efidp *dp);
+
 #endif /* _EFIVAR_DP_H_ */
