@@ -47,11 +47,12 @@ static struct option longopts[] = {
 	{ "to-efi",		no_argument,		NULL,	'e' },
 	{ "format",		no_argument,		NULL,	'f' },
 	{ "parse",		no_argument,		NULL,	'p' },
+	{ "net",		no_argument,		NULL,	'n' },
 	{ NULL,			0,			NULL,	0 }
 };
 
 
-static int flag_format, flag_parse, flag_unix, flag_efi;
+static int flag_format, flag_parse, flag_unix, flag_efi, flag_net;
 
 static void
 usage(void)
@@ -61,7 +62,7 @@ usage(void)
 }
 
 static ssize_t
-read_file(int fd, void **rv) 
+read_file(int fd, void **rv)
 {
 	uint8_t *retval;
 	size_t len;
@@ -89,7 +90,7 @@ parse_args(int argc, char **argv)
 {
 	int ch;
 
-	while ((ch = getopt_long(argc, argv, "efpu",
+	while ((ch = getopt_long(argc, argv, "efnpu",
 		    longopts, NULL)) != -1) {
 		switch (ch) {
 		case 'e':
@@ -97,6 +98,9 @@ parse_args(int argc, char **argv)
 			break;
 		case 'f':
 			flag_format++;
+			break;
+		case 'n':
+			flag_net++;
 			break;
 		case 'p':
 			flag_parse++;
@@ -113,7 +117,7 @@ parse_args(int argc, char **argv)
 
 	if (argc >= 1)
 		usage();
-	
+
 	if (flag_parse + flag_format + flag_efi + flag_unix != 1) {
 		warnx("Can only use one of -p (--parse), "
 		    "and -f (--format)");
@@ -135,7 +139,7 @@ trim(char *s)
 }
 
 static void
-unix_to_efi(void)
+unix_to_efi(int (*fn)(const char *, efidp *))
 {
 	char buffer[MAXSIZE];
 	char efi[MAXSIZE];
@@ -148,8 +152,8 @@ unix_to_efi(void)
 		walker= trim(buffer);
 		free(dp);
 		dp = NULL;
-		rv = efivar_unix_path_to_device_path(walker, &dp);
-		if (rv != 0 || dp == NULL) {
+		rv = fn(walker, &dp);
+		if (rv != 0) {
 			errno = rv;
 			warn("Can't convert '%s' to efi", walker);
 			continue;
@@ -160,12 +164,13 @@ unix_to_efi(void)
 			continue;
 		}
 		printf("%s\n", efi);
+		free(dp);
 	}
 	free(dp);
 }
 
 static void
-efi_to_unix(void)
+efi_to_unix(int (*fn)(const_efidp dp, char **dev, char **relpath, char **abspath))
 {
 	char buffer[MAXSIZE];
 	char dpbuf[MAXSIZE];
@@ -178,14 +183,58 @@ efi_to_unix(void)
 	while (fgets(buffer, sizeof(buffer), stdin)) {
 		walker= trim(buffer);
 		dplen = efidp_parse_device_path(walker, dp, sizeof(dpbuf));
-		rv = efivar_device_path_to_unix_path(dp, &dev, &relpath, &abspath);
-		if (rv == 0)
+		rv = fn(dp, &dev, &relpath, &abspath);
+		if (rv == 0) {
 			printf("%s:%s %s\n", dev, relpath, abspath);
-		else {
+			free(dev);
+			free(relpath);
+			free(abspath);
+		} else {
 			errno = rv;
 			warn("Can't convert '%s' to unix", walker);
 		}
 	}
+}
+
+static void
+net_unix_to_efi(void)
+{
+
+	unix_to_efi(efivar_ifnet_to_device_path);
+}
+
+static int
+netdp_wrap(const_efidp dp, char **ifnet, char **nope1, char **nope2)
+{
+	int rv;
+
+	rv = efivar_device_path_to_ifnet(dp, ifnet);
+	if (rv == 0) {
+		*nope1 = strdup("");
+		*nope2 = strdup("");
+	}
+	return (rv);
+}
+
+static void
+net_efi_to_unix(void)
+{
+
+	efi_to_unix(netdp_wrap);
+}
+
+static void
+filepath_unix_to_efi(void)
+{
+
+	unix_to_efi(efivar_unix_path_to_device_path);
+}
+
+static void
+filepath_efi_to_unix(void)
+{
+
+	efi_to_unix(efivar_device_path_to_unix_path);
 }
 
 static void
@@ -241,10 +290,15 @@ main(int argc, char **argv)
 {
 
 	parse_args(argc, argv);
-	if (flag_unix)
-		efi_to_unix();
+	if (flag_net) {
+		if (flag_unix)
+			net_efi_to_unix();
+		else
+			net_unix_to_efi();
+	} else if (flag_unix)
+		filepath_efi_to_unix();
 	else if (flag_efi)
-		unix_to_efi();
+		filepath_unix_to_efi();
 	else if (flag_format)
 		format();
 	else if (flag_parse)

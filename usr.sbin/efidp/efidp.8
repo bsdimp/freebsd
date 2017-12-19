@@ -24,7 +24,7 @@
 .\"
 .\" $FreeBSD$
 .\"
-.Dd December 1, 2017
+.Dd December 21, 2017
 .Dt EFIDP 8
 .Os
 .Sh NAME
@@ -58,12 +58,21 @@ Leading white space is ignored.
 The resulting binary Device Path can be no longer than 65536 bytes.
 Multiple lines may be specified.
 Each one will be translated.
-.It Fl e Fl --to-efi
+.It Fl e Fl -to-efi
 Translate a Unix file path to an EFI Device Path.
 The output is the textual representation of the EFI Device Path.
-.It Fl u Fl --to-unix
+.It Fl u Fl -to-unix
 Translate an EFI device path to a Unix file path.
 The input is the textual representation of the EFI Device Path.
+.It Fl n Fl -net
+Changes the meaning of
+.Fl -to-unix
+and
+.Fl -to-efi
+to convert to and from unix ifnet interfaces.
+Only NICs directly attached to PCI are supported by
+.Lb libefivar
+at this time.
 .El
 .Sh SEE ALSO
 Appendix A of the UEFI specification has the format for GUIDs.
