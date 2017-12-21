@@ -3,6 +3,6 @@
 PROG=	efidp
 MAN=	efidp.8
 
-LIBADD= efivar geom
+LIBADD= efivar geom devinfo
 
 .include <bsd.prog.mk>
