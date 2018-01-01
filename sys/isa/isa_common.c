@@ -122,6 +122,7 @@ isa_find_memory(device_t child, struct isa_config *config,
 {
 	int success, i;
 	struct resource *res[ISA_NMEM];
+	struct	isa_device *idev = DEVTOISA(child);
 
 	/*
 	 * First clear out any existing resource definitions.
@@ -163,6 +164,10 @@ isa_find_memory(device_t child, struct isa_config *config,
 				result->ic_mem[i].ir_size = size;
 				result->ic_mem[i].ir_align = align;
 				break;
+			} else if (bootverbose) {
+				printf("%s: Failed to allocate memory %#lx-%#lx\n",
+				    pnp_eisaformat(idev->id_vendorid),
+				    (u_long)start, (u_long)(start + size - 1));
 			}
 		}
 
@@ -196,6 +201,7 @@ isa_find_port(device_t child, struct isa_config *config,
 {
 	int success, i;
 	struct resource *res[ISA_NPORT];
+	struct	isa_device *idev = DEVTOISA(child);
 
 	/*
 	 * First clear out any existing resource definitions.
@@ -237,6 +243,10 @@ isa_find_port(device_t child, struct isa_config *config,
 				result->ic_port[i].ir_size = size;
 				result->ic_port[i].ir_align = align;
 				break;
+			} else if (bootverbose) {
+				printf("%s: Failed to allocate ioport %#lx-%#lx\n",
+				    pnp_eisaformat(idev->id_vendorid),
+				    (u_long)start, (u_long)(start + size - 1));
 			}
 		}
 
@@ -293,6 +303,7 @@ isa_find_irq(device_t child, struct isa_config *config,
 {
 	int success, i;
 	struct resource *res[ISA_NIRQ];
+	struct	isa_device *idev = DEVTOISA(child);
 
 	/*
 	 * First clear out any existing resource definitions.
@@ -325,6 +336,9 @@ isa_find_irq(device_t child, struct isa_config *config,
 			if (res[i]) {
 				result->ic_irqmask[i] = (1 << irq);
 				break;
+			} else if (bootverbose) {
+				printf("%s: Failed to allocate irq %d\n",
+				    pnp_eisaformat(idev->id_vendorid), irq);
 			}
 		}
 
@@ -358,6 +372,7 @@ isa_find_drq(device_t child, struct isa_config *config,
 {
 	int success, i;
 	struct resource *res[ISA_NDRQ];
+	struct	isa_device *idev = DEVTOISA(child);
 
 	/*
 	 * First clear out any existing resource definitions.
@@ -390,6 +405,9 @@ isa_find_drq(device_t child, struct isa_config *config,
 			if (res[i]) {
 				result->ic_drqmask[i] = (1 << drq);
 				break;
+			} else if (bootverbose) {
+				printf("%s: Failed to allocate drq %d\n",
+				    pnp_eisaformat(idev->id_vendorid), drq);
 			}
 		}
 
