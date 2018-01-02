@@ -161,13 +161,22 @@
 #define	EXCA_ADDRWIN_ENABLE_MEM0		0x01
 
 #define	EXCA_CARD_DETECT			0x16	/* RW */
-#define	EXCA_CARD_DETECT_RESERVED		0xC0
+#define	EXCA_CARD_DETECT_VS2			0x80
+#define	EXCA_CARD_DETECT_VS1			0x40
 #define	EXCA_CARD_DETECT_SW_INTR		0x20
 #define	EXCA_CARD_DETECT_RESUME_ENABLE		0x10
 #define	EXCA_CARD_DETECT_GPI_TRANSCTL		0x08
 #define	EXCA_CARD_DETECT_GPI_ENABLE		0x04
 #define	EXCA_CARD_DETECT_CFGRST_ENABLE		0x02
 #define	EXCA_CARD_DETECT_MEMDLY_INHIBIT		0x01
+
+#define EXCA_MISC1				0x16	/* RO --= CL only */
+#define EXCA_MISC1_5V_DETECT			0x01
+#define	EXCA_MISC1_VCC_33			0x02	/* 1 3.3V Vcc, else 5.0V Vcc */
+#define EXCA_MISC1_PMINT			0x04	/* Pulse Management Intr */
+#define EXCA_MISC1_PCINT			0x08	/* Pulse Card interrupt */
+#define EXCA_MISC1_SPEAKER			0x10	/* Connect speaker from card */
+#define EXCA_MISC1_INPACK			0x80	/* INPACK trottles data ? */
 
 /* interrupt registers */
 
@@ -386,7 +395,14 @@
 #define EXCA_CIRRUS_EXTENDED_INDEX		0x2E
 #define EXCA_CIRRUS_EXTENDED_DATA		0x2F
 #define EXCA_CIRRUS_EXT_CONTROL_1		0x03
+#define EXCA_CIRRUS_EXT_VCC_33			0x02
 #define EXCA_CIRRUS_EXT_CONTROL_1_PCI_INTR_MASK	0x18
+
+#define EXCA_VADEM_CVSR				0x2f
+#define EXCA_VADEM_CVSR_VS_33			0x03
+
+#define EXCA_RICOH_MCR2				0x2f
+#define EXCA_RICOH_MCR2_VCC_33			0x01
 
 #define EXCA_VADEM_VMISC			0x3a
 #define EXCA_VADEM_REV				0x40

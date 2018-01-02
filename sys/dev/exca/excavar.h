@@ -79,8 +79,15 @@ struct exca_softc
 #define EXCA_SOCKET_PRESENT	0x00000001
 #define EXCA_HAS_MEMREG_WIN	0x00000002
 #define EXCA_CARD_OK		0x00000004
-#define EXCA_EVENT		0x80000000
+	uint32_t	caps;
+#define EXCA_CAP_POWER_MASK	0x0000000f
+#define EXCA_365_POWER		0x00000000	/* Intel i82365SL-A/B also DF power */
+#define EXCA_PD_POWER		0x00000001	/* Cirris Logic PD67[12]x power */
+#define EXCA_VG_POWER		0x00000002	/* Vadim [34]xx series power */
+#define EXCA_RICOH_POWER	0x00000003	/* Ricoh [23]96 power */
+#define EXCA_KING_QUIRK		0x00000010	/* IBM King adapter power */
 	uint32_t	offset;
+	int		slot;
 	int		chipset;
 #define EXCA_CARDBUS	0
 #define	EXCA_I82365	1		/* Intel i82365SL-A/B or clone */
@@ -116,6 +123,8 @@ int exca_mem_set_flags(struct exca_softc *sc, struct resource *res,
 int exca_mem_set_offset(struct exca_softc *sc, struct resource *res,
     uint32_t cardaddr, uint32_t *deltap);
 int exca_mem_unmap_res(struct exca_softc *sc, struct resource *res);
+void exca_power_on(struct exca_softc *);
+void exca_power_off(struct exca_softc *);
 int exca_probe_slots(device_t dev, struct exca_softc *exca,
     bus_space_tag_t iot, bus_space_handle_t ioh);
 void exca_removal(struct exca_softc *);

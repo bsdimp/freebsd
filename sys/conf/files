@@ -1736,7 +1736,7 @@ dev/evdev/uinput.c			optional evdev uinput
 dev/ex/if_ex.c			optional ex
 dev/ex/if_ex_isa.c		optional ex isa
 dev/ex/if_ex_pccard.c		optional ex pccard
-dev/exca/exca.c			optional cbb
+dev/exca/exca.c			optional cbb | pcic
 dev/extres/clk/clk.c		optional ext_resources clk fdt
 dev/extres/clk/clkdev_if.m	optional ext_resources clk fdt
 dev/extres/clk/clknode_if.m	optional ext_resources clk fdt
@@ -2608,8 +2608,7 @@ dev/pccard/pccard_cis.c		optional pccard
 dev/pccard/pccard_cis_quirks.c	optional pccard
 dev/pccard/pccard_device.c	optional pccard
 dev/pccard/power_if.m		standard
-dev/pccbb/pccbb.c		optional cbb
-dev/pccbb/pccbb_isa.c		optional cbb isa
+dev/pccbb/pccbb.c		optional cbb pci
 dev/pccbb/pccbb_pci.c		optional cbb pci
 dev/pcf/pcf.c			optional pcf
 dev/pci/fixup_pci.c		optional pci
@@ -2627,6 +2626,7 @@ dev/pci/pci_user.c		optional pci
 dev/pci/pcib_if.m		standard
 dev/pci/pcib_support.c		standard
 dev/pci/vga_pci.c		optional pci
+dev/pcic/pcic.c			optional pcic
 dev/pcn/if_pcn.c		optional pcn pci
 dev/pms/freebsd/driver/ini/src/agtiapi.c		optional pmspcv \
 	compile-with "${NORMAL_C} -Wunused-variable -Woverflow -Wparentheses -w"

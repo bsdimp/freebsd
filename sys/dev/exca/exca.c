@@ -88,23 +88,25 @@ __FBSDID("$FreeBSD$");
 #define DPRINTF(fmt, args...)
 #endif
 
-static const char *chip_names[] = 
-{
-	"CardBus socket",
-	"Intel i82365SL-A/B or clone",
-	"Intel i82365sl-DF step",
-	"VLSI chip",
-	"Cirrus Logic PD6710",
-	"Cirrus logic PD6722",
-	"Cirrus Logic PD6729",
-	"Vadem 365",
-	"Vadem 465",
-	"Vadem 468",
-	"Vadem 469",
-	"Ricoh RF5C296",
-	"Ricoh RF5C396",
-	"IBM clone",
-	"IBM KING PCMCIA Controller"
+static struct {
+	const char	*name;
+	uint32_t	caps;
+} chips[] = {
+	{ "CardBus socket",			0 },
+	{ "Intel i82365SL-A/B or clone",	EXCA_365_POWER },
+	{ "Intel i82365sl-DF step",		EXCA_365_POWER },
+	{ "VLSI 82C146",			EXCA_365_POWER },
+	{ "Cirrus Logic PD6710",		EXCA_PD_POWER },
+	{ "Cirrus logic PD6722",		EXCA_PD_POWER },
+	{ "Cirrus Logic PD6729",		EXCA_PD_POWER },
+	{ "Vadem 365",				EXCA_VG_POWER },
+	{ "Vadem 465",				EXCA_VG_POWER },
+	{ "Vadem 468",				EXCA_VG_POWER },
+	{ "Vadem 469",				EXCA_VG_POWER },
+	{ "Ricoh RF5C296",			EXCA_RICOH_POWER },
+	{ "Ricoh RF5C396",			EXCA_RICOH_POWER },
+	{ "IBM clone",				EXCA_365_POWER },
+	{ "IBM KING PCMCIA Controller",		EXCA_365_POWER  | EXCA_KING_QUIRK},
 };
 
 static exca_getb_fn exca_mem_getb;
@@ -112,6 +114,7 @@ static exca_putb_fn exca_mem_putb;
 static exca_getb_fn exca_io_getb;
 static exca_putb_fn exca_io_putb;
 
+static int exca_valid_slot(struct exca_softc *exca);
 /* memory */
 
 #define	EXCA_MEMINFO(NUM) {						\
@@ -183,10 +186,10 @@ exca_do_mem_map(struct exca_softc *sc, int win)
 	uint32_t offset;
 	uint32_t mem16;
 	uint32_t attrmem;
-	
+
 	map = &mem_map_index[win];
 	mem = &sc->mem[win];
-	mem16 = (mem->kind & PCCARD_MEM_16BIT) ? 
+	mem16 = (mem->kind & PCCARD_MEM_16BIT) ?
 	    EXCA_SYSMEM_ADDRX_START_MSB_DATASIZE_16BIT : 0;
 	attrmem = (mem->kind & PCCARD_MEM_ATTR) ?
 	    EXCA_CARDMEM_ADDRX_MSB_REGACTIVE_ATTR : 0;
@@ -384,7 +387,7 @@ exca_mem_unmap_res(struct exca_softc *sc, struct resource *res)
 	exca_mem_unmap(sc, win);
 	return (0);
 }
-	
+
 /*
  * Set the offset of the memory.  We use this for reading the CIS and
  * frobbing the pccard's pccard registers (CCR, etc).  Some drivers
@@ -415,7 +418,7 @@ exca_mem_set_offset(struct exca_softc *sc, struct resource *res,
 	exca_do_mem_map(sc, win);
 	return (0);
 }
-			
+
 
 /* I/O */
 
@@ -566,7 +569,7 @@ exca_io_unmap_res(struct exca_softc *sc, struct resource *res)
  * If interrupts are enabled, then we should be able to just wait for
  * an interrupt routine to wake us up.  Busy waiting shouldn't be
  * necessary.  Sadly, not all legacy ISA cards support an interrupt
- * for the busy state transitions, at least according to their datasheets, 
+ * for the busy state transitions, at least according to their datasheets,
  * so we busy wait a while here..
  */
 static void
@@ -587,7 +590,7 @@ exca_wait_ready(struct exca_softc *sc)
 /*
  * Reset the card.  Ideally, we'd do a lot of this via interrupts.
  * However, many PC Cards will deassert the ready signal.  This means
- * that they are asserting an interrupt.  This makes it hard to 
+ * that they are asserting an interrupt.  This makes it hard to
  * do anything but a busy wait here.  One could argue that these
  * such cards are broken, or that the bridge that allows this sort
  * of interrupt through isn't quite what you'd want (and may be a standards
@@ -634,7 +637,7 @@ exca_reset(struct exca_softc *sc, device_t child)
  * Initialize the exca_softc data structure for the first time.
  */
 void
-exca_init(struct exca_softc *sc, device_t dev, 
+exca_init(struct exca_softc *sc, device_t dev,
     bus_space_tag_t bst, bus_space_handle_t bsh, uint32_t offset)
 {
 	sc->dev = dev;
@@ -646,11 +649,13 @@ exca_init(struct exca_softc *sc, device_t dev,
 	sc->flags = 0;
 	sc->getb = exca_mem_getb;
 	sc->putb = exca_mem_putb;
-	sc->pccarddev = device_add_child(dev, "pccard", -1);
-	if (sc->pccarddev == NULL)
-		DEVPRINTF(brdev, "WARNING: cannot add pccard bus.\n");
-	else if (device_probe_and_attach(sc->pccarddev) != 0)
-		DEVPRINTF(brdev, "WARNING: cannot attach pccard bus.\n");
+	if (exca_valid_slot(sc)) {
+		sc->pccarddev = device_add_child(dev, "pccard", -1);
+		if (sc->pccarddev == NULL)
+			DEVPRINTF(brdev, "WARNING: cannot add pccard bus.\n");
+		else if (device_probe_and_attach(sc->pccarddev) != 0)
+			DEVPRINTF(brdev, "WARNING: cannot attach pccard bus.\n");
+	}
 }
 
 /*
@@ -744,23 +749,44 @@ exca_valid_slot(struct exca_softc *exca)
 
 	case EXCA_IDENT_REV_I82365SLDF:
 		/*
-		 *	Intel i82365sl-DF step or maybe a vlsi 82c146
-		 * we detected the vlsi case earlier, so if the controller
-		 * isn't set, we know it is a i82365sl step D.
-		 * XXXX Except we didn't -- this is a regression but VLSI
-		 * controllers are super hard to find these days for testing.
+		 * Intel i82365sl-DF step or maybe a vlsi 82c146
+		 * was found. VLSI controllers are weird in that
+		 * they decode 4 addresses: 0x3e0, 0x3e1 and
+		 * 0x3e4 and 0x3e5 with slot 0 valid in the
+		 * first range and slot 3 valid in the second.
+		 * Unless one of these surfaces, and only has one
+		 * slot working, we'll assume its the way more common
+		 * Intel part.
 		 */
 		exca->chipset = EXCA_I82365SL_DF;
 		break;
 	case EXCA_IDENT_REV_IBM1:
 	case EXCA_IDENT_REV_IBM2:
+		/*
+		 * This chipset is likely completely untested. It was
+		 * possible, but difficult to find these back in the
+		 * day. No docs were findable in 2004, but it did
+		 * appear in a few dmesg output messages posted to
+		 * mailing lists. The clone was popular in the early
+		 * days, and what little we do here to support it
+		 * was culled directly from PAO pccard code.
+		 */
 		exca->chipset = EXCA_IBM;
 		break;
 	case EXCA_IDENT_REV_IBM_KING:
+		/*
+		 * This chipset is likely completely untested. It's
+		 * unclear where it was even deployed as I could find
+		 * no docs for it and no dmesg output could be found.
+		 */
 		exca->chipset = EXCA_IBM_KING;
 		break;
 	default:
 		return (0);
+	}
+	if (exca->chipset != EXCA_BOGUS) {
+		exca->flags |= EXCA_SOCKET_PRESENT;
+		exca->caps = chips[exca->chipset].caps;
 	}
 	return (1);
 }
@@ -784,8 +810,14 @@ exca_probe_slots(device_t dev, struct exca_softc *exca, bus_space_tag_t iot,
 		exca_init(&exca[i], dev, iot, ioh, i * EXCA_SOCKET_SIZE);
 		exca->getb = exca_io_getb;
 		exca->putb = exca_io_putb;
+		/*
+		 * Exca is kinda special. you can have two exca
+		 * devices sharing the same address. However,
+		 * we have just one slot to set a name.
+		 */
 		if (exca_valid_slot(&exca[i])) {
-			device_set_desc(dev, chip_names[exca[i].chipset]);
+			device_set_desc(dev, chips[exca[i].chipset].name);
+			exca[i].slot = i;
 			err = 0;
 		}
 	}
@@ -804,7 +836,6 @@ exca_insert(struct exca_softc *exca)
 		    "PC Card inserted, but no pccard bus.\n");
 	}
 }
-  
 
 void
 exca_removal(struct exca_softc *exca)
@@ -925,6 +956,142 @@ exca_release_resource(struct exca_softc *sc, device_t child, int type,
 	    type, rid, res));
 }
 #endif
+
+/*
+ * Power functions
+ */
+static int
+exca_detect_voltage(struct exca_softc *sc)
+{
+	int voltage;
+	uint8_t c, c2;
+
+	/*
+	 * If we don't know how to ask the card, assume 5.0V.
+	 */
+	voltage = 50;
+	switch (sc->caps & EXCA_CAP_POWER_MASK) {
+	case EXCA_365_POWER:
+		/*
+		 * The A/B datasheet doesn't list this register, but later
+		 * ones do. The PC Card standard says 3.3V is VS1 and !VS2,
+		 * so check both bits here. The reserved registers on older
+		 * kit will read 0 or 0xff depending on the bridge, and this
+		 * test lets us fall back to 5.0V there (where 3.3V cards
+		 * aren't supported).
+		 */
+		c = exca_getb(sc, EXCA_CARD_DETECT);
+		if ((c & EXCA_CARD_DETECT_VS1) == 0 &&
+		    (c & EXCA_CARD_DETECT_VS2) != 0)
+			voltage = 33;
+		else
+			voltage = 50;
+		break;
+	case EXCA_PD_POWER:
+		/*
+		 * The 6710 does it one way, and the '22 and '29 do it another.
+		 * The '22 can also do it the same way as a '10 does it, despite
+		 * what the datasheets say.  Some laptops with '22 don't seem to
+		 * have the signals wired right for the '29 method to work.  The
+		 * laptops that don't work hang solid when the pccard memory is
+		 * accessed.
+		 *
+		 * To allow for both types of laptops, hw.pcic.pd6722_vsense
+		 * will select which one to use.  0 - none, 1 - the '10 way and
+		 * 2 - the '29 way.
+		 *
+		 * Except we're doing none of this rght now since we don't
+		 * support the PD6729 at the moment. It's a placeholder for
+		 */
+		c = exca_getb(sc, EXCA_MISC1);
+		if ((c & EXCA_MISC1_5V_DETECT) == 0)
+			voltage = 33;
+		else
+			voltage = 50;
+		break;
+	case EXCA_RICOH_POWER:
+		/*
+		 * Recoh cards use the reserve d0x80 bit in register 1 to signal
+		 * 0 = 5V 1 = 3.3V. However, the 3.3V signal is valid only if
+		 * GPI_ENABLE is true. Otherwise the signal can glitch, so we have
+		 * to ignore it then.
+		 */
+		c = exca_getb(sc, EXCA_IF_STATUS);
+		c2 = exca_getb(sc, EXCA_CARD_DETECT);
+		if ((c & EXCA_IF_STATUS_GPI) != 0 &&
+		    (c2 & EXCA_CARD_DETECT_GPI_ENABLE) != 0)
+			voltage = 33;
+		else
+			voltage = 50;
+		break;
+	}
+
+	return (voltage);
+}
+
+static void
+exca_power_up_sequence(struct exca_softc *sc, int voltage)
+{
+	uint8_t reg;
+
+	reg = EXCA_PWRCTL_DISABLE_RESETDRV | EXCA_PWRCTL_PWR_ENABLE |
+	    EXCA_PWRCTL_AUTOSWITCH_ENABLE | EXCA_PWRCTL_VPP1_EN0;
+	if (sc->caps & EXCA_KING_QUIRK)
+		reg |= EXCA_PWRCTL_VPP2_EN0;
+	switch (sc->caps & EXCA_CAP_POWER_MASK) {
+	case EXCA_365_POWER:
+		if (voltage == 33)
+			reg |= EXCA_PWRCTL_VPP2_EN1;
+		break;
+	case EXCA_VG_POWER:
+		if (voltage == 33)
+			exca_setb(sc, EXCA_VADEM_CVSR, EXCA_VADEM_CVSR_VS_33);
+		else
+			exca_clrb(sc, EXCA_VADEM_CVSR, EXCA_VADEM_CVSR_VS_33);
+		break;
+	case EXCA_PD_POWER:
+		if (voltage == 33)
+			exca_setb(sc, EXCA_CIRRUS_EXTENDED_DATA,
+			    EXCA_CIRRUS_EXT_VCC_33);
+		else
+			exca_clrb(sc, EXCA_CIRRUS_EXTENDED_DATA,
+			    EXCA_CIRRUS_EXT_VCC_33);
+		break;
+	case EXCA_RICOH_POWER:
+		if (voltage == 33)
+			exca_setb(sc, EXCA_RICOH_MCR2, EXCA_RICOH_MCR2_VCC_33);
+		else
+			exca_clrb(sc, EXCA_RICOH_MCR2, EXCA_RICOH_MCR2_VCC_33);
+		break;
+	}
+	exca_putb(sc, EXCA_PWRCTL, reg);
+	pause("pcicstart", hz * 3  / 10);	/* pause 300ms */
+	reg |= EXCA_PWRCTL_OE;
+	exca_putb(sc, EXCA_PWRCTL, reg);
+	pause("pcicstart", hz / 10);		/* pause 100ms */
+	/* XXXX Power interrupts here? what to do */
+
+	/*
+	 * OLDCARD has smoe crazy work arounds for 3.3V cards, but I
+	 * don't think we need it anymore.
+	 */
+}
+
+void
+exca_power_on(struct exca_softc *sc)
+{
+	int voltage;
+
+	voltage = exca_detect_voltage(sc);
+	exca_power_up_sequence(sc, voltage);
+}
+
+void
+exca_power_off(struct exca_softc *sc)
+{
+
+	exca_putb(sc, EXCA_PWRCTL, 0);
+}
 
 static int
 exca_modevent(module_t mod, int cmd, void *arg)
