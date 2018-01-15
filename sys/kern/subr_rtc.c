@@ -358,6 +358,11 @@ inittodr(time_t base)
 	}
 
 	if (ts.tv_sec >= 0) {
+		/*
+		 * Warm up timecounter again and reset system clock.
+		 */
+		(void)timecounter->tc_get_timecount(timecounter);
+		(void)timecounter->tc_get_timecount(timecounter);
 		tc_setclock(&ts);
 #ifdef FFCLOCK
 		ffclock_reset_clock(&ts);

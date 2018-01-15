@@ -1067,46 +1067,19 @@ apm_processevent(void)
 	} while (apm_event != PMEV_NOEVENT);
 }
 
-static struct timeval suspend_time;
-static struct timeval diff_time;
-
 static int
 apm_rtc_suspend(void *arg __unused)
 {
 
-	microtime(&diff_time);
-	inittodr(0);
-	microtime(&suspend_time);
-	timevalsub(&diff_time, &suspend_time);
 	return (0);
 }
 
 static int
 apm_rtc_resume(void *arg __unused)
 {
-	u_int second, minute, hour;
-	struct timeval resume_time, tmp_time;
 
-	/* modified for adjkerntz */
-	timer_restore();		/* restore the all timers */
-	inittodr(0);			/* adjust time to RTC */
-	microtime(&resume_time);
-	getmicrotime(&tmp_time);
-	timevaladd(&tmp_time, &diff_time);
-	/* Calculate the delta time suspended */
-	timevalsub(&resume_time, &suspend_time);
-
-#ifdef PMTIMER_FIXUP_CALLTODO
-	/* Fixup the calltodo list with the delta time. */
-	adjust_timeout_calltodo(&resume_time);
-#endif /* PMTIMER_FIXUP_CALLTODO */
-	second = resume_time.tv_sec;
-	hour = second / 3600;
-	second %= 3600;
-	minute = second / 60;
-	second %= 60;
-	log(LOG_NOTICE, "wakeup from sleeping state (slept %02d:%02d:%02d)\n",
-		hour, minute, second);
+	timer_restore();
+	inittodr(0);
 	return (0);
 }
 
