@@ -11,4 +11,7 @@ SRCS= efichar.c efiutil.c efibootmgr.c
 
 LIBADD= efivar geom
 
+LNKS=	${BINDIR}/efibootmgr ${BINDIR}/uefibootmgr
+MLINKS=	efibootmgr.8 uefibootmgr.8
+
 .include <bsd.prog.mk>
