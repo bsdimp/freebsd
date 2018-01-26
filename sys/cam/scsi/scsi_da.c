@@ -1537,8 +1537,6 @@ static const char *da_ref_text[] = {
 
 #define DA_PERIPH_PRINT(periph, msg, args...)		\
 	CAM_PERIPH_PRINT(periph, msg, ##args)
-#else
-#define DA_PERIPH_PRINT(periph, msg, args...)
 #endif
 
 static inline void
@@ -1643,6 +1641,10 @@ da_periph_release_locked(struct cam_periph *periph, da_ref_token token)
 #define da_periph_acquire(periph, token)	cam_periph_acquire((periph))
 #define da_periph_release(periph, token)	cam_periph_release((periph))
 #define da_periph_release_locked(periph, token)	cam_periph_release_locked((periph))
+#endif
+
+#ifndef CAM_PERIPH_PRINT
+#define CAM_PERIPH_PRINT(p, msg, args...)
 #endif
 
 static int
