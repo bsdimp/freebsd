@@ -1926,6 +1926,7 @@ dadiskgonecb(struct disk *dp)
 	struct cam_periph *periph;
 
 	periph = (struct cam_periph *)dp->d_drv1;
+	CAM_PERIPH_PRINT(periph, "dadiskgonecb\n");
 	da_periph_release(periph, DA_REF_GEOM);
 }
 
@@ -1936,6 +1937,8 @@ daoninvalidate(struct cam_periph *periph)
 
 	cam_periph_assert(periph, MA_OWNED);
 	softc = (struct da_softc *)periph->softc;
+
+	CAM_PERIPH_PRINT(periph, "daoninvalidate\n");
 
 	/*
 	 * De-register any async callbacks.
@@ -1967,6 +1970,8 @@ dacleanup(struct cam_periph *periph)
 	struct da_softc *softc;
 
 	softc = (struct da_softc *)periph->softc;
+
+	CAM_PERIPH_PRINT(periph, "dacleanup\n");
 
 	cam_periph_unlock(periph);
 
