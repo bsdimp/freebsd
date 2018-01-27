@@ -1996,6 +1996,7 @@ dacleanup(struct cam_periph *periph)
 	callout_drain(&softc->mediapoll_c);
 	disk_destroy(softc->disk);
 	callout_drain(&softc->sendordered_c);
+	memset(softc, 0xaf, sizeof (*softc));
 	free(softc, M_DEVBUF);
 	cam_periph_lock(periph);
 }
