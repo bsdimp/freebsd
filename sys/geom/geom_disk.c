@@ -779,6 +779,8 @@ g_disk_providergone(struct g_provider *pp)
 
 	sc = (struct g_disk_softc *)pp->private;
 	dp = sc->dp;
+	printf("g_disk_providergone: pp %s (%p) sc %p dp %s%d (%p)\n",
+	    pp->name, pp, sc, dp->d_name, dp->d_unit, dp);
 	if (dp != NULL && dp->d_gone != NULL)
 		dp->d_gone(dp);
 	if (sc->sysctl_tree != NULL) {
