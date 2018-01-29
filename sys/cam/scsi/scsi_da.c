@@ -1927,7 +1927,9 @@ dadiskgonecb(struct disk *dp)
 {
 	struct cam_periph *periph;
 
+	printf("dadiskgone: dp %p\n", dp);
 	periph = (struct cam_periph *)dp->d_drv1;
+	printf("dadiskgone: periph %p\n", periph);
 	CAM_PERIPH_PRINT(periph, "dadiskgonecb\n");
 	da_periph_release(periph, DA_REF_GEOM);
 }
