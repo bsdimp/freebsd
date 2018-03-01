@@ -85,6 +85,7 @@ struct disk {
 	int			d_goneflag;
 	int			d_destroyed;
 	disk_init_level		d_init_level;
+	LIST_HEAD(,disk_alias)	d_aliases;
 
 	/* Shared fields */
 	u_int			d_flags;
@@ -118,12 +119,11 @@ struct disk {
 	uint16_t		d_hba_subvendor;
 	uint16_t		d_hba_subdevice;
 	uint16_t		d_rotation_rate;
+	uint16_t		d_spare;
+	int			d_numa_domain;
 
 	/* Fields private to the driver */
 	void			*d_drv1;
-
-	/* Fields private to geom_disk, to be moved on next version bump */
-	LIST_HEAD(,disk_alias)	d_aliases;
 };
 
 #define	DISKFLAG_RESERVED		0x0001	/* Was NEEDSGIANT */
@@ -151,7 +151,8 @@ void disk_add_alias(struct disk *disk, const char *);
 #define DISK_VERSION_03		0x5856105c
 #define DISK_VERSION_04		0x5856105d
 #define DISK_VERSION_05		0x5856105e
-#define DISK_VERSION		DISK_VERSION_05
+#define DISK_VERSION_06		0x5856105f
+#define DISK_VERSION		DISK_VERSION_06
 
 #endif /* _KERNEL */
 #endif /* _GEOM_GEOM_DISK_H_ */
