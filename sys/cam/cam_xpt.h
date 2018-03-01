@@ -163,6 +163,43 @@ xpt_path_inq(struct ccb_pathinq *cpi, struct cam_path *path)
 	xpt_action((union ccb *)cpi);
 }
 
+/*
+ * Get the @key associated with the @path using the @ckv CCB to ask the
+ * SIM.
+ */
+static inline void
+xpt_kv_get(struct ccb_kv *ckv, struct cam_path *path, const char *key)
+{
+
+	bzero(ckv, sizeof(*ckv));
+	xpt_setup_ccb(&ckv->ccb_h, path, CAM_PRIORITY_NORMAL);
+	ckv->ccb_h.func_code = XPT_KV_GET;
+	strlcpy(ckv->key, key, sizeof(ckv->key));
+	xpt_action((union ccb *)ckv);
+}
+
+/*
+ * Set the @key associated with the @path using the @ckv CCB to ask the
+ * SIM.
+ */
+static inline void
+xpt_kv_set(struct ccb_kv *ckv, struct cam_path *path, const char *key,
+    void *value, size_t len)
+{
+
+	bzero(ckv, sizeof(*ckv));
+	xpt_setup_ccb(&ckv->ccb_h, path, CAM_PRIORITY_NORMAL);
+	ckv->ccb_h.func_code = XPT_KV_SET;
+	if (len > sizeof(ckv->u)) {
+		/* Not queued, so just set status and return */
+		ckv->ccb_h.status = CAM_REQ_ABORTED | CAM_REQ_TOO_BIG;
+		return;
+	}
+	strlcpy(ckv->key, key, sizeof(ckv->key));
+	memcpy(&ckv->u, value, len);
+	xpt_action((union ccb *)ckv);
+}
+
 #endif /* _KERNEL */
 
 #endif /* _CAM_CAM_XPT_H */

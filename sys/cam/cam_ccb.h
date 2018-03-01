@@ -247,6 +247,12 @@ typedef enum {
 	XPT_REPROBE_LUN		= 0x38 | XPT_FC_QUEUED | XPT_FC_USER_CCB,
 				/* Query device capacity and notify GEOM */
 
+/* Generic SIM: 0x40->0x4f */
+	XPT_KV_GET		= 0x40,
+				/* Get the Value for the passed in Key */
+	XPT_KV_SET		= 0x41,
+				/* Set the value based on the key */
+
 /* Vendor Unique codes: 0x80->0x8F */
 	XPT_VUNIQUE		= 0x80
 } xpt_opcode;
@@ -1295,6 +1301,24 @@ struct ccb_async {
 };
 
 /*
+ * CCB for key value pairs
+ */
+struct ccb_kv {
+	struct	ccb_hdr			ccb_h;
+#define	CCB_KV_KEY_LEN		64
+#define	CCB_KV_VAL_LEN		128
+	char				key[CCB_KV_KEY_LEN];
+	uint32_t			val_len;
+	union {
+		void			*ptr;		/* In kernel only */
+		uintptr_t		num;
+		char			value[CCB_KV_VAL_LEN];
+	} u;
+};
+#define	CCB_KV_DEVICE_T			"device_t"
+#define	CCB_KV_NUMA_DOMAIN		"numa_domain"
+
+/*
  * Union of all CCB types for kernel space allocation.  This union should
  * never be used for manipulating CCBs - its only use is for the allocation
  * and deallocation of raw CCB space and is the return type of xpt_ccb_alloc
@@ -1336,6 +1360,7 @@ union ccb {
 	struct	ccb_async		casync;
 	struct	ccb_nvmeio		nvmeio;
 	struct	ccb_mmcio		mmcio;
+	struct	ccb_kv			kv;
 };
 
 #define CCB_CLEAR_ALL_EXCEPT_HDR(ccbp)			\
