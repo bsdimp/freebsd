@@ -816,6 +816,8 @@ ndaregister(struct cam_periph *periph, void *arg)
 	    DEVSTAT_ALL_SUPPORTED,
 	    DEVSTAT_TYPE_DIRECT | XPORT_DEVSTAT_TYPE(cpi.transport),
 	    DEVSTAT_PRIORITY_DISK);
+	xpt_get_numa_domain(periph->path, &disk->d_numa_domain);
+
 	/*
 	 * Add alias for older nvd drives to ease transition.
 	 */

@@ -759,6 +759,101 @@ sddaregister(struct cam_periph *periph, void *arg)
 	return (CAM_REQ_CMP);
 }
 
+static cam_status
+sdda_hook_into_geom(struct cam_periph *periph)
+{
+	struct sdda_softc *softc;
+	struct ccb_pathinq cpi;
+	struct ccb_getdev cgd;
+	u_int maxio;
+
+	softc = (struct sdda_softc*) periph->softc;
+
+	xpt_path_inq(&cpi, periph->path);
+
+	bzero(&cgd, sizeof(cgd));
+	xpt_setup_ccb(&cgd.ccb_h, periph->path, CAM_PRIORITY_NONE);
+	cpi.ccb_h.func_code = XPT_GDEV_TYPE;
+	xpt_action((union ccb *)&cgd);
+
+	/*
+	 * Register this media as a disk
+	 */
+	(void)cam_periph_hold(periph, PRIBIO);
+	cam_periph_unlock(periph);
+
+	softc->disk = disk_alloc();
+	softc->disk->d_rotation_rate = 0;
+	softc->disk->d_devstat = devstat_new_entry(periph->periph_name,
+			  periph->unit_number, 512,
+			  DEVSTAT_ALL_SUPPORTED,
+			  DEVSTAT_TYPE_DIRECT |
+			  XPORT_DEVSTAT_TYPE(cpi.transport),
+			  DEVSTAT_PRIORITY_DISK);
+	softc->disk->d_open = sddaopen;
+	softc->disk->d_close = sddaclose;
+	softc->disk->d_strategy = sddastrategy;
+	softc->disk->d_getattr = sddagetattr;
+//	softc->disk->d_dump = sddadump;
+	softc->disk->d_gone = sddadiskgonecb;
+	softc->disk->d_name = "sdda";
+	softc->disk->d_drv1 = periph;
+	maxio = cpi.maxio;		/* Honor max I/O size of SIM */
+	if (maxio == 0)
+		maxio = DFLTPHYS;	/* traditional default */
+	else if (maxio > MAXPHYS)
+		maxio = MAXPHYS;	/* for safety */
+	softc->disk->d_maxsize = maxio;
+	softc->disk->d_unit = periph->unit_number;
+	softc->disk->d_flags = DISKFLAG_CANDELETE;
+	strlcpy(softc->disk->d_descr, softc->card_id_string,
+	    MIN(sizeof(softc->disk->d_descr), sizeof(softc->card_id_string)));
+	strlcpy(softc->disk->d_ident, softc->card_sn_string,
+	    MIN(sizeof(softc->disk->d_ident), sizeof(softc->card_sn_string)));
+	softc->disk->d_hba_vendor = cpi.hba_vendor;
+	softc->disk->d_hba_device = cpi.hba_device;
+	softc->disk->d_hba_subvendor = cpi.hba_subvendor;
+	softc->disk->d_hba_subdevice = cpi.hba_subdevice;
+
+	softc->disk->d_sectorsize = 512;
+	softc->disk->d_mediasize = softc->mediasize;
+	softc->disk->d_stripesize = 0;
+	softc->disk->d_fwsectors = 0;
+	softc->disk->d_fwheads = 0;
+	xpt_get_numa_domain(periph->path, &softc->disk->d_numa_domain);
+
+	/*
+	 * Acquire a reference to the periph before we register with GEOM.
+	 * We'll release this reference once GEOM calls us back (via
+	 * sddadiskgonecb()) telling us that our provider has been freed.
+	 */
+	if (cam_periph_acquire(periph) != 0) {
+		xpt_print(periph->path, "%s: lost periph during "
+			  "registration!\n", __func__);
+		cam_periph_lock(periph);
+		return (CAM_REQ_CMP_ERR);
+	}
+	disk_create(softc->disk, DISK_VERSION);
+	cam_periph_lock(periph);
+	cam_periph_unhold(periph);
+
+	xpt_announce_periph(periph, softc->card_id_string);
+
+	/*
+	 * Add async callbacks for bus reset and
+	 * bus device reset calls.  I don't bother
+	 * checking if this fails as, in most cases,
+	 * the system will function just fine without
+	 * them and the only alternative would be to
+	 * not attach the device on failure.
+	 */
+	xpt_register_async(AC_SENT_BDR | AC_BUS_RESET | AC_LOST_DEVICE |
+	    AC_GETDEV_CHANGED | AC_ADVINFO_CHANGED,
+	    sddaasync, periph, periph->path);
+
+	return(CAM_REQ_CMP);
+}
+
 static int
 mmc_exec_app_cmd(struct cam_periph *periph, union ccb *ccb,
 	struct mmc_command *cmd) {

@@ -2776,6 +2776,7 @@ daregister(struct cam_periph *periph, void *arg)
 	softc->disk->d_hba_device = cpi.hba_device;
 	softc->disk->d_hba_subvendor = cpi.hba_subvendor;
 	softc->disk->d_hba_subdevice = cpi.hba_subdevice;
+	xpt_get_numa_domain(periph->path, &softc->disk->d_numa_domain);
 
 	/*
 	 * Acquire a reference to the periph before we register with GEOM.

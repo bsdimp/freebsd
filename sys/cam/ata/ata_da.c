@@ -1838,6 +1838,7 @@ adaregister(struct cam_periph *periph, void *arg)
 	}
 	softc->disk->d_fwsectors = softc->params.secs_per_track;
 	softc->disk->d_fwheads = softc->params.heads;
+	xpt_get_numa_domain(periph->path, &softc->disk->d_numa_domain);
 	ata_disk_firmware_geom_adjust(softc->disk);
 
 	/*

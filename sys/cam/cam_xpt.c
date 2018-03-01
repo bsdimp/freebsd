@@ -5615,3 +5615,15 @@ xpt_action_name(uint32_t action)
 	snprintf(buffer, sizeof(buffer), "%#x", action);
 	return (buffer);
 }
+
+/*
+ * Ask the SIM for the numa domain for @path and store results
+ * in @domain. Return 0 if the domain can be determoined and
+ * an error if not. @domain is only written on success.
+ */
+int
+xpt_get_numa_domain(struct cam_path *path, int *domain)
+{
+	// Not yet implemented
+	return EINVAL;
+}

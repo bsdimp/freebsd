@@ -148,6 +148,7 @@ void			xpt_release_path(struct cam_path *path);
 const char *		xpt_action_name(uint32_t action);
 void			xpt_pollwait(union ccb *start_ccb, uint32_t timeout);
 uint32_t		xpt_poll_setup(union ccb *start_ccb);
+int			xpt_get_numa_domain(struct cam_path *path, int *domain);
 
 /*
  * Perform a path inquiry at the request priority. The bzero may be
