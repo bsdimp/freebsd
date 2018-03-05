@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2013-2015, Mellanox Technologies, Ltd.  All rights reserved.
+ * Copyright (c) 2013-2017, Mellanox Technologies, Ltd.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -100,9 +100,39 @@ __mlx5_mask(typ, fld))
 
 #define MLX5_GET64(typ, p, fld) be64_to_cpu(*((__be64 *)(p) + __mlx5_64_off(typ, fld)))
 
+#define MLX5_GET64_BE(typ, p, fld) (*((__be64 *)(p) +\
+	__mlx5_64_off(typ, fld)))
+
+#define MLX5_GET_BE(type_t, typ, p, fld) ({				  \
+		type_t tmp;						  \
+		switch (sizeof(tmp)) {					  \
+		case sizeof(u8):					  \
+			tmp = (__force type_t)MLX5_GET(typ, p, fld);	  \
+			break;						  \
+		case sizeof(u16):					  \
+			tmp = (__force type_t)cpu_to_be16(MLX5_GET(typ, p, fld)); \
+			break;						  \
+		case sizeof(u32):					  \
+			tmp = (__force type_t)cpu_to_be32(MLX5_GET(typ, p, fld)); \
+			break;						  \
+		case sizeof(u64):					  \
+			tmp = (__force type_t)MLX5_GET64_BE(typ, p, fld); \
+			break;						  \
+			}						  \
+		tmp;							  \
+		})
+
+#define MLX5_BY_PASS_NUM_REGULAR_PRIOS 8
+#define MLX5_BY_PASS_NUM_DONT_TRAP_PRIOS 8
+#define MLX5_BY_PASS_NUM_MULTICAST_PRIOS 1
+#define MLX5_BY_PASS_NUM_PRIOS (MLX5_BY_PASS_NUM_REGULAR_PRIOS +\
+                                    MLX5_BY_PASS_NUM_DONT_TRAP_PRIOS +\
+                                    MLX5_BY_PASS_NUM_MULTICAST_PRIOS)
+
 enum {
 	MLX5_MAX_COMMANDS		= 32,
 	MLX5_CMD_DATA_BLOCK_SIZE	= 512,
+	MLX5_CMD_MBOX_SIZE		= 1024,
 	MLX5_PCI_CMD_XPORT		= 7,
 	MLX5_MKEY_BSF_OCTO_SIZE		= 4,
 	MLX5_MAX_PSVS			= 4,
@@ -134,7 +164,7 @@ enum {
 };
 
 enum {
-	MLX5_MKEY_INBOX_PG_ACCESS = 1 << 31
+	MLX5_MKEY_INBOX_PG_ACCESS = 1U << 31
 };
 
 enum {
@@ -158,7 +188,7 @@ enum {
 	MLX5_MKEY_REMOTE_INVAL	= 1 << 24,
 	MLX5_MKEY_FLAG_SYNC_UMR = 1 << 29,
 	MLX5_MKEY_BSF_EN	= 1 << 30,
-	MLX5_MKEY_LEN64		= 1 << 31,
+	MLX5_MKEY_LEN64		= 1U << 31,
 };
 
 enum {
@@ -325,6 +355,17 @@ enum {
 	MLX5_CAP_OFF_CMDIF_CSUM		= 46,
 };
 
+enum {
+	/*
+	 * Max wqe size for rdma read is 512 bytes, so this
+	 * limits our max_sge_rd as the wqe needs to fit:
+	 * - ctrl segment (16 bytes)
+	 * - rdma segment (16 bytes)
+	 * - scatter elements (16 bytes each)
+	 */
+	MLX5_MAX_SGE_RD	= (512 - 16 - 16) / 16
+};
+
 struct mlx5_inbox_hdr {
 	__be16		opcode;
 	u8		rsvd[4];
@@ -485,6 +526,11 @@ struct mlx5_eqe_port_module_event {
 	u8        error_type;
 };
 
+struct mlx5_eqe_general_notification_event {
+	u32       rq_user_index_delay_drop;
+	u32       rsvd0[6];
+};
+
 union ev_data {
 	__be32				raw[7];
 	struct mlx5_eqe_cmd		cmd;
@@ -498,6 +544,7 @@ union ev_data {
 	struct mlx5_eqe_page_req	req_pages;
 	struct mlx5_eqe_port_module_event port_module_event;
 	struct mlx5_eqe_vport_change	vport_change;
+	struct mlx5_eqe_general_notification_event general_notifications;
 } __packed;
 
 struct mlx5_eqe {
@@ -522,6 +569,11 @@ struct mlx5_cmd_prot_block {
 	u8		ctrl_sig;
 	u8		sig;
 };
+
+#define	MLX5_NUM_CMDS_IN_ADAPTER_PAGE \
+	(MLX5_ADAPTER_PAGE_SIZE / MLX5_CMD_MBOX_SIZE)
+CTASSERT(MLX5_CMD_MBOX_SIZE >= sizeof(struct mlx5_cmd_prot_block));
+CTASSERT(MLX5_CMD_MBOX_SIZE <= MLX5_ADAPTER_PAGE_SIZE);
 
 enum {
 	MLX5_CQE_SYND_FLUSHED_IN_ERROR = 5,
@@ -566,6 +618,8 @@ struct mlx5_cqe64 {
 	u8		signature;
 	u8		op_own;
 };
+
+#define	MLX5_CQE_TSTMP_PTP	(1ULL << 63)
 
 static inline bool get_cqe_lro_timestamp_valid(struct mlx5_cqe64 *cqe)
 {
@@ -636,9 +690,9 @@ enum {
 };
 
 enum {
-	CQE_ROCE_L3_HEADER_TYPE_GRH	= 0x0,
-	CQE_ROCE_L3_HEADER_TYPE_IPV6	= 0x1,
-	CQE_ROCE_L3_HEADER_TYPE_IPV4	= 0x2,
+	MLX5_CQE_ROCE_L3_HEADER_TYPE_GRH	= 0x0,
+	MLX5_CQE_ROCE_L3_HEADER_TYPE_IPV6	= 0x1,
+	MLX5_CQE_ROCE_L3_HEADER_TYPE_IPV4	= 0x2,
 };
 
 enum {
@@ -1079,6 +1133,7 @@ enum {
 	MLX5_FLOW_TABLE_TYPE_ESWITCH	 = 4,
 	MLX5_FLOW_TABLE_TYPE_SNIFFER_RX	 = 5,
 	MLX5_FLOW_TABLE_TYPE_SNIFFER_TX	 = 6,
+	MLX5_FLOW_TABLE_TYPE_NIC_RX_RDMA = 7,
 };
 
 enum {
@@ -1271,9 +1326,12 @@ enum {
 	MLX5_RFC_2819_COUNTERS_GROUP	      = 0x2,
 	MLX5_RFC_3635_COUNTERS_GROUP	      = 0x3,
 	MLX5_ETHERNET_EXTENDED_COUNTERS_GROUP = 0x5,
+	MLX5_ETHERNET_DISCARD_COUNTERS_GROUP  = 0x6,
 	MLX5_PER_PRIORITY_COUNTERS_GROUP      = 0x10,
 	MLX5_PER_TRAFFIC_CLASS_COUNTERS_GROUP = 0x11,
 	MLX5_PHYSICAL_LAYER_COUNTERS_GROUP    = 0x12,
+	MLX5_PHYSICAL_LAYER_STATISTICAL_GROUP = 0x16,
+	MLX5_INFINIBAND_PORT_COUNTERS_GROUP = 0x20,
 };
 
 enum {
@@ -1348,15 +1406,16 @@ struct mlx5_ifc_mcia_reg_bits {
 
 struct mlx5_mini_cqe8 {
 	union {
-		u32 rx_hash_result;
-		u32 checksum;
+		__be32 rx_hash_result;
+		__be16 checksum;
+		__be16 rsvd;
 		struct {
-			u16 wqe_counter;
+			__be16 wqe_counter;
 			u8  s_wqe_opcode;
 			u8  reserved;
 		} s_wqe_info;
 	};
-	u32 byte_cnt;
+	__be32 byte_cnt;
 };
 
 enum {
@@ -1376,6 +1435,10 @@ static inline int mlx5_get_cqe_format(const struct mlx5_cqe64 *cqe)
 {
 	return (cqe->op_own & MLX5E_CQE_FORMAT_MASK) >> 2;
 }
+
+enum {
+	MLX5_GEN_EVENT_SUBTYPE_DELAY_DROP_TIMEOUT = 0x1,
+};
 
 /* 8 regular priorities + 1 for multicast */
 #define MLX5_NUM_BYPASS_FTS	9

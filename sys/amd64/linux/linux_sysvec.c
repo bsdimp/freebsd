@@ -126,7 +126,7 @@ static boolean_t linux_trans_osrel(const Elf_Note *note, int32_t *osrel);
 static void	linux_vdso_install(void *param);
 static void	linux_vdso_deinstall(void *param);
 static void	linux_set_syscall_retval(struct thread *td, int error);
-static int	linux_fetch_syscall_args(struct thread *td, struct syscall_args *sa);
+static int	linux_fetch_syscall_args(struct thread *td);
 static void	linux_exec_setregs(struct thread *td, struct image_params *imgp,
 		    u_long stack);
 static int	linux_vsyscall(struct thread *td);
@@ -147,7 +147,7 @@ static int bsd_to_linux_errno[ELAST + 1] = {
 	-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,
 	-110,-111, -40, -36,-112,-113, -39, -11, -87,-122,
 	-116, -66,  -6,  -6,  -6,  -6,  -6, -37, -38,  -9,
-	  -6,  -6, -43, -42, -75,-125, -84, -95, -16, -74,
+	  -6,  -6, -43, -42, -75,-125, -84, -61, -16, -74,
 	 -72, -67, -71
 };
 
@@ -217,13 +217,15 @@ translate_traps(int signal, int trap_code)
 }
 
 static int
-linux_fetch_syscall_args(struct thread *td, struct syscall_args *sa)
+linux_fetch_syscall_args(struct thread *td)
 {
 	struct proc *p;
 	struct trapframe *frame;
+	struct syscall_args *sa;
 
 	p = td->td_proc;
 	frame = td->td_frame;
+	sa = &td->td_sa;
 
 	sa->args[0] = frame->tf_rdi;
 	sa->args[1] = frame->tf_rsi;
@@ -451,11 +453,8 @@ linux_exec_setregs(struct thread *td, struct image_params *imgp, u_long stack)
 	struct trapframe *regs = td->td_frame;
 	struct pcb *pcb = td->td_pcb;
 
-	mtx_lock(&dt_lock);
 	if (td->td_proc->p_md.md_ldt != NULL)
 		user_ldt_free(td);
-	else
-		mtx_unlock(&dt_lock);
 
 	pcb->pcb_fsbase = 0;
 	pcb->pcb_gsbase = 0;
@@ -706,9 +705,9 @@ linux_rt_sendsig(sig_t catcher, ksiginfo_t *ksi, sigset_t *mask)
 }
 
 /*
- * If a linux binary is exec'ing something, try this image activator
+ * If a Linux binary is exec'ing something, try this image activator
  * first.  We override standard shell script execution in order to
- * be able to modify the interpreter path.  We only do this if a linux
+ * be able to modify the interpreter path.  We only do this if a Linux
  * binary is doing the exec, so we do not create an EXEC module for it.
  */
 static int exec_linux_imgact_try(struct image_params *iparams);
@@ -718,12 +717,12 @@ exec_linux_imgact_try(struct image_params *imgp)
 {
 	const char *head = (const char *)imgp->image_header;
 	char *rpath;
-	int error = -1, len;
+	int error = -1;
 
 	/*
-	 * The interpreter for shell scripts run from a linux binary needs
+	 * The interpreter for shell scripts run from a Linux binary needs
 	 * to be located in /compat/linux if possible in order to recursively
-	 * maintain linux path emulation.
+	 * maintain Linux path emulation.
 	 */
 	if (((const short *)head)[0] == SHELLMAGIC) {
 		/*
@@ -736,17 +735,12 @@ exec_linux_imgact_try(struct image_params *imgp)
 			linux_emul_convpath(FIRST_THREAD_IN_PROC(imgp->proc),
 			    imgp->interpreter_name, UIO_SYSSPACE,
 			    &rpath, 0, AT_FDCWD);
-			if (rpath != NULL) {
-				len = strlen(rpath) + 1;
-
-				if (len <= MAXSHELLCMDLEN)
-					memcpy(imgp->interpreter_name,
-					    rpath, len);
-				free(rpath, M_TEMP);
-			}
+			if (rpath != NULL)
+				imgp->args->fname_buf =
+				    imgp->interpreter_name = rpath;
 		}
 	}
-	return(error);
+	return (error);
 }
 
 #define	LINUX_VSYSCALL_START		(-10UL << 20)
@@ -764,7 +758,7 @@ linux_vsyscall(struct thread *td)
 	struct trapframe *frame;
 	uint64_t retqaddr;
 	int code, traced;
-	int error; 
+	int error;
 
 	frame = td->td_frame;
 
@@ -836,7 +830,9 @@ static void
 linux_vdso_install(void *param)
 {
 
-	linux_szsigcode = (&_binary_linux_locore_o_end - 
+	amd64_lower_shared_page(&elf_linux_sysvec);
+
+	linux_szsigcode = (&_binary_linux_locore_o_end -
 	    &_binary_linux_locore_o_start);
 
 	if (linux_szsigcode > elf_linux_sysvec.sv_shared_page_len)
@@ -847,14 +843,14 @@ linux_vdso_install(void *param)
 	linux_shared_page_obj = __elfN(linux_shared_page_init)
 	    (&linux_shared_page_mapping);
 
-	__elfN(linux_vdso_reloc)(&elf_linux_sysvec, SHAREDPAGE);
+	__elfN(linux_vdso_reloc)(&elf_linux_sysvec);
 
 	bcopy(elf_linux_sysvec.sv_sigcode, linux_shared_page_mapping,
 	    linux_szsigcode);
 	elf_linux_sysvec.sv_shared_page_obj = linux_shared_page_obj;
 
 	linux_kplatform = linux_shared_page_mapping +
-	    (linux_platform - (caddr_t)SHAREDPAGE);
+	    (linux_platform - (caddr_t)elf_linux_sysvec.sv_shared_page_base);
 }
 SYSINIT(elf_linux_vdso_init, SI_SUB_EXEC, SI_ORDER_ANY,
     (sysinit_cfunc_t)linux_vdso_install, NULL);
@@ -885,7 +881,7 @@ linux_trans_osrel(const Elf_Note *note, int32_t *osrel)
 		return (FALSE);
 
 	/*
-	 * For linux we encode osrel as follows (see linux_mib.c):
+	 * For Linux we encode osrel as follows (see linux_mib.c):
 	 * VVVMMMIII (version, major, minor), see linux_mib.c.
 	 */
 	*osrel = desc[1] * 1000000 + desc[2] * 1000 + desc[3];
@@ -926,9 +922,22 @@ static Elf64_Brandinfo linux_glibc2brandshort = {
 	.flags		= BI_CAN_EXEC_DYN | BI_BRAND_NOTE
 };
 
+static Elf64_Brandinfo linux_muslbrand = {
+	.brand		= ELFOSABI_LINUX,
+	.machine	= EM_X86_64,
+	.compat_3_brand	= "Linux",
+	.emul_path	= "/compat/linux",
+	.interp_path	= "/lib/ld-musl-x86_64.so.1",
+	.sysvec		= &elf_linux_sysvec,
+	.interp_newpath	= NULL,
+	.brand_note	= &linux64_brandnote,
+	.flags		= BI_CAN_EXEC_DYN | BI_BRAND_NOTE
+};
+
 Elf64_Brandinfo *linux_brandlist[] = {
 	&linux_glibc2brand,
 	&linux_glibc2brandshort,
+	&linux_muslbrand,
 	NULL
 };
 

@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 1994-1996 Søren Schmidt
  * All rights reserved.
  *
@@ -6,24 +8,22 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer
- *    in this position and unchanged.
+ *    notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  */
 
 #include <sys/cdefs.h>
@@ -83,10 +83,8 @@ MODULE_VERSION(linux, 1);
 #endif
 
 #if defined(DEBUG)
-SYSCTL_PROC(_compat_linux, OID_AUTO, debug,
-            CTLTYPE_STRING | CTLFLAG_RW,
-            0, 0, linux_sysctl_debug, "A",
-            "Linux debugging control");
+SYSCTL_PROC(_compat_linux, OID_AUTO, debug, CTLTYPE_STRING | CTLFLAG_RW, 0, 0,
+    linux_sysctl_debug, "A", "Linux debugging control");
 #endif
 
 /*
@@ -145,7 +143,7 @@ static int bsd_to_linux_errno[ELAST + 1] = {
 	-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,
 	-110,-111, -40, -36,-112,-113, -39, -11, -87,-122,
 	-116, -66,  -6,  -6,  -6,  -6,  -6, -37, -38,  -9,
-	  -6,  -6, -43, -42, -75,-125, -84, -95, -16, -74,
+	  -6,  -6, -43, -42, -75,-125, -84, -61, -16, -74,
 	 -72, -67, -71
 };
 
@@ -434,7 +432,7 @@ linux_rt_sendsig(sig_t catcher, ksiginfo_t *ksi, sigset_t *mask)
 	int oonstack;
 
 	sig = ksi->ksi_signo;
-	code = ksi->ksi_code;	
+	code = ksi->ksi_code;
 	PROC_LOCK_ASSERT(p, MA_OWNED);
 	psp = p->p_sigacts;
 	mtx_assert(&psp->ps_mtx, MA_OWNED);
@@ -850,13 +848,15 @@ linux_rt_sigreturn(struct thread *td, struct linux_rt_sigreturn_args *args)
 }
 
 static int
-linux_fetch_syscall_args(struct thread *td, struct syscall_args *sa)
+linux_fetch_syscall_args(struct thread *td)
 {
 	struct proc *p;
 	struct trapframe *frame;
+	struct syscall_args *sa;
 
 	p = td->td_proc;
 	frame = td->td_frame;
+	sa = &td->td_sa;
 
 	sa->code = frame->tf_eax;
 	sa->args[0] = frame->tf_ebx;
@@ -869,8 +869,8 @@ linux_fetch_syscall_args(struct thread *td, struct syscall_args *sa)
 	if (sa->code >= p->p_sysent->sv_size)
 		/* nosys */
 		sa->callp = &p->p_sysent->sv_table[p->p_sysent->sv_size - 1];
- 	else
- 		sa->callp = &p->p_sysent->sv_table[sa->code];
+	else
+		sa->callp = &p->p_sysent->sv_table[sa->code];
 	sa->narg = sa->callp->sy_narg;
 
 	td->td_retval[0] = 0;
@@ -880,9 +880,9 @@ linux_fetch_syscall_args(struct thread *td, struct syscall_args *sa)
 }
 
 /*
- * If a linux binary is exec'ing something, try this image activator
+ * If a Linux binary is exec'ing something, try this image activator
  * first.  We override standard shell script execution in order to
- * be able to modify the interpreter path.  We only do this if a linux
+ * be able to modify the interpreter path.  We only do this if a Linux
  * binary is doing the exec, so we do not create an EXEC module for it.
  */
 static int	exec_linux_imgact_try(struct image_params *iparams);
@@ -895,9 +895,9 @@ exec_linux_imgact_try(struct image_params *imgp)
     int error = -1;
 
     /*
-     * The interpreter for shell scripts run from a linux binary needs
+     * The interpreter for shell scripts run from a Linux binary needs
      * to be located in /compat/linux if possible in order to recursively
-     * maintain linux path emulation.
+     * maintain Linux path emulation.
      */
     if (((const short *)head)[0] == SHELLMAGIC) {
 	    /*
@@ -1031,7 +1031,7 @@ static void
 linux_vdso_install(void *param)
 {
 
-	linux_szsigcode = (&_binary_linux_locore_o_end - 
+	linux_szsigcode = (&_binary_linux_locore_o_end -
 	    &_binary_linux_locore_o_start);
 
 	if (linux_szsigcode > elf_linux_sysvec.sv_shared_page_len)
@@ -1042,7 +1042,7 @@ linux_vdso_install(void *param)
 	linux_shared_page_obj = __elfN(linux_shared_page_init)
 	    (&linux_shared_page_mapping);
 
-	__elfN(linux_vdso_reloc)(&elf_linux_sysvec, LINUX_SHAREDPAGE);
+	__elfN(linux_vdso_reloc)(&elf_linux_sysvec);
 
 	bcopy(elf_linux_sysvec.sv_sigcode, linux_shared_page_mapping,
 	    linux_szsigcode);
@@ -1077,7 +1077,7 @@ linux_trans_osrel(const Elf_Note *note, int32_t *osrel)
 		return (FALSE);
 
 	/*
-	 * For linux we encode osrel as follows (see linux_mib.c):
+	 * For Linux we encode osrel as follows (see linux_mib.c):
 	 * VVVMMMIII (version, major, minor), see linux_mib.c.
 	 */
 	*osrel = desc[1] * 1000000 + desc[2] * 1000 + desc[3];
@@ -1118,9 +1118,22 @@ static Elf32_Brandinfo linux_glibc2brand = {
 	.flags		= BI_CAN_EXEC_DYN | BI_BRAND_NOTE
 };
 
+static Elf32_Brandinfo linux_muslbrand = {
+	.brand		= ELFOSABI_LINUX,
+	.machine	= EM_386,
+	.compat_3_brand	= "Linux",
+	.emul_path	= "/compat/linux",
+	.interp_path	= "/lib/ld-musl-i386.so.1",
+	.sysvec		= &elf_linux_sysvec,
+	.interp_newpath	= NULL,
+	.brand_note	= &linux_brandnote,
+	.flags		= BI_CAN_EXEC_DYN | BI_BRAND_NOTE
+};
+
 Elf32_Brandinfo *linux_brandlist[] = {
 	&linux_brand,
 	&linux_glibc2brand,
+	&linux_muslbrand,
 	NULL
 };
 

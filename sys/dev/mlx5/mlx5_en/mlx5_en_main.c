@@ -154,6 +154,8 @@ static const struct {
 
 MALLOC_DEFINE(M_MLX5EN, "MLX5EN", "MLX5 Ethernet");
 
+static SYSCTL_NODE(_hw, OID_AUTO, mlx5, CTLFLAG_RW, 0, "MLX5 driver parameters");
+
 static void
 mlx5e_update_carrier(struct mlx5e_priv *priv)
 {
@@ -306,6 +308,12 @@ mlx5e_update_carrier_work(struct work_struct *work)
 	PRIV_UNLOCK(priv);
 }
 
+/*
+ * This function reads the physical port counters from the firmware
+ * using a pre-defined layout defined by various MLX5E_PPORT_XXX()
+ * macros. The output is converted from big-endian 64-bit values into
+ * host endian ones and stored in the "priv->stats.pport" structure.
+ */
 static void
 mlx5e_update_pport_counters(struct mlx5e_priv *priv)
 {
@@ -314,25 +322,32 @@ mlx5e_update_pport_counters(struct mlx5e_priv *priv)
 	struct mlx5e_port_stats_debug *s_debug = &priv->stats.port_stats_debug;
 	u32 *in;
 	u32 *out;
-	u64 *ptr;
+	const u64 *ptr;
 	unsigned sz = MLX5_ST_SZ_BYTES(ppcnt_reg);
 	unsigned x;
 	unsigned y;
 
+	/* allocate firmware request structures */
 	in = mlx5_vzalloc(sz);
 	out = mlx5_vzalloc(sz);
 	if (in == NULL || out == NULL)
 		goto free_out;
 
-	ptr = (uint64_t *)MLX5_ADDR_OF(ppcnt_reg, out, counter_set);
+	/*
+	 * Get pointer to the 64-bit counter set which is located at a
+	 * fixed offset in the output firmware request structure:
+	 */
+	ptr = (const uint64_t *)MLX5_ADDR_OF(ppcnt_reg, out, counter_set);
 
 	MLX5_SET(ppcnt_reg, in, local_port, 1);
 
+	/* read IEEE802_3 counter group using predefined counter layout */
 	MLX5_SET(ppcnt_reg, in, grp, MLX5_IEEE_802_3_COUNTERS_GROUP);
 	mlx5_core_access_reg(mdev, in, sz, out, sz, MLX5_REG_PPCNT, 0, 0);
 	for (x = y = 0; x != MLX5E_PPORT_IEEE802_3_STATS_NUM; x++, y++)
 		s->arg[y] = be64toh(ptr[x]);
 
+	/* read RFC2819 counter group using predefined counter layout */
 	MLX5_SET(ppcnt_reg, in, grp, MLX5_RFC_2819_COUNTERS_GROUP);
 	mlx5_core_access_reg(mdev, in, sz, out, sz, MLX5_REG_PPCNT, 0, 0);
 	for (x = 0; x != MLX5E_PPORT_RFC2819_STATS_NUM; x++, y++)
@@ -341,20 +356,29 @@ mlx5e_update_pport_counters(struct mlx5e_priv *priv)
 	    MLX5E_PPORT_RFC2819_STATS_DEBUG_NUM; x++, y++)
 		s_debug->arg[y] = be64toh(ptr[x]);
 
+	/* read RFC2863 counter group using predefined counter layout */
 	MLX5_SET(ppcnt_reg, in, grp, MLX5_RFC_2863_COUNTERS_GROUP);
 	mlx5_core_access_reg(mdev, in, sz, out, sz, MLX5_REG_PPCNT, 0, 0);
 	for (x = 0; x != MLX5E_PPORT_RFC2863_STATS_DEBUG_NUM; x++, y++)
 		s_debug->arg[y] = be64toh(ptr[x]);
 
+	/* read physical layer stats counter group using predefined counter layout */
 	MLX5_SET(ppcnt_reg, in, grp, MLX5_PHYSICAL_LAYER_COUNTERS_GROUP);
 	mlx5_core_access_reg(mdev, in, sz, out, sz, MLX5_REG_PPCNT, 0, 0);
 	for (x = 0; x != MLX5E_PPORT_PHYSICAL_LAYER_STATS_DEBUG_NUM; x++, y++)
 		s_debug->arg[y] = be64toh(ptr[x]);
 free_out:
+	/* free firmware request structures */
 	kvfree(in);
 	kvfree(out);
 }
 
+/*
+ * This function is called regularly to collect all statistics
+ * counters from the firmware. The values can be viewed through the
+ * sysctl interface. Execution is serialized using the priv's global
+ * configuration lock.
+ */
 static void
 mlx5e_update_stats_work(struct work_struct *work)
 {
@@ -417,7 +441,8 @@ mlx5e_update_stats_work(struct work_struct *work)
 			tso_packets += sq_stats->tso_packets;
 			tso_bytes += sq_stats->tso_bytes;
 			tx_queue_dropped += sq_stats->dropped;
-			tx_queue_dropped += sq_br->br_drops;
+			if (sq_br != NULL)
+				tx_queue_dropped += sq_br->br_drops;
 			tx_defragged += sq_stats->defragged;
 			tx_offload_none += sq_stats->csum_offload_none;
 		}
@@ -519,23 +544,47 @@ mlx5e_update_stats_work(struct work_struct *work)
 	s->tx_csum_offload = s->tx_packets - tx_offload_none;
 	s->rx_csum_good = s->rx_packets - s->rx_csum_none;
 
-	/* Update per port counters */
+	/* Get physical port counters */
 	mlx5e_update_pport_counters(priv);
 
 #if (__FreeBSD_version < 1100000)
 	/* no get_counters interface in fbsd 10 */
 	ifp->if_ipackets = s->rx_packets;
-	ifp->if_ierrors = s->rx_error_packets;
-	ifp->if_iqdrops = s->rx_out_of_buffer;
+	ifp->if_ierrors = s->rx_error_packets +
+	    priv->stats.pport.alignment_err +
+	    priv->stats.pport.check_seq_err +
+	    priv->stats.pport.crc_align_errors +
+	    priv->stats.pport.in_range_len_errors +
+	    priv->stats.pport.jabbers +
+	    priv->stats.pport.out_of_range_len +
+	    priv->stats.pport.oversize_pkts +
+	    priv->stats.pport.symbol_err +
+	    priv->stats.pport.too_long_errors +
+	    priv->stats.pport.undersize_pkts +
+	    priv->stats.pport.unsupported_op_rx;
+	ifp->if_iqdrops = s->rx_out_of_buffer +
+	    priv->stats.pport.drop_events;
 	ifp->if_opackets = s->tx_packets;
 	ifp->if_oerrors = s->tx_error_packets;
 	ifp->if_snd.ifq_drops = s->tx_queue_dropped;
 	ifp->if_ibytes = s->rx_bytes;
 	ifp->if_obytes = s->tx_bytes;
+	ifp->if_collisions =
+	    priv->stats.pport.collisions;
 #endif
 
 free_out:
 	kvfree(out);
+
+	/* Update diagnostics, if any */
+	if (priv->params_ethtool.diag_pci_enable ||
+	    priv->params_ethtool.diag_general_enable) {
+		int error = mlx5_core_get_diagnostics_full(mdev,
+		    priv->params_ethtool.diag_pci_enable ? &priv->params_pci : NULL,
+		    priv->params_ethtool.diag_general_enable ? &priv->params_general : NULL);
+		if (error != 0)
+			if_printf(priv->ifp, "Failed reading diagnostics: %d\n", error);
+	}
 	PRIV_UNLOCK(priv);
 }
 
@@ -588,6 +637,109 @@ mlx5e_disable_async_events(struct mlx5e_priv *priv)
 	mtx_lock(&priv->async_events_mtx);
 	clear_bit(MLX5E_STATE_ASYNC_EVENTS_ENABLE, &priv->state);
 	mtx_unlock(&priv->async_events_mtx);
+}
+
+static void mlx5e_calibration_callout(void *arg);
+static int mlx5e_calibration_duration = 20;
+static int mlx5e_fast_calibration = 1;
+static int mlx5e_normal_calibration = 30;
+
+static SYSCTL_NODE(_hw_mlx5, OID_AUTO, calibr, CTLFLAG_RW, 0,
+    "MLX5 timestamp calibration parameteres");
+
+SYSCTL_INT(_hw_mlx5_calibr, OID_AUTO, duration, CTLFLAG_RWTUN,
+    &mlx5e_calibration_duration, 0,
+    "Duration of initial calibration");
+SYSCTL_INT(_hw_mlx5_calibr, OID_AUTO, fast, CTLFLAG_RWTUN,
+    &mlx5e_fast_calibration, 0,
+    "Recalibration interval during initial calibration");
+SYSCTL_INT(_hw_mlx5_calibr, OID_AUTO, normal, CTLFLAG_RWTUN,
+    &mlx5e_normal_calibration, 0,
+    "Recalibration interval during normal operations");
+
+/*
+ * Ignites the calibration process.
+ */
+static void
+mlx5e_reset_calibration_callout(struct mlx5e_priv *priv)
+{
+
+	if (priv->clbr_done == 0)
+		mlx5e_calibration_callout(priv);
+	else
+		callout_reset_curcpu(&priv->tstmp_clbr, (priv->clbr_done <
+		    mlx5e_calibration_duration ? mlx5e_fast_calibration :
+		    mlx5e_normal_calibration) * hz, mlx5e_calibration_callout,
+		    priv);
+}
+
+static uint64_t
+mlx5e_timespec2usec(const struct timespec *ts)
+{
+
+	return ((uint64_t)ts->tv_sec * 1000000000 + ts->tv_nsec);
+}
+
+static uint64_t
+mlx5e_hw_clock(struct mlx5e_priv *priv)
+{
+	struct mlx5_init_seg *iseg;
+	uint32_t hw_h, hw_h1, hw_l;
+
+	iseg = priv->mdev->iseg;
+	do {
+		hw_h = ioread32be(&iseg->internal_timer_h);
+		hw_l = ioread32be(&iseg->internal_timer_l);
+		hw_h1 = ioread32be(&iseg->internal_timer_h);
+	} while (hw_h1 != hw_h);
+	return (((uint64_t)hw_h << 32) | hw_l);
+}
+
+/*
+ * The calibration callout, it runs either in the context of the
+ * thread which enables calibration, or in callout.  It takes the
+ * snapshot of system and adapter clocks, then advances the pointers to
+ * the calibration point to allow rx path to read the consistent data
+ * lockless.
+ */
+static void
+mlx5e_calibration_callout(void *arg)
+{
+	struct mlx5e_priv *priv;
+	struct mlx5e_clbr_point *next, *curr;
+	struct timespec ts;
+	int clbr_curr_next;
+
+	priv = arg;
+	curr = &priv->clbr_points[priv->clbr_curr];
+	clbr_curr_next = priv->clbr_curr + 1;
+	if (clbr_curr_next >= nitems(priv->clbr_points))
+		clbr_curr_next = 0;
+	next = &priv->clbr_points[clbr_curr_next];
+
+	next->base_prev = curr->base_curr;
+	next->clbr_hw_prev = curr->clbr_hw_curr;
+
+	next->clbr_hw_curr = mlx5e_hw_clock(priv);
+	if (((next->clbr_hw_curr - curr->clbr_hw_prev) >> MLX5E_TSTMP_PREC) ==
+	    0) {
+		if_printf(priv->ifp, "HW failed tstmp frozen %#jx %#jx,"
+		    "disabling\n", next->clbr_hw_curr, curr->clbr_hw_prev);
+		priv->clbr_done = 0;
+		return;
+	}
+
+	nanouptime(&ts);
+	next->base_curr = mlx5e_timespec2usec(&ts);
+
+	curr->clbr_gen = 0;
+	atomic_thread_fence_rel();
+	priv->clbr_curr = clbr_curr_next;
+	atomic_store_rel_int(&next->clbr_gen, ++(priv->clbr_gen));
+
+	if (priv->clbr_done < mlx5e_calibration_duration)
+		priv->clbr_done++;
+	mlx5e_reset_calibration_callout(priv);
 }
 
 static const char *mlx5e_rq_stats_desc[] = {
@@ -656,10 +808,6 @@ mlx5e_create_rq(struct mlx5e_channel *c,
 		goto err_rq_wq_destroy;
 
 	rq->mbuf = malloc(wq_sz * sizeof(rq->mbuf[0]), M_MLX5EN, M_WAITOK | M_ZERO);
-	if (rq->mbuf == NULL) {
-		err = -ENOMEM;
-		goto err_lro_init;
-	}
 	for (i = 0; i != wq_sz; i++) {
 		struct mlx5e_rx_wqe *wqe = mlx5_wq_ll_get_wqe(&rq->wq, i);
 		uint32_t byte_count = rq->wqe_sz - MLX5E_NET_IP_ALIGN;
@@ -686,7 +834,6 @@ mlx5e_create_rq(struct mlx5e_channel *c,
 
 err_rq_mbuf_free:
 	free(rq->mbuf, M_MLX5EN);
-err_lro_init:
 	tcp_lro_free(&rq->lro);
 err_rq_wq_destroy:
 	mlx5_wq_destroy(&rq->wq_ctrl);
@@ -855,7 +1002,13 @@ err_destroy_rq:
 static void
 mlx5e_close_rq(struct mlx5e_rq *rq)
 {
+	mtx_lock(&rq->mtx);
 	rq->enabled = 0;
+	callout_stop(&rq->watchdog);
+	mtx_unlock(&rq->mtx);
+
+	callout_drain(&rq->watchdog);
+
 	mlx5e_modify_rq(rq, MLX5_RQC_STATE_RDY, MLX5_RQC_STATE_ERR);
 }
 
@@ -891,8 +1044,6 @@ mlx5e_alloc_sq_db(struct mlx5e_sq *sq)
 	int x;
 
 	sq->mbuf = malloc(wq_sz * sizeof(sq->mbuf[0]), M_MLX5EN, M_WAITOK | M_ZERO);
-	if (sq->mbuf == NULL)
-		return (-ENOMEM);
 
 	/* Create DMA descriptor MAPs */
 	for (x = 0; x != wq_sz; x++) {
@@ -966,34 +1117,37 @@ mlx5e_create_sq(struct mlx5e_channel *c,
 	sq->priv = priv;
 	sq->tc = tc;
 
-	sq->br = buf_ring_alloc(MLX5E_SQ_TX_QUEUE_SIZE, M_MLX5EN,
-	    M_WAITOK, &sq->lock);
-	if (sq->br == NULL) {
-		if_printf(c->ifp, "%s: Failed allocating sq drbr buffer\n",
-		    __func__);
-		err = -ENOMEM;
-		goto err_free_sq_db;
-	}
+	/* check if we should allocate a second packet buffer */
+	if (priv->params_ethtool.tx_bufring_disable == 0) {
+		sq->br = buf_ring_alloc(MLX5E_SQ_TX_QUEUE_SIZE, M_MLX5EN,
+		    M_WAITOK, &sq->lock);
+		if (sq->br == NULL) {
+			if_printf(c->ifp, "%s: Failed allocating sq drbr buffer\n",
+			    __func__);
+			err = -ENOMEM;
+			goto err_free_sq_db;
+		}
 
-	sq->sq_tq = taskqueue_create_fast("mlx5e_que", M_WAITOK,
-	    taskqueue_thread_enqueue, &sq->sq_tq);
-	if (sq->sq_tq == NULL) {
-		if_printf(c->ifp, "%s: Failed allocating taskqueue\n",
-		    __func__);
-		err = -ENOMEM;
-		goto err_free_drbr;
-	}
+		sq->sq_tq = taskqueue_create_fast("mlx5e_que", M_WAITOK,
+		    taskqueue_thread_enqueue, &sq->sq_tq);
+		if (sq->sq_tq == NULL) {
+			if_printf(c->ifp, "%s: Failed allocating taskqueue\n",
+			    __func__);
+			err = -ENOMEM;
+			goto err_free_drbr;
+		}
 
-	TASK_INIT(&sq->sq_task, 0, mlx5e_tx_que, sq);
+		TASK_INIT(&sq->sq_task, 0, mlx5e_tx_que, sq);
 #ifdef RSS
-	cpu_id = rss_getcpu(c->ix % rss_getnumbuckets());
-	CPU_SETOF(cpu_id, &cpu_mask);
-	taskqueue_start_threads_cpuset(&sq->sq_tq, 1, PI_NET, &cpu_mask,
-	    "%s TX SQ%d.%d CPU%d", c->ifp->if_xname, c->ix, tc, cpu_id);
+		cpu_id = rss_getcpu(c->ix % rss_getnumbuckets());
+		CPU_SETOF(cpu_id, &cpu_mask);
+		taskqueue_start_threads_cpuset(&sq->sq_tq, 1, PI_NET, &cpu_mask,
+		    "%s TX SQ%d.%d CPU%d", c->ifp->if_xname, c->ix, tc, cpu_id);
 #else
-	taskqueue_start_threads(&sq->sq_tq, 1, PI_NET,
-	    "%s TX SQ%d.%d", c->ifp->if_xname, c->ix, tc);
+		taskqueue_start_threads(&sq->sq_tq, 1, PI_NET,
+		    "%s TX SQ%d.%d", c->ifp->if_xname, c->ix, tc);
 #endif
+	}
 	snprintf(buffer, sizeof(buffer), "txstat%dtc%d", c->ix, tc);
 	mlx5e_create_stats(&sq->stats.ctx, SYSCTL_CHILDREN(priv->sysctl_ifnet),
 	    buffer, mlx5e_sq_stats_desc, MLX5E_SQ_STATS_NUM,
@@ -1026,9 +1180,12 @@ mlx5e_destroy_sq(struct mlx5e_sq *sq)
 	mlx5e_free_sq_db(sq);
 	mlx5_wq_destroy(&sq->wq_ctrl);
 	mlx5_unmap_free_uar(sq->priv->mdev, &sq->uar);
-	taskqueue_drain(sq->sq_tq, &sq->sq_task);
-	taskqueue_free(sq->sq_tq);
-	buf_ring_free(sq->br, M_MLX5EN);
+	if (sq->sq_tq != NULL) {
+		taskqueue_drain(sq->sq_tq, &sq->sq_task);
+		taskqueue_free(sq->sq_tq);
+	}
+	if (sq->br != NULL)
+		buf_ring_free(sq->br, M_MLX5EN);
 }
 
 int
@@ -1163,7 +1320,6 @@ done:
 		mlx5e_tx_notify_hw(sq, sq->doorbell.d32, 0);
 		sq->doorbell.d64 = 0;
 	}
-	return;
 }
 
 void
@@ -1198,8 +1354,25 @@ mlx5e_sq_cev_timeout(void *arg)
 void
 mlx5e_drain_sq(struct mlx5e_sq *sq)
 {
+	int error;
+
+	/*
+	 * Check if already stopped.
+	 *
+	 * NOTE: The "stopped" variable is only written when both the
+	 * priv's configuration lock and the SQ's lock is locked. It
+	 * can therefore safely be read when only one of the two locks
+	 * is locked. This function is always called when the priv's
+	 * configuration lock is locked.
+	 */
+	if (sq->stopped != 0)
+		return;
 
 	mtx_lock(&sq->lock);
+
+	/* don't put more packets into the SQ */
+	sq->stopped = 1;
+
 	/* teardown event factor timer, if any */
 	sq->cev_next_state = MLX5E_CEV_STATE_HOLD_NOPS;
 	callout_stop(&sq->cev_callout);
@@ -1211,14 +1384,29 @@ mlx5e_drain_sq(struct mlx5e_sq *sq)
 	/* make sure it is safe to free the callout */
 	callout_drain(&sq->cev_callout);
 
+	/* wait till SQ is empty or link is down */
+	mtx_lock(&sq->lock);
+	while (sq->cc != sq->pc &&
+	    (sq->priv->media_status_last & IFM_ACTIVE) != 0) {
+		mtx_unlock(&sq->lock);
+		msleep(1);
+		sq->cq.mcq.comp(&sq->cq.mcq);
+		mtx_lock(&sq->lock);
+	}
+	mtx_unlock(&sq->lock);
+
 	/* error out remaining requests */
-	mlx5e_modify_sq(sq, MLX5_SQC_STATE_RDY, MLX5_SQC_STATE_ERR);
+	error = mlx5e_modify_sq(sq, MLX5_SQC_STATE_RDY, MLX5_SQC_STATE_ERR);
+	if (error != 0) {
+		if_printf(sq->ifp,
+		    "mlx5e_modify_sq() from RDY to ERR failed: %d\n", error);
+	}
 
 	/* wait till SQ is empty */
 	mtx_lock(&sq->lock);
 	while (sq->cc != sq->pc) {
 		mtx_unlock(&sq->lock);
-		msleep(4);
+		msleep(1);
 		sq->cq.mcq.comp(&sq->cq.mcq);
 		mtx_lock(&sq->lock);
 	}
@@ -1325,7 +1513,7 @@ mlx5e_enable_cq(struct mlx5e_cq *cq, struct mlx5e_cq_param *param, int eq_ix)
 	if (err)
 		return (err);
 
-	mlx5e_cq_arm(cq);
+	mlx5e_cq_arm(cq, MLX5_GET_DOORBELL_LOCK(&cq->priv->doorbell_lock));
 
 	return (0);
 }
@@ -1439,12 +1627,15 @@ mlx5e_chan_mtx_init(struct mlx5e_channel *c)
 
 	mtx_init(&c->rq.mtx, "mlx5rx", MTX_NETWORK_LOCK, MTX_DEF);
 
+	callout_init_mtx(&c->rq.watchdog, &c->rq.mtx, 0);
+
 	for (tc = 0; tc < c->num_tc; tc++) {
 		struct mlx5e_sq *sq = c->sq + tc;
 
-		mtx_init(&sq->lock, "mlx5tx", MTX_NETWORK_LOCK, MTX_DEF);
-		mtx_init(&sq->comp_lock, "mlx5comp", MTX_NETWORK_LOCK,
-		    MTX_DEF);
+		mtx_init(&sq->lock, "mlx5tx",
+		    MTX_NETWORK_LOCK " TX", MTX_DEF);
+		mtx_init(&sq->comp_lock, "mlx5comp",
+		    MTX_NETWORK_LOCK " TX", MTX_DEF);
 
 		callout_init_mtx(&sq->cev_callout, &sq->lock, 0);
 
@@ -1478,9 +1669,6 @@ mlx5e_open_channel(struct mlx5e_priv *priv, int ix,
 	int err;
 
 	c = malloc(sizeof(*c), M_MLX5EN, M_WAITOK | M_ZERO);
-	if (c == NULL)
-		return (-ENOMEM);
-
 	c->priv = priv;
 	c->ix = ix;
 	c->cpu = 0;
@@ -1691,8 +1879,6 @@ mlx5e_open_channels(struct mlx5e_priv *priv)
 
 	priv->channel = malloc(priv->params.num_channels *
 	    sizeof(struct mlx5e_channel *), M_MLX5EN, M_WAITOK | M_ZERO);
-	if (priv->channel == NULL)
-		return (-ENOMEM);
 
 	mlx5e_build_channel_param(priv, &cparam);
 	for (i = 0; i < priv->params.num_channels; i++) {
@@ -1748,6 +1934,25 @@ mlx5e_close_channels(struct mlx5e_priv *priv)
 static int
 mlx5e_refresh_sq_params(struct mlx5e_priv *priv, struct mlx5e_sq *sq)
 {
+
+	if (MLX5_CAP_GEN(priv->mdev, cq_period_mode_modify)) {
+		uint8_t cq_mode;
+
+		switch (priv->params.tx_cq_moderation_mode) {
+		case 0:
+			cq_mode = MLX5_CQ_PERIOD_MODE_START_FROM_EQE;
+			break;
+		default:
+			cq_mode = MLX5_CQ_PERIOD_MODE_START_FROM_CQE;
+			break;
+		}
+
+		return (mlx5_core_modify_cq_moderation_mode(priv->mdev, &sq->cq.mcq,
+		    priv->params.tx_cq_moderation_usec,
+		    priv->params.tx_cq_moderation_pkts,
+		    cq_mode));
+	}
+
 	return (mlx5_core_modify_cq_moderation(priv->mdev, &sq->cq.mcq,
 	    priv->params.tx_cq_moderation_usec,
 	    priv->params.tx_cq_moderation_pkts));
@@ -1756,6 +1961,28 @@ mlx5e_refresh_sq_params(struct mlx5e_priv *priv, struct mlx5e_sq *sq)
 static int
 mlx5e_refresh_rq_params(struct mlx5e_priv *priv, struct mlx5e_rq *rq)
 {
+
+	if (MLX5_CAP_GEN(priv->mdev, cq_period_mode_modify)) {
+		uint8_t cq_mode;
+		int retval;
+
+		switch (priv->params.rx_cq_moderation_mode) {
+		case 0:
+			cq_mode = MLX5_CQ_PERIOD_MODE_START_FROM_EQE;
+			break;
+		default:
+			cq_mode = MLX5_CQ_PERIOD_MODE_START_FROM_CQE;
+			break;
+		}
+
+		retval = mlx5_core_modify_cq_moderation_mode(priv->mdev, &rq->cq.mcq,
+		    priv->params.rx_cq_moderation_usec,
+		    priv->params.rx_cq_moderation_pkts,
+		    cq_mode);
+
+		return (retval);
+	}
+
 	return (mlx5_core_modify_cq_moderation(priv->mdev, &rq->cq.mcq,
 	    priv->params.rx_cq_moderation_usec,
 	    priv->params.rx_cq_moderation_pkts));
@@ -2176,10 +2403,13 @@ mlx5e_set_dev_port_mtu(struct ifnet *ifp, int sw_mtu)
 		    __func__, sw_mtu, err);
 		return (err);
 	}
+
+	ifp->if_mtu = sw_mtu;
 	err = mlx5_query_port_oper_mtu(mdev, &hw_mtu);
 	if (err) {
 		if_printf(ifp, "Query port MTU, after setting new "
 		    "MTU value, failed\n");
+		return (err);
 	} else if (MLX5E_HW2SW_MTU(hw_mtu) < sw_mtu) {
 		err = -E2BIG,
 		if_printf(ifp, "Port MTU %d is smaller than "
@@ -2189,7 +2419,8 @@ mlx5e_set_dev_port_mtu(struct ifnet *ifp, int sw_mtu)
                 if_printf(ifp, "Port MTU %d is bigger than "
                     "ifp mtu %d\n", hw_mtu, sw_mtu);
 	}
-	ifp->if_mtu = sw_mtu;
+	priv->params_ethtool.hw_mtu = hw_mtu;
+
 	return (err);
 }
 
@@ -2341,10 +2572,22 @@ mlx5e_get_counter(struct ifnet *ifp, ift_counter cnt)
 		retval = priv->stats.vport.rx_packets;
 		break;
 	case IFCOUNTER_IERRORS:
-		retval = priv->stats.vport.rx_error_packets;
+		retval = priv->stats.vport.rx_error_packets +
+		    priv->stats.pport.alignment_err +
+		    priv->stats.pport.check_seq_err +
+		    priv->stats.pport.crc_align_errors +
+		    priv->stats.pport.in_range_len_errors +
+		    priv->stats.pport.jabbers +
+		    priv->stats.pport.out_of_range_len +
+		    priv->stats.pport.oversize_pkts +
+		    priv->stats.pport.symbol_err +
+		    priv->stats.pport.too_long_errors +
+		    priv->stats.pport.undersize_pkts +
+		    priv->stats.pport.unsupported_op_rx;
 		break;
 	case IFCOUNTER_IQDROPS:
-		retval = priv->stats.vport.rx_out_of_buffer;
+		retval = priv->stats.vport.rx_out_of_buffer +
+		    priv->stats.pport.drop_events;
 		break;
 	case IFCOUNTER_OPACKETS:
 		retval = priv->stats.vport.tx_packets;
@@ -2366,6 +2609,9 @@ mlx5e_get_counter(struct ifnet *ifp, ift_counter cnt)
 		break;
 	case IFCOUNTER_OQDROPS:
 		retval = priv->stats.vport.tx_queue_dropped;
+		break;
+	case IFCOUNTER_COLLISIONS:
+		retval = priv->stats.pport.collisions;
 		break;
 	default:
 		retval = if_get_counter_default(ifp, cnt);
@@ -2550,6 +2796,16 @@ mlx5e_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 			if (was_opened && need_restart) {
 				mlx5e_close_locked(ifp);
 				mlx5e_open_locked(ifp);
+			}
+		}
+		if (mask & IFCAP_HWRXTSTMP) {
+			ifp->if_capenable ^= IFCAP_HWRXTSTMP;
+			if (ifp->if_capenable & IFCAP_HWRXTSTMP) {
+				if (priv->clbr_done == 0)
+					mlx5e_reset_calibration_callout(priv);
+			} else {
+				callout_drain(&priv->tstmp_clbr);
+				priv->clbr_done = 0;
 			}
 		}
 out:
@@ -2791,6 +3047,164 @@ sysctl_firmware(SYSCTL_HANDLER_ARGS)
 }
 
 static void
+mlx5e_disable_tx_dma(struct mlx5e_channel *ch)
+{
+	int i;
+
+	for (i = 0; i < ch->num_tc; i++)
+		mlx5e_drain_sq(&ch->sq[i]);
+}
+
+static void
+mlx5e_reset_sq_doorbell_record(struct mlx5e_sq *sq)
+{
+
+	sq->doorbell.d32[0] = cpu_to_be32(MLX5_OPCODE_NOP);
+	sq->doorbell.d32[1] = cpu_to_be32(sq->sqn << 8);
+	mlx5e_tx_notify_hw(sq, sq->doorbell.d32, 0);
+	sq->doorbell.d64 = 0;
+}
+
+void
+mlx5e_resume_sq(struct mlx5e_sq *sq)
+{
+	int err;
+
+	/* check if already enabled */
+	if (sq->stopped == 0)
+		return;
+
+	err = mlx5e_modify_sq(sq, MLX5_SQC_STATE_ERR,
+	    MLX5_SQC_STATE_RST);
+	if (err != 0) {
+		if_printf(sq->ifp,
+		    "mlx5e_modify_sq() from ERR to RST failed: %d\n", err);
+	}
+
+	sq->cc = 0;
+	sq->pc = 0;
+
+	/* reset doorbell prior to moving from RST to RDY */
+	mlx5e_reset_sq_doorbell_record(sq);
+
+	err = mlx5e_modify_sq(sq, MLX5_SQC_STATE_RST,
+	    MLX5_SQC_STATE_RDY);
+	if (err != 0) {
+		if_printf(sq->ifp,
+		    "mlx5e_modify_sq() from RST to RDY failed: %d\n", err);
+	}
+
+	mtx_lock(&sq->lock);
+	sq->cev_next_state = MLX5E_CEV_STATE_INITIAL;
+	sq->stopped = 0;
+	mtx_unlock(&sq->lock);
+
+}
+
+static void
+mlx5e_enable_tx_dma(struct mlx5e_channel *ch)
+{
+        int i;
+
+	for (i = 0; i < ch->num_tc; i++)
+		mlx5e_resume_sq(&ch->sq[i]);
+}
+
+static void
+mlx5e_disable_rx_dma(struct mlx5e_channel *ch)
+{
+	struct mlx5e_rq *rq = &ch->rq;
+	int err;
+
+	mtx_lock(&rq->mtx);
+	rq->enabled = 0;
+	callout_stop(&rq->watchdog);
+	mtx_unlock(&rq->mtx);
+
+	callout_drain(&rq->watchdog);
+
+	err = mlx5e_modify_rq(rq, MLX5_RQC_STATE_RDY, MLX5_RQC_STATE_ERR);
+	if (err != 0) {
+		if_printf(rq->ifp,
+		    "mlx5e_modify_rq() from RDY to RST failed: %d\n", err);
+	}
+
+	while (!mlx5_wq_ll_is_empty(&rq->wq)) {
+		msleep(1);
+		rq->cq.mcq.comp(&rq->cq.mcq);
+	}
+
+	/*
+	 * Transitioning into RST state will allow the FW to track less ERR state queues,
+	 * thus reducing the recv queue flushing time
+	 */
+	err = mlx5e_modify_rq(rq, MLX5_RQC_STATE_ERR, MLX5_RQC_STATE_RST);
+	if (err != 0) {
+		if_printf(rq->ifp,
+		    "mlx5e_modify_rq() from ERR to RST failed: %d\n", err);
+	}
+}
+
+static void
+mlx5e_enable_rx_dma(struct mlx5e_channel *ch)
+{
+	struct mlx5e_rq *rq = &ch->rq;
+	int err;
+
+	rq->wq.wqe_ctr = 0;
+	mlx5_wq_ll_update_db_record(&rq->wq);
+	err = mlx5e_modify_rq(rq, MLX5_RQC_STATE_RST, MLX5_RQC_STATE_RDY);
+	if (err != 0) {
+		if_printf(rq->ifp,
+		    "mlx5e_modify_rq() from RST to RDY failed: %d\n", err);
+        }
+
+	rq->enabled = 1;
+
+	rq->cq.mcq.comp(&rq->cq.mcq);
+}
+
+void
+mlx5e_modify_tx_dma(struct mlx5e_priv *priv, uint8_t value)
+{
+	int i;
+
+	if (priv->channel == NULL)
+		return;
+
+	for (i = 0; i < priv->params.num_channels; i++) {
+
+		if (!priv->channel[i])
+			continue;
+
+		if (value)
+			mlx5e_disable_tx_dma(priv->channel[i]);
+		else
+			mlx5e_enable_tx_dma(priv->channel[i]);
+	}
+}
+
+void
+mlx5e_modify_rx_dma(struct mlx5e_priv *priv, uint8_t value)
+{
+	int i;
+
+	if (priv->channel == NULL)
+		return;
+
+	for (i = 0; i < priv->params.num_channels; i++) {
+
+		if (!priv->channel[i])
+			continue;
+
+		if (value)
+			mlx5e_disable_rx_dma(priv->channel[i]);
+		else
+			mlx5e_enable_rx_dma(priv->channel[i]);
+	}
+}
+
+static void
 mlx5e_add_hw_stats(struct mlx5e_priv *priv)
 {
 	SYSCTL_ADD_PROC(&priv->sysctl_ctx, SYSCTL_CHILDREN(priv->sysctl_hw),
@@ -2871,10 +3285,6 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
 		return (NULL);
 	}
 	priv = malloc(sizeof(*priv), M_MLX5EN, M_WAITOK | M_ZERO);
-	if (priv == NULL) {
-		mlx5_core_err(mdev, "malloc() failed\n");
-		return (NULL);
-	}
 	mlx5e_priv_mtx_init(priv);
 
 	ifp = priv->ifp = if_alloc(IFT_ETHER);
@@ -2903,7 +3313,7 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
 	ifp->if_capabilities |= IFCAP_LINKSTATE | IFCAP_JUMBO_MTU;
 	ifp->if_capabilities |= IFCAP_LRO;
 	ifp->if_capabilities |= IFCAP_TSO | IFCAP_VLAN_HWTSO;
-	ifp->if_capabilities |= IFCAP_HWSTATS;
+	ifp->if_capabilities |= IFCAP_HWSTATS | IFCAP_HWRXTSTMP;
 
 	/* set TSO limits so that we don't have to drop TX packets */
 	ifp->if_hw_tsomax = MLX5E_MAX_TX_PAYLOAD_SIZE - (ETHER_HDR_LEN + ETHER_VLAN_ENCAP_LEN);
@@ -3052,6 +3462,13 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
 	mlx5e_update_stats(priv);
 	mtx_unlock(&priv->async_events_mtx);
 
+	SYSCTL_ADD_INT(&priv->sysctl_ctx, SYSCTL_CHILDREN(priv->sysctl_ifnet),
+	    OID_AUTO, "rx_clbr_done", CTLFLAG_RD,
+	    &priv->clbr_done, 0,
+	    "RX timestamps calibration state");
+	callout_init(&priv->tstmp_clbr, CALLOUT_DIRECT);
+	mlx5e_reset_calibration_callout(priv);
+
 	return (priv);
 
 err_dealloc_transport_domain:
@@ -3095,6 +3512,8 @@ mlx5e_destroy_ifp(struct mlx5_core_dev *mdev, void *vpriv)
 
 	/* stop watchdog timer */
 	callout_drain(&priv->watchdog);
+
+	callout_drain(&priv->tstmp_clbr);
 
 	if (priv->vlan_attach != NULL)
 		EVENTHANDLER_DEREGISTER(vlan_config, priv->vlan_attach);

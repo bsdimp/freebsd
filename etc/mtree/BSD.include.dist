@@ -90,6 +90,8 @@
     cam
         ata
         ..
+        mmc
+        ..
         nvme
         ..
         scsi
@@ -118,6 +120,8 @@
         ..
         hwpmc
         ..
+        hyperv
+        ..
         ic
         ..
         iicbus
@@ -127,6 +131,8 @@
         lmc
         ..
         mfi
+        ..
+        mmc
         ..
         mpt
             mpilib
@@ -151,8 +157,6 @@
         speaker
         ..
         usb
-        ..
-        utopia
         ..
         vkbd
         ..
@@ -232,7 +236,7 @@
     gssapi
     ..
     infiniband
-        complib 
+        complib
         ..
         iba
         ..

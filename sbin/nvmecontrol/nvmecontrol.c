@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (C) 2012-2013 Intel Corporation
  * All rights reserved.
  *
@@ -45,13 +47,8 @@ __FBSDID("$FreeBSD$");
 
 #include "nvmecontrol.h"
 
-typedef void (*nvme_fn_t)(int argc, char *argv[]);
 
-static struct nvme_function {
-	const char	*name;
-	nvme_fn_t	fn;
-	const char	*usage;
-} funcs[] = {
+static struct nvme_function funcs[] = {
 	{"devlist",	devlist,	DEVLIST_USAGE},
 	{"identify",	identify,	IDENTIFY_USAGE},
 	{"perftest",	perftest,	PERFTEST_USAGE},
@@ -59,21 +56,40 @@ static struct nvme_function {
 	{"logpage",	logpage,	LOGPAGE_USAGE},
 	{"firmware",	firmware,	FIRMWARE_USAGE},
 	{"power",	power,		POWER_USAGE},
+	{"wdc",		wdc,		WDC_USAGE},
 	{NULL,		NULL,		NULL},
 };
 
-static void
-usage(void)
+void
+gen_usage(struct nvme_function *f)
 {
-	struct nvme_function *f;
 
-	f = funcs;
 	fprintf(stderr, "usage:\n");
 	while (f->name != NULL) {
 		fprintf(stderr, "%s", f->usage);
 		f++;
 	}
 	exit(1);
+}
+
+void
+dispatch(int argc, char *argv[], struct nvme_function *tbl)
+{
+	struct nvme_function *f = tbl;
+
+	if (argv[1] == NULL) {
+		gen_usage(tbl);
+		return;
+	}
+
+	while (f->name != NULL) {
+		if (strcmp(argv[1], f->name) == 0)
+			f->fn(argc-1, &argv[1]);
+		f++;
+	}
+
+	fprintf(stderr, "Unknown command: %s\n", argv[1]);
+	gen_usage(tbl);
 }
 
 static void
@@ -130,14 +146,17 @@ read_controller_data(int fd, struct nvme_controller_data *cdata)
 	struct nvme_pt_command	pt;
 
 	memset(&pt, 0, sizeof(pt));
-	pt.cmd.opc = NVME_OPC_IDENTIFY;
-	pt.cmd.cdw10 = 1;
+	pt.cmd.opc_fuse = NVME_CMD_SET_OPC(NVME_OPC_IDENTIFY);
+	pt.cmd.cdw10 = htole32(1);
 	pt.buf = cdata;
 	pt.len = sizeof(*cdata);
 	pt.is_read = 1;
 
 	if (ioctl(fd, NVME_PASSTHROUGH_CMD, &pt) < 0)
 		err(1, "identify request failed");
+
+	/* Convert data to host endian */
+	nvme_controller_data_swapbytes(cdata);
 
 	if (nvme_completion_is_error(&pt.cpl))
 		errx(1, "identify request returned error");
@@ -149,14 +168,17 @@ read_namespace_data(int fd, int nsid, struct nvme_namespace_data *nsdata)
 	struct nvme_pt_command	pt;
 
 	memset(&pt, 0, sizeof(pt));
-	pt.cmd.opc = NVME_OPC_IDENTIFY;
-	pt.cmd.nsid = nsid;
+	pt.cmd.opc_fuse = NVME_CMD_SET_OPC(NVME_OPC_IDENTIFY);
+	pt.cmd.nsid = htole32(nsid);
 	pt.buf = nsdata;
 	pt.len = sizeof(*nsdata);
 	pt.is_read = 1;
 
 	if (ioctl(fd, NVME_PASSTHROUGH_CMD, &pt) < 0)
 		err(1, "identify request failed");
+
+	/* Convert data to host endian */
+	nvme_namespace_data_swapbytes(nsdata);
 
 	if (nvme_completion_is_error(&pt.cpl))
 		errx(1, "identify request returned error");
@@ -217,19 +239,11 @@ parse_ns_str(const char *ns_str, char *ctrlr_str, int *nsid)
 int
 main(int argc, char *argv[])
 {
-	struct nvme_function *f;
 
 	if (argc < 2)
-		usage();
+		gen_usage(funcs);
 
-	f = funcs;
-	while (f->name != NULL) {
-		if (strcmp(argv[1], f->name) == 0)
-			f->fn(argc-1, &argv[1]);
-		f++;
-	}
-
-	usage();
+	dispatch(argc, argv, funcs);
 
 	return (0);
 }
