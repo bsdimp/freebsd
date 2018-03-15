@@ -71,6 +71,7 @@ static int	aout_fixup(register_t **stack_base, struct image_params *imgp);
 
 #if defined(__i386__)
 
+#ifndev COMPAT_V7
 #define	AOUT32_PS_STRINGS	(AOUT32_USRSTACK - sizeof(struct ps_strings))
 
 struct sysentvec aout_sysvec = {
@@ -106,6 +107,41 @@ struct sysentvec aout_sysvec = {
 	.sv_thread_detach = NULL,
 	.sv_trap	= NULL,
 };
+#else
+struct sysentvec aout_sysvec = {
+	.sv_size	= SYS_MAXSYSCALL,
+	.sv_table	= v7_sysent,
+	.sv_mask	= 0,
+	.sv_errsize	= 0,
+	.sv_errtbl	= NULL,
+	.sv_transtrap	= NULL,
+	.sv_fixup	= aout_fixup,
+	.sv_sendsig	= sendsig,
+	.sv_sigcode	= sigcode,
+	.sv_szsigcode	= &szsigcode,
+	.sv_name	= "Venix V7 a.out",
+	.sv_coredump	= NULL,
+	.sv_imgact_try	= NULL,
+	.sv_minsigstksz	= MINSIGSTKSZ,
+	.sv_pagesize	= PAGE_SIZE,
+	.sv_minuser	= VM_MIN_ADDRESS,
+	.sv_maxuser	= AOUT32_USRSTACK,
+	.sv_usrstack	= AOUT32_USRSTACK,
+	.sv_psstrings	= AOUT32_PS_STRINGS,
+	.sv_stackprot	= VM_PROT_ALL,
+	.sv_copyout_strings	= exec_copyout_strings,
+	.sv_setregs	= exec_setregs,
+	.sv_fixlimit	= NULL,
+	.sv_maxssiz	= NULL,
+	.sv_flags	= SV_ABI_FREEBSD | SV_AOUT | SV_IA32 | SV_ILP32,
+	.sv_set_syscall_retval = cpu_set_syscall_retval,
+	.sv_fetch_syscall_args = cpu_fetch_syscall_args,
+	.sv_syscallnames = syscallnames,
+	.sv_schedtail	= NULL,
+	.sv_thread_detach = NULL,
+	.sv_trap	= NULL,
+};
+#endif
 
 #elif defined(__amd64__)
 
@@ -171,6 +207,47 @@ exec_aout_imgact(struct image_params *imgp)
 	unsigned long bss_size;
 	int error;
 
+#ifdef COMPAT_V7
+#ifndef i386
+#error "Only i386 can get into 16-bit mode from 32-bit mode"
+#endif
+	/*
+	 * We can either detect v7 or newer binares, so this is a compile-time
+	 * option. The MID seems to always be 0 in these old binaries.
+	 */
+	if ((a_out->a_midmag >> 16) & 0xff != 0)
+		return -1;
+	
+	switch ((int)(a_out->a_midmag & 0xffff)) {
+	case OMAGIC:
+	case NMAGIC:
+		break;
+	default:
+		return -1;
+	}
+
+	printf("a.out v7 %x entry %#x\n", (int)(a_out->a_midmag & 0xffff), a_out->a_entry);
+	printf("--- stack %#x\n", a_out->a_midmag >> 16);
+	printf("--- text %#x\n", a_out->a_text);
+	printf("--- data %#x\n", a_out->a_data);
+	printf("--- bss %#x\n", a_out->a_bss);
+	printf("--- syms %#x\n", a_out->a_syms);
+	printf("--- trsize %#x\n", a_out->a_trsize);
+	printf("--- drsize %#x\n", a_out->a_drsize);
+
+	/*
+	 * Layout is in memory is text - stack - data - bss
+	 * Unlike x86, there's no padding at all, so we have to have the
+	 * whole address space be executable and writable.
+	 * The file layout is hdr - text - data
+	 * Args to argv are pushed onto the stack (which may be somewhat
+	 * smaller than modern arg sizes can cope with).
+	 */
+	virtual_offset = 0;
+	file_offset = sizeof(struct exec);
+	bss_size = a_out->a_bss;
+	return -1;
+#else
 	/*
 	 * Linux and *BSD binaries look very much alike,
 	 * only the machine id is different:
@@ -218,7 +295,6 @@ exec_aout_imgact(struct image_params *imgp)
 	}
 
 	bss_size = roundup(a_out->a_bss, PAGE_SIZE);
-
 	/*
 	 * Check various fields in header for validity/bounds.
 	 */
@@ -236,10 +312,12 @@ exec_aout_imgact(struct image_params *imgp)
 #endif
 	    )
 		return (-1);
+#endif /* COMPAT_V7 */
 
 	/* text + data can't exceed file size */
 	if (a_out->a_data + a_out->a_text > imgp->attr->va_size)
 		return (EFAULT);
+
 
 	/*
 	 * text/data/bss must not exceed limits

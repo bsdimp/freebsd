@@ -24,6 +24,7 @@
 ;	COMPAT	included on COMPAT #ifdef
 ;	OBSOL	obsolete, not included in system, only specifies name
 ;	UNIMPL	not implemented, placeholder only
+;	NOPROTO	xxxx
 
 #include <sys/param.h>
 #include <sys/sysent.h>

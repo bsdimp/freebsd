@@ -80,6 +80,7 @@ BOOTVERBOSE	opt_global.h
 CALLOUT_PROFILING
 CAPABILITIES	opt_capsicum.h
 CAPABILITY_MODE	opt_capsicum.h
+COMPAT_V7	opt_global.h	# 16-bit x86 V7 a.out binary support
 COMPAT_43	opt_global.h
 COMPAT_43TTY	opt_global.h
 COMPAT_FREEBSD4	opt_global.h
