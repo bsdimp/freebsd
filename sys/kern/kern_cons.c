@@ -107,6 +107,13 @@ static struct consdev cons_consdev;
 DATA_SET(cons_set, cons_consdev);
 SET_DECLARE(cons_set, struct consdev);
 
+/*
+ * Multiple simultaneous output? If so, we add all successful consoles
+ * to the acive list. If not, only the one with the highest priority
+ * is added to that list.
+ */
+#define DO_MULTICON	((boothowto & RB_MULTIPLE) != 0)
+
 void
 cninit(void)
 {
@@ -138,7 +145,7 @@ cninit(void)
 			continue;
 		if (best_cn == NULL || cn->cn_pri > best_cn->cn_pri)
 			best_cn = cn;
-		if (boothowto & RB_MULTIPLE) {
+		if (DO_MULTICON) {
 			/*
 			 * Initialize console, and attach to it.
 			 */
@@ -148,7 +155,7 @@ cninit(void)
 	}
 	if (best_cn == NULL)
 		return;
-	if ((boothowto & RB_MULTIPLE) == 0) {
+	if (!DO_MULTICON) {
 		best_cn->cn_ops->cn_init(best_cn);
 		cnadd(best_cn);
 	}
@@ -196,8 +203,7 @@ cnadd(struct consdev *cn)
 		printf("WARNING: console at %p has no name\n", cn);
 	}
 	STAILQ_INSERT_TAIL(&cn_devlist, cnd, cnd_next);
-	if (STAILQ_FIRST(&cn_devlist) == cnd)
-		ttyconsdev_select(cnd->cnd_cn->cn_name);
+	ttyconsdev_add(cnd->cnd_cn->cn_name);
 
 	/* Add device to the active mask. */
 	cnavailable(cn, (cn->cn_flags & CN_FLAG_NOAVAIL) == 0);
@@ -214,8 +220,7 @@ cnremove(struct consdev *cn)
 	STAILQ_FOREACH(cnd, &cn_devlist, cnd_next) {
 		if (cnd->cnd_cn != cn)
 			continue;
-		if (STAILQ_FIRST(&cn_devlist) == cnd)
-			ttyconsdev_select(NULL);
+		ttyconsdev_remove(cnd->cnd_cn->cn_name);
 		STAILQ_REMOVE(&cn_devlist, cnd, cn_device, cnd_next);
 		cnd->cnd_cn = NULL;
 
@@ -325,6 +330,14 @@ sysctl_kern_console(SYSCTL_HANDLER_ARGS)
 				cnremove(cp);
 				error = 0;
 			} else {
+				/*
+				 * Do we need to do anything special for DO_MULTICON?
+				 * Normally, at boot we add only the best console for
+				 * the !MULTICON case. However, if they are added via
+				 * this sysctl, we could leave the prior one we added
+				 * dangling, leading to a multicon situation when
+				 * DO_MULTICON was false.
+				 */
 				error = cnadd(cp);
 				if (error == 0)
 					cnselect(cp);

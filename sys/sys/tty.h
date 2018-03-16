@@ -214,7 +214,9 @@ dev_t	tty_udev(struct tty *tp);
 void	tty_info(struct tty *tp);
 
 /* /dev/console selection. */
-void	ttyconsdev_select(const char *name);
+void	ttyconsdev_add(const char *name);	/* Add possible console */
+void	ttyconsdev_remove(const char *name);	/* Remove possible console */
+void	ttyconsdev_select(const char *name);	/* Hint to prefer console */
 
 /* Pseudo-terminal hooks. */
 int	pts_alloc(int fflags, struct thread *td, struct file *fp);

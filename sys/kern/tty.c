@@ -2135,6 +2135,16 @@ ttyconsdev_select(const char *name)
 	dev_console_filename = name;
 }
 
+void
+ttyconsdev_add(const char *name)
+{
+}
+
+void
+ttyconsdev_remove(const char *name)
+{
+}
+
 /*
  * Debugging routines.
  */
