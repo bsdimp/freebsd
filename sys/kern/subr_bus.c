@@ -215,6 +215,7 @@ devclass_sysctl_handler(SYSCTL_HANDLER_ARGS)
 	devclass_t dc = (devclass_t)arg1;
 	const char *value;
 
+	bus_topology_assert();
 	switch (arg2) {
 	case DEVCLASS_SYSCTL_PARENT:
 		value = dc->parent ? dc->parent->name : "";
@@ -231,6 +232,7 @@ devclass_sysctl_init(devclass_t dc)
 
 	if (dc->sysctl_tree != NULL)
 		return;
+	bus_topology_assert();
 	sysctl_ctx_init(&dc->sysctl_ctx);
 	dc->sysctl_tree = SYSCTL_ADD_NODE(&dc->sysctl_ctx,
 	    SYSCTL_STATIC_CHILDREN(_dev), OID_AUTO, dc->name,
@@ -257,6 +259,7 @@ device_sysctl_handler(SYSCTL_HANDLER_ARGS)
 	char *buf;
 	int error;
 
+	bus_topology_assert();
 	buf = NULL;
 	switch (arg2) {
 	case DEVICE_SYSCTL_DESC:
@@ -293,6 +296,7 @@ device_sysctl_init(device_t dev)
 
 	if (dev->sysctl_tree != NULL)
 		return;
+	bus_topology_assert();
 	devclass_sysctl_init(dc);
 	sysctl_ctx_init(&dev->sysctl_ctx);
 	dev->sysctl_tree = SYSCTL_ADD_NODE_WITH_LABEL(&dev->sysctl_ctx,
@@ -330,6 +334,7 @@ device_sysctl_update(device_t dev)
 {
 	devclass_t dc = dev->devclass;
 
+	bus_topology_assert();
 	if (dev->sysctl_tree == NULL)
 		return;
 	sysctl_rename_oid(dev->sysctl_tree, dev->nameunit + strlen(dc->name));
@@ -338,6 +343,7 @@ device_sysctl_update(device_t dev)
 static void
 device_sysctl_fini(device_t dev)
 {
+	bus_topology_assert();
 	if (dev->sysctl_tree == NULL)
 		return;
 	sysctl_ctx_free(&dev->sysctl_ctx);
@@ -906,6 +912,7 @@ driver_register_pass(struct driverlink *new)
 {
 	struct driverlink *dl;
 
+	bus_topology_assert();
 	/* We only consider pass numbers during boot. */
 	if (bus_current_pass == BUS_PASS_DEFAULT)
 		return;
@@ -938,6 +945,7 @@ bus_set_pass(int pass)
 {
 	struct driverlink *dl;
 
+	bus_topology_assert();
 	if (bus_current_pass > pass)
 		panic("Attempt to lower bus pass level");
 
@@ -1008,6 +1016,7 @@ devclass_find_internal(const char *classname, const char *parentname,
 	}
 
 	if (create && !dc) {
+		bus_topology_assert();
 		PDEBUG(("creating %s", classname));
 		dc = malloc(sizeof(struct devclass) + strlen(classname) + 1,
 		    M_BUS, M_NOWAIT | M_ZERO);
@@ -1032,6 +1041,7 @@ devclass_find_internal(const char *classname, const char *parentname,
 	 */
 	if (parentname && dc && !dc->parent &&
 	    strcmp(classname, parentname) != 0) {
+		bus_topology_assert();
 		dc->parent = devclass_find_internal(parentname, NULL, TRUE);
 		dc->parent->flags |= DC_HAS_CHILDREN;
 	}
@@ -1090,6 +1100,7 @@ devclass_driver_added(devclass_t dc, driver_t *driver)
 	devclass_t parent;
 	int i;
 
+	bus_topology_assert();
 	/*
 	 * Call BUS_DRIVER_ADDED for any existing buses in this class.
 	 */
@@ -1131,6 +1142,7 @@ devclass_add_driver(devclass_t dc, driver_t *driver, int pass, devclass_t *dcp)
 	driverlink_t dl;
 	const char *parentname;
 
+	bus_topology_assert();
 	PDEBUG(("%s", DRIVERNAME(driver)));
 
 	/* Don't allow invalid pass values. */
@@ -1199,6 +1211,7 @@ devclass_driver_deleted(devclass_t busclass, devclass_t dc, driver_t *driver)
 	device_t dev;
 	int error, i;
 
+	bus_topology_assert();
 	/*
 	 * Disassociate from any devices.  We iterate through all the
 	 * devices in the devclass of the driver and detach any which are
@@ -1265,6 +1278,7 @@ devclass_delete_driver(devclass_t busclass, driver_t *driver)
 	driverlink_t dl;
 	int error;
 
+	bus_topology_assert();
 	PDEBUG(("%s from devclass %s", driver->name, DEVCLANAME(busclass)));
 
 	if (!dc)
@@ -1322,6 +1336,7 @@ devclass_quiesce_driver(devclass_t busclass, driver_t *driver)
 	int i;
 	int error;
 
+	bus_topology_assert();
 	PDEBUG(("%s from devclass %s", driver->name, DEVCLANAME(busclass)));
 
 	if (!dc)
@@ -1626,6 +1641,7 @@ devclass_alloc_unit(devclass_t dc, device_t dev, int *unitp)
 	const char *s;
 	int unit = *unitp;
 
+	bus_topology_assert();
 	PDEBUG(("unit %d in devclass %s", unit, DEVCLANAME(dc)));
 
 	/* Ask the parent bus if it wants to wire this device. */
@@ -1710,6 +1726,7 @@ devclass_add_device(devclass_t dc, device_t dev)
 {
 	int buflen, error;
 
+	bus_topology_assert();
 	PDEBUG(("%s in devclass %s", DEVICENAME(dev), DEVCLANAME(dc)));
 
 	buflen = snprintf(NULL, 0, "%s%d$", dc->name, INT_MAX);
@@ -1749,6 +1766,7 @@ devclass_delete_device(devclass_t dc, device_t dev)
 	if (!dc || !dev)
 		return (0);
 
+	bus_topology_assert();
 	PDEBUG(("%s in devclass %s", DEVICENAME(dev), DEVCLANAME(dc)));
 
 	if (dev->devclass != dc || dc->devices[dev->unit] != dev)
@@ -1781,6 +1799,7 @@ make_device(device_t parent, const char *name, int unit)
 	device_t dev;
 	devclass_t dc;
 
+	bus_topology_assert();
 	PDEBUG(("%s at %s as unit %d", name, DEVICENAME(parent), unit));
 
 	if (name) {
@@ -1897,6 +1916,7 @@ device_add_child_ordered(device_t dev, u_int order, const char *name, int unit)
 	device_t child;
 	device_t place;
 
+	bus_topology_assert();
 	PDEBUG(("%s at %s with order %u as unit %d",
 	    name, DEVICENAME(dev), order, unit));
 	KASSERT(name != NULL || unit == -1,
@@ -1949,6 +1969,7 @@ device_delete_child(device_t dev, device_t child)
 	int error;
 	device_t grandchild;
 
+	bus_topology_assert();
 	PDEBUG(("%s from %s", DEVICENAME(child), DEVICENAME(dev)));
 
 	/* detach parent before deleting children, if any */
@@ -2084,7 +2105,7 @@ device_probe_child(device_t dev, device_t child)
 	int result, pri = 0;
 	int hasclass = (child->devclass != NULL);
 
-	GIANT_REQUIRED;
+	bus_topology_assert();
 
 	dc = dev->devclass;
 	if (!dc)
@@ -2432,6 +2453,8 @@ device_printf(device_t dev, const char * fmt, ...)
 static void
 device_set_desc_internal(device_t dev, const char* desc, int copy)
 {
+	bus_topology_assert();
+
 	if (dev->desc && (dev->flags & DF_DESCMALLOCED)) {
 		free(dev->desc, M_BUS);
 		dev->flags &= ~DF_DESCMALLOCED;
@@ -2483,6 +2506,8 @@ device_set_desc_copy(device_t dev, const char* desc)
 void
 device_set_flags(device_t dev, uint32_t flags)
 {
+	bus_topology_assert();
+
 	dev->devflags = flags;
 }
 
@@ -2507,6 +2532,8 @@ device_get_softc(device_t dev)
 void
 device_set_softc(device_t dev, void *softc)
 {
+	bus_topology_assert();
+
 	if (dev->softc && !(dev->flags & DF_EXTERNALSOFTC))
 		free(dev->softc, M_BUS_SC);
 	dev->softc = softc;
@@ -2539,6 +2566,8 @@ device_free_softc(void *softc)
 void
 device_claim_softc(device_t dev)
 {
+	bus_topology_assert();
+
 	if (dev->softc)
 		dev->flags |= DF_EXTERNALSOFTC;
 	else
@@ -2566,6 +2595,7 @@ device_get_ivars(device_t dev)
 void
 device_set_ivars(device_t dev, void * ivars)
 {
+	bus_topology_assert();
 
 	KASSERT(dev != NULL, ("device_set_ivars(NULL, ...)"));
 	dev->ivars = ivars;
@@ -2586,6 +2616,8 @@ device_get_state(device_t dev)
 void
 device_enable(device_t dev)
 {
+	bus_topology_assert();
+
 	dev->flags |= DF_ENABLED;
 }
 
@@ -2595,6 +2627,8 @@ device_enable(device_t dev)
 void
 device_disable(device_t dev)
 {
+	bus_topology_assert();
+
 	dev->flags &= ~DF_ENABLED;
 }
 
@@ -2604,6 +2638,8 @@ device_disable(device_t dev)
 void
 device_busy(device_t dev)
 {
+	bus_topology_assert();
+
 	if (dev->state < DS_ATTACHING)
 		panic("device_busy: called for unattached device");
 	if (dev->busy == 0 && dev->parent)
@@ -2619,6 +2655,8 @@ device_busy(device_t dev)
 void
 device_unbusy(device_t dev)
 {
+
+	bus_topology_assert();
 	if (dev->busy != 0 && dev->state != DS_BUSY &&
 	    dev->state != DS_ATTACHING)
 		panic("device_unbusy: called for non-busy device %s",
@@ -2638,6 +2676,8 @@ device_unbusy(device_t dev)
 void
 device_quiet(device_t dev)
 {
+	bus_topology_assert();
+
 	dev->flags |= DF_QUIET;
 }
 
@@ -2656,6 +2696,8 @@ device_quiet_children(device_t dev)
 void
 device_verbose(device_t dev)
 {
+
+	bus_topology_assert();
 	dev->flags &= ~DF_QUIET;
 }
 
@@ -2724,6 +2766,7 @@ device_set_devclass(device_t dev, const char *classname)
 	devclass_t dc;
 	int error;
 
+	bus_topology_assert();
 	if (!classname) {
 		if (dev->devclass)
 			devclass_delete_device(dev->devclass, dev);
@@ -2754,6 +2797,7 @@ device_set_devclass_fixed(device_t dev, const char *classname)
 {
 	int error;
 
+	bus_topology_assert();
 	if (classname == NULL)
 		return (EINVAL);
 
@@ -2774,6 +2818,7 @@ device_set_devclass_fixed(device_t dev, const char *classname)
 int
 device_set_driver(device_t dev, driver_t *driver)
 {
+	bus_topology_assert();
 	if (dev->state >= DS_ATTACHED)
 		return (EBUSY);
 
@@ -2839,7 +2884,7 @@ device_probe(device_t dev)
 {
 	int error;
 
-	GIANT_REQUIRED;
+	bus_topology_assert();
 
 	if (dev->state >= DS_ALIVE && (dev->flags & DF_REBID) == 0)
 		return (-1);
@@ -2873,7 +2918,7 @@ device_probe_and_attach(device_t dev)
 {
 	int error;
 
-	GIANT_REQUIRED;
+	bus_topology_assert();
 
 	error = device_probe(dev);
 	if (error == -1)
@@ -2912,6 +2957,7 @@ device_attach(device_t dev)
 	uint64_t attachtime;
 	int error;
 
+	bus_topology_assert();
 	if (resource_disabled(dev->driver->name, dev->unit)) {
 		device_disable(dev);
 		if (bootverbose)
@@ -2980,7 +3026,7 @@ device_detach(device_t dev)
 {
 	int error;
 
-	GIANT_REQUIRED;
+	bus_topology_assert();
 
 	PDEBUG(("%s", DEVICENAME(dev)));
 	if (dev->state == DS_BUSY)
@@ -3031,6 +3077,7 @@ int
 device_quiesce(device_t dev)
 {
 
+	bus_topology_assert();
 	PDEBUG(("%s", DEVICENAME(dev)));
 	if (dev->state == DS_BUSY)
 		return (EBUSY);
@@ -3051,6 +3098,8 @@ device_quiesce(device_t dev)
 int
 device_shutdown(device_t dev)
 {
+
+	bus_topology_assert();
 	if (dev->state < DS_ATTACHED)
 		return (0);
 	return (DEVICE_SHUTDOWN(dev));
@@ -3068,6 +3117,7 @@ device_set_unit(device_t dev, int unit)
 	devclass_t dc;
 	int err;
 
+	bus_topology_assert();
 	dc = device_get_devclass(dev);
 	if (unit < dc->maxunit && dc->devices[unit])
 		return (EBUSY);
@@ -3649,6 +3699,7 @@ device_t
 bus_generic_add_child(device_t dev, u_int order, const char *name, int unit)
 {
 
+	bus_topology_assert();
 	return (device_add_child_ordered(dev, order, name, unit));
 }
 
@@ -3666,6 +3717,7 @@ bus_generic_probe(device_t dev)
 	devclass_t dc = dev->devclass;
 	driverlink_t dl;
 
+	bus_topology_assert();
 	TAILQ_FOREACH(dl, &dc->drivers, link) {
 		/*
 		 * If this driver's pass is too high, then ignore it.
@@ -3696,6 +3748,7 @@ bus_generic_attach(device_t dev)
 {
 	device_t child;
 
+	bus_topology_assert();
 	TAILQ_FOREACH(child, &dev->children, link) {
 		device_probe_and_attach(child);
 	}
@@ -3716,6 +3769,7 @@ bus_generic_detach(device_t dev)
 	device_t child;
 	int error;
 
+	bus_topology_assert();
 	if (dev->state != DS_ATTACHED)
 		return (EBUSY);
 
@@ -3747,6 +3801,7 @@ bus_generic_shutdown(device_t dev)
 	 * Shut down children in the reverse order.
 	 * See bus_generic_suspend for details.
 	 */
+	bus_topology_assert();
 	TAILQ_FOREACH_REVERSE(child, &dev->children, device_list, link) {
 		device_shutdown(child);
 	}
@@ -3764,6 +3819,7 @@ bus_generic_suspend_child(device_t dev, device_t child)
 {
 	int	error;
 
+	bus_topology_assert();
 	error = DEVICE_SUSPEND(child);
 
 	if (error == 0)
@@ -3781,6 +3837,7 @@ int
 bus_generic_resume_child(device_t dev, device_t child)
 {
 
+	bus_topology_assert();
 	DEVICE_RESUME(child);
 	child->flags &= ~DF_SUSPENDED;
 
@@ -3809,6 +3866,7 @@ bus_generic_suspend(device_t dev)
 	 * express implicit dependencies between them.  For such buses it is
 	 * safer to bring down devices in the reverse order.
 	 */
+	bus_topology_assert();
 	TAILQ_FOREACH_REVERSE(child, &dev->children, device_list, link) {
 		error = BUS_SUSPEND_CHILD(dev, child);
 		if (error != 0) {
@@ -3834,6 +3892,7 @@ bus_generic_resume(device_t dev)
 {
 	device_t	child;
 
+	bus_topology_assert();
 	TAILQ_FOREACH(child, &dev->children, link) {
 		BUS_RESUME_CHILD(dev, child);
 		/* if resume fails, there's nothing we can usefully do... */
@@ -3965,6 +4024,7 @@ bus_generic_driver_added(device_t dev, driver_t *driver)
 {
 	device_t child;
 
+	bus_topology_assert();
 	DEVICE_IDENTIFY(driver, dev);
 	TAILQ_FOREACH(child, &dev->children, link) {
 		if (child->state == DS_NOTPRESENT ||
@@ -3990,6 +4050,7 @@ bus_generic_new_pass(device_t dev)
 	devclass_t dc;
 	device_t child;
 
+	bus_topology_assert();
 	dc = dev->devclass;
 	TAILQ_FOREACH(dl, &dc->drivers, link) {
 		if (dl->pass == bus_current_pass)
@@ -4014,6 +4075,7 @@ bus_generic_setup_intr(device_t dev, device_t child, struct resource *irq,
     int flags, driver_filter_t *filter, driver_intr_t *intr, void *arg,
     void **cookiep)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_SETUP_INTR(dev->parent, child, irq, flags,
@@ -4031,6 +4093,7 @@ int
 bus_generic_teardown_intr(device_t dev, device_t child, struct resource *irq,
     void *cookie)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_TEARDOWN_INTR(dev->parent, child, irq, cookie));
@@ -4047,6 +4110,7 @@ int
 bus_generic_adjust_resource(device_t dev, device_t child, int type,
     struct resource *r, rman_res_t start, rman_res_t end)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_ADJUST_RESOURCE(dev->parent, child, type, r, start,
@@ -4064,6 +4128,7 @@ struct resource *
 bus_generic_alloc_resource(device_t dev, device_t child, int type, int *rid,
     rman_res_t start, rman_res_t end, rman_res_t count, u_int flags)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_ALLOC_RESOURCE(dev->parent, child, type, rid,
@@ -4081,6 +4146,7 @@ int
 bus_generic_release_resource(device_t dev, device_t child, int type, int rid,
     struct resource *r)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_RELEASE_RESOURCE(dev->parent, child, type, rid,
@@ -4098,6 +4164,7 @@ int
 bus_generic_activate_resource(device_t dev, device_t child, int type, int rid,
     struct resource *r)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_ACTIVATE_RESOURCE(dev->parent, child, type, rid,
@@ -4115,6 +4182,7 @@ int
 bus_generic_deactivate_resource(device_t dev, device_t child, int type,
     int rid, struct resource *r)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_DEACTIVATE_RESOURCE(dev->parent, child, type, rid,
@@ -4133,6 +4201,7 @@ bus_generic_map_resource(device_t dev, device_t child, int type,
     struct resource *r, struct resource_map_request *args,
     struct resource_map *map)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_MAP_RESOURCE(dev->parent, child, type, r, args,
@@ -4150,6 +4219,7 @@ int
 bus_generic_unmap_resource(device_t dev, device_t child, int type,
     struct resource *r, struct resource_map *map)
 {
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_UNMAP_RESOURCE(dev->parent, child, type, r, map));
@@ -4166,7 +4236,7 @@ int
 bus_generic_bind_intr(device_t dev, device_t child, struct resource *irq,
     int cpu)
 {
-
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_BIND_INTR(dev->parent, child, irq, cpu));
@@ -4183,7 +4253,7 @@ int
 bus_generic_config_intr(device_t dev, int irq, enum intr_trigger trig,
     enum intr_polarity pol)
 {
-
+	bus_topology_assert();
 	/* Propagate up the bus hierarchy until someone handles it. */
 	if (dev->parent)
 		return (BUS_CONFIG_INTR(dev->parent, irq, trig, pol));
@@ -4431,6 +4501,7 @@ bus_alloc_resources(device_t dev, struct resource_spec *rs,
 {
 	int i;
 
+	bus_topology_assert();
 	for (i = 0; rs[i].type != -1; i++)
 		res[i] = NULL;
 	for (i = 0; rs[i].type != -1; i++) {
@@ -4450,6 +4521,7 @@ bus_release_resources(device_t dev, const struct resource_spec *rs,
 {
 	int i;
 
+	bus_topology_assert();
 	for (i = 0; rs[i].type != -1; i++)
 		if (res[i] != NULL) {
 			bus_release_resource(
@@ -4470,6 +4542,7 @@ bus_alloc_resource(device_t dev, int type, int *rid, rman_res_t start,
 {
 	struct resource *res;
 
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (NULL);
 	res = BUS_ALLOC_RESOURCE(dev->parent, dev, type, rid, start, end,
@@ -4487,6 +4560,7 @@ int
 bus_adjust_resource(device_t dev, int type, struct resource *r, rman_res_t start,
     rman_res_t end)
 {
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	return (BUS_ADJUST_RESOURCE(dev->parent, dev, type, r, start, end));
@@ -4501,6 +4575,7 @@ bus_adjust_resource(device_t dev, int type, struct resource *r, rman_res_t start
 int
 bus_activate_resource(device_t dev, int type, int rid, struct resource *r)
 {
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	return (BUS_ACTIVATE_RESOURCE(dev->parent, dev, type, rid, r));
@@ -4515,6 +4590,7 @@ bus_activate_resource(device_t dev, int type, int rid, struct resource *r)
 int
 bus_deactivate_resource(device_t dev, int type, int rid, struct resource *r)
 {
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	return (BUS_DEACTIVATE_RESOURCE(dev->parent, dev, type, rid, r));
@@ -4530,6 +4606,7 @@ int
 bus_map_resource(device_t dev, int type, struct resource *r,
     struct resource_map_request *args, struct resource_map *map)
 {
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	return (BUS_MAP_RESOURCE(dev->parent, dev, type, r, args, map));
@@ -4545,6 +4622,7 @@ int
 bus_unmap_resource(device_t dev, int type, struct resource *r,
     struct resource_map *map)
 {
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	return (BUS_UNMAP_RESOURCE(dev->parent, dev, type, r, map));
@@ -4561,6 +4639,7 @@ bus_release_resource(device_t dev, int type, int rid, struct resource *r)
 {
 	int rv;
 
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	rv = BUS_RELEASE_RESOURCE(dev->parent, dev, type, rid, r);
@@ -4579,6 +4658,7 @@ bus_setup_intr(device_t dev, struct resource *r, int flags,
 {
 	int error;
 
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	error = BUS_SETUP_INTR(dev->parent, dev, r, flags, filter, handler,
@@ -4599,6 +4679,7 @@ bus_setup_intr(device_t dev, struct resource *r, int flags,
 int
 bus_teardown_intr(device_t dev, struct resource *r, void *cookie)
 {
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	return (BUS_TEARDOWN_INTR(dev->parent, dev, r, cookie));
@@ -4613,6 +4694,7 @@ bus_teardown_intr(device_t dev, struct resource *r, void *cookie)
 int
 bus_bind_intr(device_t dev, struct resource *r, int cpu)
 {
+	bus_topology_assert();
 	if (dev->parent == NULL)
 		return (EINVAL);
 	return (BUS_BIND_INTR(dev->parent, dev, r, cpu));
@@ -4650,6 +4732,7 @@ int
 bus_set_resource(device_t dev, int type, int rid,
     rman_res_t start, rman_res_t count)
 {
+	bus_topology_assert();
 	return (BUS_SET_RESOURCE(device_get_parent(dev), dev, type, rid,
 	    start, count));
 }
@@ -4717,6 +4800,7 @@ bus_get_resource_count(device_t dev, int type, int rid)
 void
 bus_delete_resource(device_t dev, int type, int rid)
 {
+	bus_topology_assert();
 	BUS_DELETE_RESOURCE(device_get_parent(dev), dev, type, rid);
 }
 
@@ -4839,6 +4923,7 @@ root_resume(device_t dev)
 {
 	int error;
 
+	bus_topology_assert();
 	error = bus_generic_resume(dev);
 	if (error == 0)
 		devctl_notify("kern", "power", "resume", NULL);
@@ -4939,6 +5024,7 @@ root_bus_module_handler(module_t mod, int what, void* arg)
 		return (0);
 
 	case MOD_SHUTDOWN:
+		bus_topology_assert();
 		device_shutdown(root_bus);
 		return (0);
 	default:
@@ -4967,6 +5053,7 @@ root_bus_configure(void)
 
 	PDEBUG(("."));
 
+	bus_topology_assert();
 	/* Eventually this will be split up, but this is sufficient for now. */
 	bus_set_pass(BUS_PASS_DEFAULT);
 }
@@ -4987,6 +5074,7 @@ driver_module_handler(module_t mod, int what, void *arg)
 	kobj_class_t driver;
 	int error, pass;
 
+	bus_topology_assert();
 	dmd = (struct driver_module_data *)arg;
 	bus_devclass = devclass_find_internal(dmd->dmd_busname, NULL, TRUE);
 	error = 0;
@@ -5049,6 +5137,7 @@ bus_enumerate_hinted_children(device_t bus)
 	const char *dname, *busname;
 	int dunit;
 
+	bus_topology_assert();
 	/*
 	 * enumerate all devices on the specific bus
 	 */
@@ -5259,6 +5348,7 @@ sysctl_devices(SYSCTL_HANDLER_ARGS)
 	int			error;
 	char			*walker, *ep;
 
+	bus_topology_assert();
 	if (namelen != 2)
 		return (EINVAL);
 
@@ -5326,6 +5416,7 @@ SYSCTL_NODE(_hw_bus, OID_AUTO, devices, CTLFLAG_RD, sysctl_devices,
 int
 bus_data_generation_check(int generation)
 {
+	bus_topology_assert();
 	if (generation != bus_data_generation)
 		return (1);
 
@@ -5336,12 +5427,14 @@ bus_data_generation_check(int generation)
 void
 bus_data_generation_update(void)
 {
+	bus_topology_assert();
 	bus_data_generation++;
 }
 
 int
 bus_free_resource(device_t dev, int type, struct resource *r)
 {
+	bus_topology_assert();
 	if (r == NULL)
 		return (0);
 	return (bus_release_resource(dev, type, rman_get_rid(r), r));
@@ -5415,7 +5508,7 @@ devctl2_ioctl(struct cdev *cdev, u_long cmd, caddr_t data, int fflag,
 	int error, old;
 
 	/* Locate the device to control. */
-	mtx_lock(&Giant);
+	bus_topology_lock();
 	req = (struct devreq *)data;
 	switch (cmd) {
 	case DEV_ATTACH:
@@ -5437,7 +5530,7 @@ devctl2_ioctl(struct cdev *cdev, u_long cmd, caddr_t data, int fflag,
 		break;
 	}
 	if (error) {
-		mtx_unlock(&Giant);
+		bus_topology_unlock();
 		return (error);
 	}
 
@@ -5636,7 +5729,7 @@ devctl2_ioctl(struct cdev *cdev, u_long cmd, caddr_t data, int fflag,
 		break;
 	}
 	}
-	mtx_unlock(&Giant);
+	bus_topology_unlock();
 	return (error);
 }
 

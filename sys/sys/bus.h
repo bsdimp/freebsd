@@ -400,6 +400,14 @@ int	resource_list_print_type(struct resource_list *rl,
 				 const char *format);
 
 /*
+ * Topology locking for calls to bus_* and device_* routines
+ * that require a stable topology, or that change the topology.
+ */
+#define bus_topology_lock()	mtx_lock(&Giant);
+#define bus_topology_unlock()	mtx_unlock(&Giant);
+#define bus_topology_assert()	GIANT_REQUIRED
+
+/*
  * The root bus, to which all top-level buses are attached.
  */
 extern device_t root_bus;
