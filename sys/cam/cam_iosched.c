@@ -277,6 +277,10 @@ struct cam_iosched_softc {
 				/* scheduler flags < 16, user flags >= 16 */
 	uint32_t	flags;
 	int		sort_io_queue;
+	int		trim_goal;		/* # of trims to queue before sending */
+	int		trim_ticks;		/* Max ticks to hold trims */
+	int		last_trim_tick;		/* Last 'tick' time ld a trim */
+	int		queued_trims;		/* Number of trims in the queue */
 #ifdef CAM_IOSCHED_DYNAMIC
 	int		read_bias;		/* Read bias setting */
 	int		current_read_bias;	/* Current read bias state */
@@ -748,6 +752,22 @@ cam_iosched_has_io(struct cam_iosched_softc *isc)
 static inline bool
 cam_iosched_has_more_trim(struct cam_iosched_softc *isc)
 {
+
+	/*
+	 * If we've set a trim_goal, then if we exceed that allow trims
+	 * to be passed back to the driver. If we've also set a tick timeout
+	 * allow trims back to the driver. Otherwise, don't allow trims yet.
+	 */
+	if (isc->trim_goal > 0) {
+		if (isc->queued_trims >= isc->trim_goal)
+			return true;
+		if (isc->queued_trims > 0 &&
+		    isc->trim_ticks > 0 &&
+		    ticks - isc->last_trim_tick > isc->trim_ticks)
+			return true;
+		return false;
+	}
+
 	return !(isc->flags & CAM_IOSCHED_FLAG_TRIM_ACTIVE) &&
 	    bioq_first(&isc->trim_queue);
 }
@@ -1175,6 +1195,41 @@ void cam_iosched_sysctl_init(struct cam_iosched_softc *isc,
 }
 
 /*
+ * Client drivers can set two parameters. "goal" is the number of BIO_DELETEs
+ * that will be queued up before iosched will "release" the trims to the client
+ * driver to wo with what they will (usually combine as many as possible). If we
+ * don't get this many, after trim_ticks we'll submit the I/O anyway with
+ * whatever we have.  We do need an I/O of some kind of to clock the deferred
+ * trims out to disk. Since we will eventually get a write for the super block
+ * or something before we shutdown, the trims will complete. To be safe, when a
+ * BIO_FLUSH is presented to the iosched work queue, we set the ticks time far
+ * enough in the past so we'll present the BIO_DELETEs to the client driver.
+ * There might be a race if no BIO_DELETESs were queued, a BIO_FLUSH comes in
+ * and then a BIO_DELETE is sent down. No know client does this, and there's
+ * already a race between an ordered BIO_FLUSH and any BIO_DELETEs in flight,
+ * but no client depends on the ordering being honored.
+ *
+ * XXX I'm not sure what the interaction between UFS direct BIOs and the BUF
+ * flushing on shutdown. I think there's bufs that would be dependent on the BIO
+ * finishing to write out at least metadata, so we'll be fine. To be safe, keep
+ * the number of ticks low (less than maybe 10s) to avoid shutdown races.
+ */
+
+void
+cam_iosched_set_trim_goal(struct cam_iosched_softc *isc, int goal)
+{
+
+	isc->trim_goal = goal;
+}
+
+void
+cam_iosched_set_trim_ticks(struct cam_iosched_softc *isc, int trim_ticks)
+{
+
+	isc->trim_ticks = trim_ticks;
+}
+
+/*
  * Flush outstanding I/O. Consumers of this library don't know all the
  * queues we may keep, so this allows all I/O to be flushed in one
  * convenient call.
@@ -1263,6 +1318,9 @@ void
 cam_iosched_put_back_trim(struct cam_iosched_softc *isc, struct bio *bp)
 {
 	bioq_insert_head(&isc->trim_queue, bp);
+	if (isc->queued_trims == 0)
+		isc->last_trim_tick = ticks;
+	isc->queued_trims++;
 #ifdef CAM_IOSCHED_DYNAMIC
 	isc->trim_stats.queued++;
 	isc->trim_stats.total--;		/* since we put it back, don't double count */
@@ -1286,6 +1344,8 @@ cam_iosched_next_trim(struct cam_iosched_softc *isc)
 	if (bp == NULL)
 		return NULL;
 	bioq_remove(&isc->trim_queue, bp);
+	isc->queued_trims--;
+	isc->last_trim_tick = ticks;	/* Reset the tick timer when we take trims */
 #ifdef CAM_IOSCHED_DYNAMIC
 	isc->trim_stats.queued--;
 	isc->trim_stats.total++;
@@ -1408,12 +1468,22 @@ cam_iosched_queue_work(struct cam_iosched_softc *isc, struct bio *bp)
 {
 
 	/*
-	 * Put all trims on the trim queue sorted, since we know
-	 * that the collapsing code requires this. Otherwise put
-	 * the work on the bio queue.
+	 * If we get a BIO_FLUSH, and we're doing delayed BIO_DELETEs then we
+	 * set the last tick time to one less than the current ticks minus the
+	 * delay to force the BIO_DELETEs to be presented to the client driver.
+	 */
+	if (bp->bio_cmd == BIO_FLUSH && isc->trim_ticks > 0)
+		isc->last_trim_tick = ticks - isc->trim_ticks - 1;
+
+	/*
+	 * Put all trims on the trim queue. Otherwise put the work on the bio
+	 * queue.
 	 */
 	if (bp->bio_cmd == BIO_DELETE) {
 		bioq_insert_tail(&isc->trim_queue, bp);
+		if (isc->queued_trims == 0)
+			isc->last_trim_tick = ticks;
+		isc->queued_trims++;
 #ifdef CAM_IOSCHED_DYNAMIC
 		isc->trim_stats.in++;
 		isc->trim_stats.queued++;
