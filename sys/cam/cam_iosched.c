@@ -1277,7 +1277,7 @@ cam_iosched_get_write(struct cam_iosched_softc *isc)
 			    "Reads present and current_read_bias is %d queued "
 			    "writes %d queued reads %d\n",
 			    isc->current_read_bias, isc->write_stats.queued,
-    			    isc->read_stats.queued);
+			    isc->read_stats.queued);
 		isc->current_read_bias--;
 		/* We're not limiting writes, per se, just doing reads first */
 		return NULL;
@@ -1367,25 +1367,28 @@ cam_iosched_get_trim(struct cam_iosched_softc *isc)
 
 	if (!cam_iosched_has_more_trim(isc))
 		return NULL;
+
 #ifdef CAM_IOSCHED_DYNAMIC
-	if (do_dynamic_iosched) {
-		/*
-		 * If pending read, prefer that based on current read bias
-		 * setting. The read bias is shared for both writes and
-		 * TRIMs, but on TRIMs the bias is for a combined TRIM
-		 * not a single TRIM request that's come in.
-		 */
-		if (bioq_first(&isc->bio_queue) && isc->current_read_bias) {
-			isc->current_read_bias--;
-			/* We're not limiting TRIMS, per se, just doing reads first */
-			return NULL;
-		}
-		/*
-		 * We're going to do a trim, so reset the bias.
-		 */
-		isc->current_read_bias = isc->read_bias;
+	/*
+	 * If pending read, prefer that based on current read bias
+	 * setting. The read bias is shared for both writes and
+	 * TRIMs, but on TRIMs the bias is for a combined TRIM
+	 * not a single TRIM request that's come in.
+	 */
+	if (do_dynamic_iosched && bioq_first(&isc->bio_queue) && \
+	    isc->current_read_bias) {
+		if (iosched_debug)
+			printf(
+			    "Reads present and current_read_bias is %d queued "
+			    "trims %d queued reads %d\n",
+			    isc->current_read_bias, isc->trim_stats.queued,
+			    isc->read_stats.queued);
+		isc->current_read_bias--;
+		/* We're not limiting trims, per se, just doing reads first */
+		return NULL;
 	}
 #endif
+
 	return cam_iosched_next_trim(isc);
 }
 
