@@ -13323,7 +13323,9 @@ softdep_request_cleanup(fs, vp, cred, resource)
 {
 	struct ufsmount *ump;
 	struct mount *mp;
+	struct g_consumer *cp;
 	long starttime;
+	size_t resid;
 	ufs2_daddr_t needed;
 	int error, failed_vnode;
 
@@ -13345,6 +13347,7 @@ softdep_request_cleanup(fs, vp, cred, resource)
 
 	mp = vp->v_mount;
 	ump = VFSTOUFS(mp);
+	cp = (struct g_consumer *)ump->um_devvp->v_bufobj.bo_private;
 	mtx_assert(UFS_MTX(ump), MA_OWNED);
 	UFS_UNLOCK(ump);
 	error = ffs_update(vp, 1);
@@ -13398,6 +13401,9 @@ softdep_request_cleanup(fs, vp, cred, resource)
 	}
 	starttime = time_second;
 retry:
+	if (resource == FLUSH_BLOCKS_WAIT &&
+	    fs->fs_cstotal.cs_nbfree <= needed)
+		g_io_speedup(needed * fs->fs_bsize, BIO_SPEEDUP_TRIM, &resid, cp);
 	if ((resource == FLUSH_BLOCKS_WAIT && ump->softdep_on_worklist > 0 &&
 	    fs->fs_cstotal.cs_nbfree <= needed) ||
 	    (resource == FLUSH_INODES_WAIT && fs->fs_pendinginodes > 0 &&
@@ -13544,6 +13550,8 @@ softdep_ast_cleanup_proc(struct thread *td)
 {
 	struct mount *mp;
 	struct ufsmount *ump;
+	struct g_consumer *cp;
+	size_t resid;
 	int error;
 	bool req;
 
@@ -13555,6 +13563,8 @@ softdep_ast_cleanup_proc(struct thread *td)
 			return;
 		if (ffs_own_mount(mp) && MOUNTEDSOFTDEP(mp)) {
 			ump = VFSTOUFS(mp);
+			cp = (struct g_consumer *)ump->um_devvp->v_bufobj.bo_private;
+			g_io_speedup(0, BIO_SPEEDUP_TRIM, &resid, cp);
 			for (;;) {
 				req = false;
 				ACQUIRE_LOCK(ump);
