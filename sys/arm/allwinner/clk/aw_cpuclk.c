@@ -87,8 +87,6 @@ static struct ofw_compat_data compat_data[] = {
 static int
 aw_cpuclk_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (CPUCLK_CONF(dev) == NULL)
 		return (ENXIO);

@@ -177,8 +177,6 @@ tegra_rtc_intr(void *arg)
 static int
 tegra_rtc_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data == 0)
 		return (ENXIO);

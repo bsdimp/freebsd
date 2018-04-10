@@ -101,9 +101,6 @@ static int
 owc_gpiobus_probe(device_t dev)
 {
 #ifdef FDT
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "w1-gpio")) {
 		device_set_desc(dev, "FDT GPIO attached one-wire bus");
 		return (BUS_PROBE_DEFAULT);

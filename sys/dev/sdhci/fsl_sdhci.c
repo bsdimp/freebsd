@@ -948,9 +948,6 @@ static int
 fsl_sdhci_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	switch (ofw_bus_search_compatible(dev, compat_data)->ocd_data) {
 	case HWTYPE_ESDHC:
 		device_set_desc(dev, "Freescale eSDHC controller");

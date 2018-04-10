@@ -88,9 +88,6 @@ static int
 pmsu_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "marvell,armada-380-pmsu"))
 		return (ENXIO);
 

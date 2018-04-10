@@ -925,9 +925,6 @@ am335x_lcd_probe(device_t dev)
 	int err;
 #endif
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "ti,am33xx-tilcdc"))
 		return (ENXIO);
 

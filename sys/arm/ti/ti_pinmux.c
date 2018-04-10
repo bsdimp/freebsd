@@ -373,8 +373,6 @@ ti_pinmux_configure_pins(device_t dev, phandle_t cfgxref)
 static int
 ti_pinmux_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "pinctrl-single"))
 		return (ENXIO);

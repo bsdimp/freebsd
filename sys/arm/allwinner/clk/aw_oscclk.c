@@ -48,8 +48,6 @@ __FBSDID("$FreeBSD$");
 static int
 aw_oscclk_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "allwinner,sun4i-a10-osc-clk"))
 		return (ENXIO);

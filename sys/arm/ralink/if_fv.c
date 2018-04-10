@@ -258,9 +258,6 @@ static int
 fv_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "fv,ethernet"))
 		return (ENXIO);
 
@@ -1784,8 +1781,6 @@ fv_hinted_child(device_t bus, const char *dname, int dunit)
 static int
 fvmdio_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "fv,mdio"))
 		return (ENXIO);

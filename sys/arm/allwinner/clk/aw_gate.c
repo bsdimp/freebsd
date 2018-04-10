@@ -170,9 +170,6 @@ aw_gate_probe(device_t dev)
 {
 	const char *d;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	d = (const char *)ofw_bus_search_compatible(dev, compat_data)->ocd_data;
 	if (d == NULL)
 		return (ENXIO);

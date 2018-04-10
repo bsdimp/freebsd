@@ -50,8 +50,6 @@ static int
 a20_if_dwc_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	if (!ofw_bus_is_compatible(dev, "allwinner,sun7i-a20-gmac"))
 		return (ENXIO);
 	device_set_desc(dev, "A20 Gigabit Ethernet Controller");

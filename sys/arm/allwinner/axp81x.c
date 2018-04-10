@@ -949,8 +949,6 @@ axp8xx_regdev_map(device_t dev, phandle_t xref, int ncells, pcell_t *cells,
 static int
 axp8xx_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	switch (ofw_bus_search_compatible(dev, compat_data)->ocd_data)
 	{

@@ -483,8 +483,6 @@ uart_mvebu_bus_param(struct uart_softc *sc, int baudrate, int databits,
 static int
 uart_mvebu_bus_probe(struct uart_softc *sc)
 {
-	if (!ofw_bus_status_okay(sc->sc_dev))
-		return (ENXIO);
 
 	if (!ofw_bus_search_compatible(sc->sc_dev, compat_data)->ocd_data)
 		return (ENXIO);

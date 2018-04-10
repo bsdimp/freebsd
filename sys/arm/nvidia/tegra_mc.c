@@ -195,8 +195,6 @@ tegra_mc_init_hw(struct tegra_mc_softc *sc)
 static int
 tegra_mc_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data == 0)
 		return (ENXIO);

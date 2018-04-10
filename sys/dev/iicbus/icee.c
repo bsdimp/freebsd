@@ -133,9 +133,6 @@ icee_probe(device_t dev)
 {
 	struct eeprom_desc *d;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	d = (struct eeprom_desc *)
 	    ofw_bus_search_compatible(dev, compat_data)->ocd_data;
 	if (d == NULL)

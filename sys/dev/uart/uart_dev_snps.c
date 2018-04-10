@@ -180,9 +180,6 @@ snps_probe(device_t dev)
 	hwreset_t reset;
 #endif
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	uart_class = (struct uart_class *)ofw_bus_search_compatible(dev,
 	    compat_data)->ocd_data;
 	if (uart_class == NULL)

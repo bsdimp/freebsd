@@ -122,9 +122,6 @@ static int
 simplebus_probe(device_t dev)
 {
  
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	/*
 	 * FDT data puts a "simple-bus" compatible string on many things that
 	 * have children but aren't really buses in our world.  Without a
@@ -159,8 +156,10 @@ simplebus_attach(device_t dev)
 	 * for now
 	 */
 
-	for (node = OF_child(sc->node); node > 0; node = OF_peer(node))
-		simplebus_add_device(dev, node, 0, NULL, -1, NULL);
+	for (node = OF_child(sc->node); node > 0; node = OF_peer(node)) {
+		if (ofw_bus_node_status_okway(node))
+			simplebus_add_device(dev, node, 0, NULL, -1, NULL);
+	}
 	return (bus_generic_attach(dev));
 }
 

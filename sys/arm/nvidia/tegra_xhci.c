@@ -939,9 +939,6 @@ static int
 tegra_xhci_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data != 0) {
 		device_set_desc(dev, "Nvidia Tegra XHCI controller");
 		return (BUS_PROBE_DEFAULT);

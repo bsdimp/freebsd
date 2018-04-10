@@ -80,8 +80,6 @@ gpioiic_probe(device_t dev)
 	struct gpiobus_ivar *devi;
 
 #ifdef FDT
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	if (!ofw_bus_is_compatible(dev, "gpioiic"))
 		return (ENXIO);
 #endif

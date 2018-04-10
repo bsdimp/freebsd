@@ -621,8 +621,6 @@ tegra_i2c_iicbus_reset(device_t dev, u_char speed, u_char addr, u_char *oldaddr)
 static int
 tegra_i2c_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data == 0)
 		return (ENXIO);

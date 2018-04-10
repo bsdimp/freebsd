@@ -100,9 +100,6 @@ thunder_pcie_fdt_probe(device_t dev)
 	    CPU_IMPL_CAVIUM, CPU_PART_THUNDERX, 0, 0))
 		return (ENXIO);
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "pci-host-ecam-generic") ||
 	    ofw_bus_is_compatible(dev, "cavium,thunder-pcie") ||
 	    ofw_bus_is_compatible(dev, "cavium,pci-host-thunder-ecam")) {

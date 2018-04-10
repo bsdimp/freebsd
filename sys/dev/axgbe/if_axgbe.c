@@ -266,9 +266,6 @@ static int
 axgbe_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_search_compatible(dev, compat_data)->ocd_data)
 		return (ENXIO);
 
@@ -582,9 +579,6 @@ static struct ofw_compat_data phy_compat_data[] = {
 static int
 axgbephy_probe(device_t dev)
 {
-
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_search_compatible(dev, phy_compat_data)->ocd_data)
 		return (ENXIO);

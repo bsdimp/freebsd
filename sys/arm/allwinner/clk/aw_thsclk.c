@@ -217,8 +217,6 @@ DEFINE_CLASS_1(aw_thsclk_clknode, aw_thsclk_clknode_class,
 static int
 aw_thsclk_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data == 0)
 		return (ENXIO);

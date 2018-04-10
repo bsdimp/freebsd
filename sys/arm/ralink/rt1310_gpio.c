@@ -137,9 +137,6 @@ rt1310_gpio_probe(device_t dev)
 {
 	phandle_t node;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "ralink,rt1310-gpio"))
 		return (ENXIO);
 		

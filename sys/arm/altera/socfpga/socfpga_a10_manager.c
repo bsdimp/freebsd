@@ -385,9 +385,6 @@ static int
 fpgamgr_a10_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "altr,socfpga-a10-fpga-mgr"))
 		return (ENXIO);
 

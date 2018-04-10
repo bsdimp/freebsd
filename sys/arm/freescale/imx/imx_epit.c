@@ -342,9 +342,6 @@ epit_probe(device_t dev)
 	rman_res_t ioaddr;
 	int num_units, rid, unit;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	/*
 	 * The FDT data for imx5 and imx6 EPIT hardware is missing or broken,
 	 * but it may get fixed some day, so first just do a normal check.  We

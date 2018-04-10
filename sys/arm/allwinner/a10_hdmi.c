@@ -272,8 +272,6 @@ a10hdmi_hpd(void *arg)
 static int
 a10hdmi_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "allwinner,sun7i-a20-hdmi"))
 		return (ENXIO);

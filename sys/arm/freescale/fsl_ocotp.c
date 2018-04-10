@@ -150,9 +150,6 @@ static int
 ocotp_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "fsl,imx6q-ocotp") == 0)
 		return (ENXIO);
 

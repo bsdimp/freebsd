@@ -506,8 +506,6 @@ ds13rtc_probe(device_t dev)
 	int chiptype, goodrv;
 
 #ifdef FDT
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	goodrv = BUS_PROBE_GENERIC;
 #else
 	goodrv = BUS_PROBE_NOWILDCARD;

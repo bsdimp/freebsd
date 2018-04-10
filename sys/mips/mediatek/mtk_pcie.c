@@ -213,9 +213,6 @@ mtk_pci_probe(device_t dev)
 {
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	sc->socid = ofw_bus_search_compatible(dev, compat_data)->ocd_data;
 	if (sc->socid == MTK_SOC_UNKNOWN)
 		return (ENXIO);

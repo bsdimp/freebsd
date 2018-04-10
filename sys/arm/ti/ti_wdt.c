@@ -144,8 +144,6 @@ static int
 ti_wdt_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	if (ofw_bus_is_compatible(dev, "ti,omap3-wdt")) {
 		device_set_desc(dev, "TI Watchdog Timer");
 		return (BUS_PROBE_DEFAULT);

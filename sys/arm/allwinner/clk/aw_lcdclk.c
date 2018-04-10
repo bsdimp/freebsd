@@ -508,9 +508,6 @@ aw_lcdclk_probe(device_t dev)
 {
 	enum aw_lcdclk_type type;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	type = ofw_bus_search_compatible(dev, compat_data)->ocd_data;
 	switch (type) {
 	case AW_LCD_CH0:

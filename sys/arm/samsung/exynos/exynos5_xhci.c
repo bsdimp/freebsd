@@ -139,9 +139,6 @@ static int
 exynos_xhci_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "samsung,exynos5250-dwusb3") == 0)
 		return (ENXIO);
 

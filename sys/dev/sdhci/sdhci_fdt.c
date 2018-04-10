@@ -194,9 +194,6 @@ sdhci_fdt_probe(device_t dev)
 	sc->num_slots = 1;
 	sc->max_clk = 0;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	switch (ofw_bus_search_compatible(dev, compat_data)->ocd_data) {
 	case SDHCI_FDT_ARMADA38X:
 		sc->quirks = SDHCI_QUIRK_BROKEN_AUTO_STOP;

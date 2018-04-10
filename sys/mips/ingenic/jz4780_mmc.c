@@ -141,8 +141,6 @@ static int
 jz4780_mmc_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	if (!ofw_bus_is_compatible(dev, "ingenic,jz4780-mmc"))
 		return (ENXIO);
 	if (device_get_unit(dev) > 0) /* XXXKAN */

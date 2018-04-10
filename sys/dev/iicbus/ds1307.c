@@ -212,9 +212,6 @@ ds1307_probe(device_t dev)
 #ifdef FDT
 	const struct ofw_compat_data *compat;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	compat = ofw_bus_search_compatible(dev, ds1307_compat_data);
 
 	if (compat->ocd_str == NULL)

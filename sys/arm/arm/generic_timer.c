@@ -320,9 +320,6 @@ static int
 arm_tmr_fdt_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "arm,armv7-timer")) {
 		device_set_desc(dev, "ARMv7 Generic Timer");
 		return (BUS_PROBE_DEFAULT);

@@ -116,8 +116,6 @@ static int
 aw_wdog_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	switch (ofw_bus_search_compatible(dev, compat_data)->ocd_data) {
 	case A10_WATCHDOG:
 		device_set_desc(dev, "Allwinner A10 Watchdog");

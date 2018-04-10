@@ -228,9 +228,6 @@ static int
 tzic_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "fsl,tzic")) {
 		device_set_desc(dev, "TrustZone Interrupt Controller");
 		return (BUS_PROBE_DEFAULT);

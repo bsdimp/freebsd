@@ -93,9 +93,6 @@ ti_scm_probe(device_t dev)
 	if (!ti_soc_is_supported())
 		return (ENXIO);
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "syscon"))
 		return (ENXIO);
 

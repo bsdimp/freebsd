@@ -143,9 +143,6 @@ static int
 xlp_simplebus_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	/*
 	 * FDT data puts a "simple-bus" compatible string on many things that
 	 * have children but aren't really busses in our world.  Without a

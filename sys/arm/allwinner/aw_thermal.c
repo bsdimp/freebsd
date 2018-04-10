@@ -482,9 +482,7 @@ aw_thermal_intr(void *arg)
 static int
 aw_thermal_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
+	
 	if (THS_CONF(dev) == NULL)
 		return (ENXIO);
 

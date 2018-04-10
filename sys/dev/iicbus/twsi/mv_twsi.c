@@ -135,9 +135,6 @@ mv_twsi_probe(device_t dev)
 	struct twsi_softc *sc;
 
 	sc = device_get_softc(dev);
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_search_compatible(dev, compat_data)->ocd_data)
 		return (ENXIO);
 

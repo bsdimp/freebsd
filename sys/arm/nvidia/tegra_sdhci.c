@@ -239,9 +239,6 @@ tegra_sdhci_probe(device_t dev)
 	const struct ofw_compat_data *cd;
 
 	sc = device_get_softc(dev);
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "nvidia,tegra124-sdhci")) {
 		device_set_desc(dev, "Tegra SDHCI controller");
 	} else

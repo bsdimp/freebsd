@@ -70,9 +70,6 @@ static int
 rk30_pmu_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "rockchip,rk30xx-pmu")) {
 		device_set_desc(dev, "RK30XX PMU");
 		return(BUS_PROBE_DEFAULT);

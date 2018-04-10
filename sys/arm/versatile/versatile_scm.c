@@ -69,8 +69,6 @@ static struct versatile_scm_softc *versatile_scm_sc;
 static int
 versatile_scm_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "syscon"))
 		return (ENXIO);

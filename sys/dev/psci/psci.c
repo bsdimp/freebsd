@@ -182,9 +182,6 @@ psci_fdt_probe(device_t dev)
 {
 	const struct ofw_compat_data *ocd;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	ocd = ofw_bus_search_compatible(dev, compat_data);
 	if (ocd->ocd_str == NULL)
 		return (ENXIO);

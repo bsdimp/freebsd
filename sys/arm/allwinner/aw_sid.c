@@ -175,9 +175,6 @@ aw_sid_prctl_read(device_t dev, bus_size_t offset, uint32_t *val)
 static int
 aw_sid_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data == 0)
 		return (ENXIO);
 

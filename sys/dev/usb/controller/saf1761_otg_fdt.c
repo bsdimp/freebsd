@@ -106,8 +106,6 @@ MODULE_DEPEND(saf1761otg, usb, 1, 1, 1);
 static int
 saf1761_otg_fdt_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "nxp,usb-isp1761"))
 		return (ENXIO);

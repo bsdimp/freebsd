@@ -141,9 +141,6 @@ static int
 versatile_pci_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "arm,versatile-pci")) {
 		device_set_desc(dev, "Versatile PCI controller");
 		return (BUS_PROBE_DEFAULT);

@@ -876,9 +876,6 @@ static int
 chrome_kb_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "google,cros-ec-keyb") ||
 	    ofw_bus_is_compatible(dev, "google,mkbp-keyb")) {
 		device_set_desc(dev, "Chrome EC Keyboard");

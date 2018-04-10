@@ -132,9 +132,6 @@ static int
 mv_ehci_probe(device_t self)
 {
 
-	if (!ofw_bus_status_okay(self))
-		return (ENXIO);
-
 	if (!ofw_bus_search_compatible(self, compat_data)->ocd_data)
 		return (ENXIO);
 

@@ -189,9 +189,6 @@ sec_probe(device_t dev)
 	struct sec_softc *sc;
 	uint64_t id;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "fsl,sec2.0"))
 		return (ENXIO);
 

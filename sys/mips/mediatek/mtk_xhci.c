@@ -77,9 +77,6 @@ static int
 mtk_xhci_fdt_probe(device_t self)
 {
 
-	if (!ofw_bus_status_okay(self))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(self, "mediatek,mt8173-xhci"))
 		return (ENXIO);
 

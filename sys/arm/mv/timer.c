@@ -168,9 +168,6 @@ static int
 mv_timer_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_search_compatible(dev, mv_timer_compat)->ocd_data == MV_NONE)
 		return (ENXIO);
 

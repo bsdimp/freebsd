@@ -354,8 +354,6 @@ CHANNEL_DECLARE(a10hdmiaudio_chan);
 static int
 a10hdmiaudio_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "allwinner,sun7i-a20-hdmiaudio"))
 		return (ENXIO);

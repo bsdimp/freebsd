@@ -114,9 +114,6 @@ jz4780_gpio_probe(device_t dev)
 {
 	phandle_t node;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	/* We only like particular parent */
 	if (!ofw_bus_is_compatible(device_get_parent(dev),
 	   "ingenic,jz4780-pinctrl"))

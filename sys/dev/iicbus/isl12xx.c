@@ -190,9 +190,6 @@ isl12xx_probe(device_t dev)
 {
 
 #ifdef FDT
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data != 0) {
 		device_set_desc(dev, "Intersil ISL12xx RTC");
 		return (BUS_PROBE_DEFAULT);

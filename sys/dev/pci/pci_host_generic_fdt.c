@@ -106,9 +106,6 @@ static int
 generic_pcie_fdt_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "pci-host-ecam-generic")) {
 		device_set_desc(dev, "Generic PCI host controller");
 		return (BUS_PROBE_GENERIC);

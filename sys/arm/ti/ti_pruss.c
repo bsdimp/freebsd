@@ -497,9 +497,6 @@ static int
 ti_pruss_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "ti,pruss-v1") ||
 	    ofw_bus_is_compatible(dev, "ti,pruss-v2")) {
 		device_set_desc(dev, "TI Programmable Realtime Unit Subsystem");

@@ -122,9 +122,6 @@ static int
 gic_fdt_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_search_compatible(dev, compat_data)->ocd_data)
 		return (ENXIO);
 	device_set_desc(dev, "ARM Generic Interrupt Controller");
@@ -338,9 +335,6 @@ static struct ofw_compat_data gicv2m_compat_data[] = {
 static int
 arm_gicv2m_fdt_probe(device_t dev)
 {
-
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_search_compatible(dev, gicv2m_compat_data)->ocd_data)
 		return (ENXIO);

@@ -142,8 +142,6 @@ jz4780_uart_probe(device_t dev)
 	const struct ofw_compat_data *cd;
 
 	sc = device_get_softc(dev);
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	cd = ofw_bus_search_compatible(dev, compat_data);
 	if (cd->ocd_data == 0)
 		return (ENXIO);

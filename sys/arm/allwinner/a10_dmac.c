@@ -96,8 +96,6 @@ static void a10dmac_intr(void *);
 static int
 a10dmac_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "allwinner,sun4i-a10-dma"))
 		return (ENXIO);

@@ -204,9 +204,6 @@ static int
 pl190_intc_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "arm,versatile-vic"))
 		return (ENXIO);
 	device_set_desc(dev, "ARM PL190 VIC");

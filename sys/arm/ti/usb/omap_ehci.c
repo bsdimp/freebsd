@@ -263,8 +263,6 @@ omap_ehci_init(struct omap_ehci_softc *isc)
 static int
 omap_ehci_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "ti,ehci-omap"))
 		return (ENXIO);

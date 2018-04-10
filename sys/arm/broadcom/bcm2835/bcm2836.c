@@ -653,9 +653,6 @@ static int
 bcm_lintc_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "brcm,bcm2836-l1-intc"))
 		return (ENXIO);
 	device_set_desc(dev, "BCM2836 Interrupt Controller");

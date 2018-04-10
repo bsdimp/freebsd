@@ -110,8 +110,6 @@ aw_reset_is_asserted(device_t dev, intptr_t id, bool *reset)
 static int
 aw_reset_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data == 0)
 		return (ENXIO);

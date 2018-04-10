@@ -117,9 +117,6 @@ static int
 imx_gpt_probe(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	/*
 	 *  We only support a single unit, because the only thing this driver
 	 *  does with the complex timer hardware is supply the system

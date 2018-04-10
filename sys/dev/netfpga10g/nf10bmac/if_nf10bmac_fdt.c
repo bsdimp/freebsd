@@ -61,9 +61,6 @@ static int
 nf10bmac_probe_fdt(device_t dev)
 {
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (ofw_bus_is_compatible(dev, "netfpag10g,nf10bmac")) {
 		device_set_desc(dev, "NetFPGA-10G Embedded CPU Ethernet Core"); 
 		return (BUS_PROBE_DEFAULT);

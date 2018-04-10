@@ -358,8 +358,6 @@ ds3231_probe(device_t dev)
 {
 
 #ifdef FDT
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 	if (!ofw_bus_is_compatible(dev, "maxim,ds3231"))
 		return (ENXIO);
 #endif

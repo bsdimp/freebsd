@@ -600,8 +600,6 @@ a10fb_hdmi_event(void *arg, device_t hdmi_dev)
 static int
 a10fb_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
 
 	if (!ofw_bus_is_compatible(dev, "allwinner,sun7i-a20-fb"))
 		return (ENXIO);

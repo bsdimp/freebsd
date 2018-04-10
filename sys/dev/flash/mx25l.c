@@ -444,9 +444,6 @@ mx25l_probe(device_t dev)
 #ifdef FDT
 	int i;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	/* First try to match the compatible property to the compat_data */
 	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data == 1)
 		goto found;

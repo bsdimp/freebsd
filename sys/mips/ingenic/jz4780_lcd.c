@@ -457,9 +457,6 @@ jzlcd_dmamap_cb(void *arg, bus_dma_segment_t *segs, int nseg, int error)
 static int
 jzlcd_probe(device_t dev)
 {
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	if (!ofw_bus_is_compatible(dev, "ingenic,jz4780-lcd"))
 		return (ENXIO);
 

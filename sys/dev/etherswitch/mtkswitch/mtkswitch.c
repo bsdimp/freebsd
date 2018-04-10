@@ -90,9 +90,6 @@ mtkswitch_probe(device_t dev)
 	struct mtkswitch_softc *sc;
 	mtk_switch_type switch_type;
 
-	if (!ofw_bus_status_okay(dev))
-		return (ENXIO);
-
 	switch_type = ofw_bus_search_compatible(dev, compat_data)->ocd_data;
 	if (switch_type == MTK_SWITCH_NONE)
 		return (ENXIO);
