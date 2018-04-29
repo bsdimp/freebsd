@@ -1093,9 +1093,12 @@ devclass_driver_added(devclass_t dc, driver_t *driver)
 	/*
 	 * Call BUS_DRIVER_ADDED for any existing buses in this class.
 	 */
-	for (i = 0; i < dc->maxunit; i++)
-		if (dc->devices[i] && device_is_attached(dc->devices[i]))
-			BUS_DRIVER_ADDED(dc->devices[i], driver);
+	for (i = 0; i < dc->maxunit; i++) {
+		if (dc->devices[i] && device_is_attached(dc->devices[i])) {
+			if (dev_frozen_probes)
+				device_set_deferred_probe(dc->devices[i]);
+			else
+				BUS_DRIVER_ADDED(dc->devices[i], driver);
 
 	/*
 	 * Walk through the children classes.  Since we only keep a
