@@ -310,7 +310,7 @@ struct da_softc {
 	struct   cam_iosched_softc *cam_iosched;
 	struct	 bio_queue_head delete_run_queue;
 	LIST_HEAD(, ccb_hdr) pending_ccbs;
-	int	 refcount;		/* Active xpt_action() calls */
+	int	 refcount;		/* Active CCBs and xpt_action calls */
 	da_state state;
 	da_flags flags;	
 	da_quirks quirks;
@@ -3298,10 +3298,23 @@ out:
 		}
 
 		start_ccb->ccb_h.ccb_bp = bp;
-		softc->refcount++;
+		/*
+		 * Take two references out. One guards against the completion
+		 * routine triggered by start_ccb finishing, triggering a geom
+		 * wither and call to daclose before we can get to the
+		 * cam_periph_lock.  The other reference guards against us
+		 * returning, wither + daclose because geom falsely thinks all
+		 * its transactions are done (it shouldn't do this, but it's
+		 * better to fail safe in the face of geom bugs and it's easy to
+		 * do with an extra reference here) and then this transaction
+		 * completing.
+		 */
+		softc->refcount++;			/* For submission */
+		softc->refcount++;			/* For completion */
 		cam_periph_unlock(periph);
 		xpt_action(start_ccb);
 		cam_periph_lock(periph);
+		softc->refcount--;			/* Done submitting */
 
 		/* May have more work to do, so ensure we stay scheduled */
 		daschedule(periph);
@@ -4452,7 +4465,7 @@ dadone(struct cam_periph *periph, union ccb *done_ccb)
 	cam_iosched_bio_complete(softc->cam_iosched, bp, done_ccb);
 	xpt_release_ccb(done_ccb);
 	KASSERT(softc->refcount >= 1, ("dadone softc %p refcount %d", softc, softc->refcount));
-	softc->refcount--;
+	softc->refcount--;			/* Done with completion */
 	if (state == DA_CCB_DELETE) {
 		TAILQ_HEAD(, bio) queue;
 
