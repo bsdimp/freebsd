@@ -144,6 +144,11 @@ static	device_method_t ce_methods[] = {
 	DEVMETHOD_END
 };
 
+struct pci_device_table ce_devs[] = {
+          {PCI_DEV(TAU32_PCI_VENDOR_ID, TAU32_PCI_DEVICE_ID),
+	   PCI_DESCR("Cronyx-Tau32-PCI serial adapter")}
+};
+
 typedef struct _ce_dma_mem_t {
 	unsigned long	phys;
 	void		*virt;
@@ -313,12 +318,13 @@ static struct mbuf *makembuf (void *buf, unsigned len)
 
 static int ce_probe (device_t dev)
 {
-	if ((pci_get_vendor (dev) == TAU32_PCI_VENDOR_ID) &&
-	    (pci_get_device (dev) == TAU32_PCI_DEVICE_ID)) {
-		device_set_desc (dev, "Cronyx-Tau32-PCI serial adapter");
-		return BUS_PROBE_DEFAULT;
-	}
-	return ENXIO;
+	const struct pci_device_table *ced;
+
+	ced = PCI_MATCH(dev, ce_devs);
+	if (ced == NULL)
+		return ENXIO;
+	device_set_desc(dev, ced->description);
+	return BUS_PROBE_DEFAULT;
 }
 
 static void ce_timeout (void *arg)
@@ -2630,14 +2636,11 @@ MODULE_DEPEND (ce, sppp, 1, 1, 1);
 #endif
 #ifdef KLD_MODULE
 DRIVER_MODULE (cemod, pci, ce_driver, ce_devclass, ce_modevent, NULL);
+MODULE_PNP_INFO("U16:vendor; U16:device;D:#", pci, cemod, ce_devs,
+     sizeof(ce_devs[0]), nitems(ce_devs));
 #else
 DRIVER_MODULE (ce, pci, ce_driver, ce_devclass, ce_modevent, NULL);
+MODULE_PNP_INFO("U16:vendor; U16:device;D:#", pci, ce, ce_devs,
+     sizeof(ce_devs[0]), nitems(ce_devs));
 #endif
-#else /* if __FreeBSD_version < 500000*/
-#ifdef NETGRAPH
-DRIVER_MODULE (ce, pci, ce_driver, ce_devclass, ng_mod_event, &typestruct);
-#else
-DRIVER_MODULE (ce, pci, ce_driver, ce_devclass, ce_modevent, NULL);
-#endif
-#endif /* __FreeBSD_version < 500000 */
 #endif /* NPCI */
