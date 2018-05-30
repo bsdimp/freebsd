@@ -62,15 +62,21 @@ __FBSDID("$FreeBSD$");
 static int	dpt_pci_probe	(device_t);
 static int	dpt_pci_attach	(device_t);
 
+struct pci_device_table dpt_devs[] = {
+	{PCI_DEV(DPT_VENDOR_ID, DPT_DEVICE_ID),
+	 PCI_DESCR("DPT Caching SCSI RAID Controller")},
+};
+
 static int
 dpt_pci_probe (device_t dev)
 {
-	if ((pci_get_vendor(dev) == DPT_VENDOR_ID) &&
-	    (pci_get_device(dev) == DPT_DEVICE_ID)) {
-		device_set_desc(dev, "DPT Caching SCSI RAID Controller");
-		return (BUS_PROBE_DEFAULT);
-	}
-	return (ENXIO);
+        const struct pci_device_table *dpd;
+
+	dpd = PCI_MATCH(dev, dpt_devs);
+	if (dpd == NULL)
+		return (ENXIO);
+	device_set_desc(dev, dpd->description);
+	return (BUS_PROBE_DEFAULT);
 }
 
 static int
@@ -185,5 +191,6 @@ static driver_t dpt_pci_driver = {
 };
 
 DRIVER_MODULE(dpt, pci, dpt_pci_driver, dpt_devclass, 0, 0);
+PCI_PNP_INFO(dpt_devs);
 MODULE_DEPEND(dpt, pci, 1, 1, 1);
 MODULE_DEPEND(dpt, cam, 1, 1, 1);
