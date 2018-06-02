@@ -87,6 +87,11 @@ static	int cp_probe		__P((device_t));
 static	int cp_attach		__P((device_t));
 static	int cp_detach		__P((device_t));
 
+struct pci_device_table cp_devs[] = {
+        {PCI_DEV(cp_vendor_id, cp_device_id),
+	 PCI_DESCR("Cronyx-Tau-PCI serial adapter")},
+};
+
 static	device_method_t cp_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		cp_probe),
@@ -201,12 +206,13 @@ static struct mbuf *makembuf (void *buf, unsigned len)
 
 static int cp_probe (device_t dev)
 {
-	if ((pci_get_vendor (dev) == cp_vendor_id) &&
-	    (pci_get_device (dev) == cp_device_id)) {
-		device_set_desc (dev, "Cronyx-Tau-PCI serial adapter");
-		return BUS_PROBE_DEFAULT;
-	}
-	return ENXIO;
+        const struct pci_device_table *cpd;
+	
+	cpd = PCI_MATCH(dev, cp_devs);
+	if (cpd == NULL)
+		return ENXIO;
+	device_set_desc(dev, cpd->description);
+	return BUS_PROBE_DEFAULT;
 }
 
 static void cp_timeout (void *arg)
@@ -2266,4 +2272,5 @@ MODULE_DEPEND (ng_cp, netgraph, NG_ABI_VERSION, NG_ABI_VERSION, NG_ABI_VERSION);
 MODULE_DEPEND (cp, sppp, 1, 1, 1);
 #endif
 DRIVER_MODULE (cp, pci, cp_driver, cp_devclass, cp_modevent, NULL);
+PCI_PNP_INFO(cp_devs);
 MODULE_VERSION (cp, 1);
