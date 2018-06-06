@@ -141,6 +141,14 @@ static int	esp_pci_detach(device_t);
 static int	esp_pci_suspend(device_t);
 static int	esp_pci_resume(device_t);
 
+static struct esp_dev {
+	uint32_t deviceid;
+	const char *description;
+} esp_devs[] = {
+	{PCI_DEVICE_ID_AMD53C974, "AMD Am53C974 Fast-SCSI"},
+	{0, NULL},
+};
+
 static device_method_t esp_pci_methods[] = {
 	DEVMETHOD(device_probe,		esp_pci_probe),
 	DEVMETHOD(device_attach,	esp_pci_attach),
@@ -158,6 +166,8 @@ static driver_t esp_pci_driver = {
 };
 
 DRIVER_MODULE(esp, pci, esp_pci_driver, esp_devclass, 0, 0);
+MODULE_PNP_INFO("U32:device", pci, esp, esp_devs,
+    sizeof(esp_devs[0]), nitems(esp_devs) - 1);
 MODULE_DEPEND(esp, pci, 1, 1, 1);
 
 /*
@@ -192,10 +202,17 @@ static struct ncr53c9x_glue esp_pci_glue = {
 static int
 esp_pci_probe(device_t dev)
 {
-
-	if (pci_get_devid(dev) == PCI_DEVICE_ID_AMD53C974) {
-		device_set_desc(dev, "AMD Am53C974 Fast-SCSI");
-		return (BUS_PROBE_DEFAULT);
+	const struct esp_dev *esd;
+	uint32_t did;
+	size_t i;
+	did = pci_get_devid(dev);
+	
+	for(i=0; i<nitems(esp_devs) - 1; i++) {
+		esd = &esp_devs[i];
+		if(did == esd->deviceid){
+			device_set_desc(dev, esd->description);
+			return BUS_PROBE_DEFAULT;
+		}
 	}
 
 	return (ENXIO);
