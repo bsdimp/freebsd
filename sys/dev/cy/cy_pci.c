@@ -70,6 +70,15 @@ __FBSDID("$FreeBSD$");
 static int	cy_pci_attach(device_t dev);
 static int	cy_pci_probe(device_t dev);
 
+static struct cy_dev {
+	uint32_t deviceid;
+	const char *description;
+} cy_devs[] = {
+	{0x0100120e, "Cyclades Cyclom-Y Serial Adapter"},
+	{0x0101120e, "Cyclades Cyclom-Y Serial Adapter"},
+	{ 0, NULL },
+};
+
 static device_method_t cy_pci_methods[] = {
 	/* Device interface. */
 	DEVMETHOD(device_probe,		cy_pci_probe),
@@ -85,6 +94,8 @@ static driver_t cy_pci_driver = {
 };
 
 DRIVER_MODULE(cy, pci, cy_pci_driver, cy_devclass, 0, 0);
+MODULE_PNP_INFO("U32:device", pci, cy, cy_devs,
+    sizeof(cy_devs[0]), nitems(cy_devs) - 1);
 MODULE_DEPEND(cy, pci, 1, 1, 1);
 
 static int
