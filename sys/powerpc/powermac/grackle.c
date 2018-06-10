@@ -83,6 +83,14 @@ static int		grackle_enable_config(struct grackle_softc *, u_int,
 static void		grackle_disable_config(struct grackle_softc *);
 static int		badaddr(void *, size_t);
 
+static struct grackle_hb_dev {
+	uint32_t deviceid;
+	const char *description;
+} grackle_hb_devs[] = {
+	{0x00021057, "Grackle Host to PCI bridge"},
+	{0, NULL},
+};
+
 /*
  * Driver methods.
  */
@@ -290,13 +298,20 @@ badaddr(void *addr, size_t size)
 static int
 grackle_hb_probe(device_t dev)
 {
-
-	if (pci_get_devid(dev) == 0x00021057) {
-		device_set_desc(dev, "Grackle Host to PCI bridge");
-		device_quiet(dev);
-		return (0);
+	const struct grackle_hb_dev *grchd;
+	uint32_t did;
+	size_t i;
+	did = pci_get_devid(dev);
+	
+	for(i=0; i<nitems(grackle_hb_devs) - 1;i++){
+		grchd = &grackle_hb_devs[i];
+		if(did == grchd->deviceid){
+			device_set_desc(dev, grchd->description);
+			device_quiet(dev);
+			return (0);
+		}
 	}
-
+	
 	return (ENXIO);
 }
 
@@ -323,3 +338,5 @@ static driver_t grackle_hb_driver = {
 static devclass_t grackle_hb_devclass;
 
 DRIVER_MODULE(grackle_hb, pci, grackle_hb_driver, grackle_hb_devclass, 0, 0);
+MODULE_PNP_INFO("U32:device", pci, grackle_hb, grackle_hb_devs,
+    sizeof(grackle_hb_devs[0]), nitems(grackle_hb_devs) - 1);
