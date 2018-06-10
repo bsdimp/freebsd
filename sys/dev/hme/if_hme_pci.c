@@ -88,6 +88,20 @@ static int hme_pci_detach(device_t);
 static int hme_pci_suspend(device_t);
 static int hme_pci_resume(device_t);
 
+#define	PCI_VENDOR_SUN			0x108e
+#define	PCI_PRODUCT_SUN_EBUS		0x1000
+#define	PCI_PRODUCT_SUN_HMENETWORK	0x1001
+
+static struct hme_dev{
+	uint16_t vendorid;
+	uint16_t deviceid;
+	const char *description;
+} hme_devs[] = {
+	{PCI_VENDOR_SUN, PCI_PRODUCT_SUN_HMENETWORK,
+	     "Sun HME 10/100 Ethernet"},
+	{0, 0, NULL},
+};
+
 static device_method_t hme_pci_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		hme_pci_probe),
@@ -113,21 +127,28 @@ static driver_t hme_pci_driver = {
 };
 
 DRIVER_MODULE(hme, pci, hme_pci_driver, hme_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;U16:device", pci, hme, hme_devs,
+    sizeof(hme_devs[0]), nitems(hme_devs) - 1);
 MODULE_DEPEND(hme, pci, 1, 1, 1);
 MODULE_DEPEND(hme, ether, 1, 1, 1);
-
-#define	PCI_VENDOR_SUN			0x108e
-#define	PCI_PRODUCT_SUN_EBUS		0x1000
-#define	PCI_PRODUCT_SUN_HMENETWORK	0x1001
 
 int
 hme_pci_probe(device_t dev)
 {
-
-	if (pci_get_vendor(dev) == PCI_VENDOR_SUN &&
-	    pci_get_device(dev) == PCI_PRODUCT_SUN_HMENETWORK) {
-		device_set_desc(dev, "Sun HME 10/100 Ethernet");
-		return (BUS_PROBE_DEFAULT);
+	const struct hme_dev *hmed;
+	uint16_t vid;
+	uint16_t did;
+	size_t i;
+	
+	vid = pci_get_vendor(dev);
+	did = pci_get_device(dev);
+	
+	for(i=0; i<nitems(hme_devs) - 1; i++){
+		hmed = &hme_devs[i];
+		if(vid == hmed->vendorid && did == hmed->deviceid){
+			device_set_desc(dev, hmed->description);
+			return (BUS_PROBE_DEFAULT);
+		}
 	}
 	return (ENXIO);
 }
