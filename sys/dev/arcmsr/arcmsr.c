@@ -213,6 +213,96 @@ static d_open_t	arcmsr_open;
 static d_close_t arcmsr_close;
 static d_ioctl_t arcmsr_ioctl;
 
+static struct arcmsr_dev {
+	uint16_t vendorid;
+	uint32_t deviceid;
+	uint16_t subdeviceid;
+	char *description;
+} arcmsr_devs[] = {
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1110, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1200, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1201, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1210, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1120, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1130, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1160, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1170, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1220, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1230, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1231, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1260, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1261, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1270, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1280, 0,
+	    "Areca SATA 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1212, 0,
+	    "Areca SAS 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1222, 0,
+	    "Areca SAS 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1380, 0,
+	    "Areca SAS 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1381, 0,
+	    "Areca SAS 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1680, 0,
+	    "Areca SAS 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1681, 0,
+	    "Areca SAS 3G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1880, 0,
+	    "Areca SAS 6G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1882, 0,
+	    "Areca SAS 6G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1213, 0,
+	    "Areca SAS 6G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1223, 0,
+	    "Areca SAS 6G Host Adapter RAID Controller\n(RAID6 capable)"},
+        {PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1880, ARECA_SUB_DEV_ID_1883,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1882, ARECA_SUB_DEV_ID_1883,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1213, ARECA_SUB_DEV_ID_1883,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1223, ARECA_SUB_DEV_ID_1883,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1880, ARECA_SUB_DEV_ID_1216,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1882, ARECA_SUB_DEV_ID_1216,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1213, ARECA_SUB_DEV_ID_1216,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1223, ARECA_SUB_DEV_ID_1216,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+        {PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1880, ARECA_SUB_DEV_ID_1226,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1882, ARECA_SUB_DEV_ID_1226,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1213, ARECA_SUB_DEV_ID_1226,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1223, ARECA_SUB_DEV_ID_1226,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1884, 0,
+	    "Areca SAS 12G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1214, 0,
+	    "Areca SATA 6G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{PCI_VENDOR_ID_ARECA, PCIDevVenIDARC1203, 0,
+	    "Areca SATA 6G Host Adapter RAID Controller\n(RAID6 capable)"},
+	{0, 0, 0, 0},
+};
+
+
 static device_method_t arcmsr_methods[]={
 	DEVMETHOD(device_probe,		arcmsr_probe),
 	DEVMETHOD(device_attach,	arcmsr_attach),
@@ -234,6 +324,8 @@ static driver_t arcmsr_driver={
 
 static devclass_t arcmsr_devclass;
 DRIVER_MODULE(arcmsr, pci, arcmsr_driver, arcmsr_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;W32:vendor/device;U16:subdevice;D:#", pci, arcmsr,
+    arcmsr_devs, sizeof(arcmsr_devs[0]), nitems(arcmsr_devs) - 1);
 MODULE_DEPEND(arcmsr, pci, 1, 1, 1);
 MODULE_DEPEND(arcmsr, cam, 1, 1, 1);
 #ifndef BUS_DMA_COHERENT		
@@ -4908,74 +5000,28 @@ initialize_failed:
 */
 static int arcmsr_probe(device_t dev)
 {
-	u_int32_t id;
+	const struct arcmsr_dev *arcd;
+	u_int32_t did;
+	size_t i;
 	u_int16_t sub_device_id;
-	static char buf[256];
-	char x_type[]={"unknown"};
-	char *type;
-	int raid6 = 1;
+	char buf[256];
 
 	if (pci_get_vendor(dev) != PCI_VENDOR_ID_ARECA) {
 		return (ENXIO);
 	}
+	did = pci_get_devid(dev);
 	sub_device_id = pci_read_config(dev, PCIR_SUBDEV_0, 2);
-	switch(id = pci_get_devid(dev)) {
-	case PCIDevVenIDARC1110:
-	case PCIDevVenIDARC1200:
-	case PCIDevVenIDARC1201:
-	case PCIDevVenIDARC1210:
-		raid6 = 0;
-		/*FALLTHRU*/
-	case PCIDevVenIDARC1120:
-	case PCIDevVenIDARC1130:
-	case PCIDevVenIDARC1160:
-	case PCIDevVenIDARC1170:
-	case PCIDevVenIDARC1220:
-	case PCIDevVenIDARC1230:
-	case PCIDevVenIDARC1231:
-	case PCIDevVenIDARC1260:
-	case PCIDevVenIDARC1261:
-	case PCIDevVenIDARC1270:
-	case PCIDevVenIDARC1280:
-		type = "SATA 3G";
-		break;
-	case PCIDevVenIDARC1212:
-	case PCIDevVenIDARC1222:
-	case PCIDevVenIDARC1380:
-	case PCIDevVenIDARC1381:
-	case PCIDevVenIDARC1680:
-	case PCIDevVenIDARC1681:
-		type = "SAS 3G";
-		break;
-	case PCIDevVenIDARC1880:
-	case PCIDevVenIDARC1882:
-	case PCIDevVenIDARC1213:
-	case PCIDevVenIDARC1223:
-		if ((sub_device_id == ARECA_SUB_DEV_ID_1883) ||
-		    (sub_device_id == ARECA_SUB_DEV_ID_1216) ||
-		    (sub_device_id == ARECA_SUB_DEV_ID_1226))
-			type = "SAS 12G";
-		else
-			type = "SAS 6G";
-		break;
-	case PCIDevVenIDARC1884:
-		type = "SAS 12G";
-		break;
-	case PCIDevVenIDARC1214:
-	case PCIDevVenIDARC1203:
-		type = "SATA 6G";
-		break;
-	default:
-		type = x_type;
-		raid6 = 0;
-		break;
+	for (i = 0; i < nitems(arcmsr_devs); i++) {
+		arcd = &arcmsr_devs[i];
+		if ((arcd->deviceid == did) &&
+		    ((arcd->subdeviceid == sub_device_id)
+		     || (arcd->subdeviceid == 0))) {
+			sprintf(buf, "%s\n%s\n", arcd->description, ARCMSR_DRIVER_VERSION);
+			device_set_desc_copy(dev, buf);
+			return (BUS_PROBE_DEFAULT);
+		}
 	}
-	if(type == x_type)
-		return(ENXIO);
-	sprintf(buf, "Areca %s Host Adapter RAID Controller %s\n%s\n",
-		type, raid6 ? "(RAID6 capable)" : "", ARCMSR_DRIVER_VERSION);
-	device_set_desc_copy(dev, buf);
-	return (BUS_PROBE_DEFAULT);
+	return(ENXIO);
 }
 /*
 ************************************************************************
