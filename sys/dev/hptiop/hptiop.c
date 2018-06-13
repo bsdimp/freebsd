@@ -1805,13 +1805,60 @@ static driver_t hptiop_pci_driver = {
 	sizeof(struct hpt_iop_hba)
 };
 
+static struct hptiop_dev {
+	uint16_t vendorid;
+	uint16_t deviceid;
+	const char *description;
+	struct hptiop_adapter_ops *ops;
+	int sas;
+} hptiop_devs[] = {
+	{0x1103, 0x4520, "RocketRAID 4520 SAS Controller",
+	 &hptiop_mvfrey_ops, 1},
+	{0x1103, 0x4521, "RocketRAID 4521 SAS Controller",
+	 &hptiop_mvfrey_ops, 1},
+	{0x1103, 0x4522, "RocketRAID 4522 SAS Controller",
+	 &hptiop_mvfrey_ops, 1},
+	{0x1103, 0x3620, "RocketRAID 3620 SATA Controller",
+	 &hptiop_mvfrey_ops, 0},
+	{0x1103, 0x3622, "RocketRAID 3622 SATA Controller",
+	 &hptiop_mvfrey_ops, 0},
+	{0x1103, 0x3640, "RocketRAID 3640 SATA Controller",
+	 &hptiop_mvfrey_ops, 0},
+	{0x1103, 0x4210, "RocketRAID 4210 SAS Controller", &hptiop_itl_ops, 1},
+	{0x1103, 0x4211, "RocketRAID 4211 SAS Controller", &hptiop_itl_ops, 1},
+	{0x1103, 0x4310, "RocketRAID 4310 SAS Controller", &hptiop_itl_ops, 1},
+	{0x1103, 0x4311, "RocketRAID 4311 SAS Controller", &hptiop_itl_ops, 1},
+	{0x1103, 0x4320, "RocketRAID 4320 SAS Controller", &hptiop_itl_ops, 1},
+	{0x1103, 0x4321, "RocketRAID 4321 SAS Controller", &hptiop_itl_ops, 1},
+	{0x1103, 0x4322, "RocketRAID 4322 SAS Controller", &hptiop_itl_ops, 1},
+	{0x1103, 0x3220, "RocketRAID 3220 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3320, "RocketRAID 3320 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3410, "RocketRAID 3410 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3520, "RocketRAID 3520 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3510, "RocketRAID 3510 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3511, "RocketRAID 3511 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3521, "RocketRAID 3521 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3522, "RocketRAID 3522 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3530, "RocketRAID 3530 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3540, "RocketRAID 3540 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3560, "RocketRAID 3560 SATA Controller", &hptiop_itl_ops, 0},
+	{0x1103, 0x3020, "RocketRAID 3020 SATA Controller", &hptiop_mv_ops, 0},
+	{0x1103, 0x3120, "RocketRAID 3120 SATA Controller", &hptiop_mv_ops, 0},
+	{0x1103, 0x3122, "RocketRAID 3122 SATA Controller", &hptiop_mv_ops, 0},
+	{0, 0, 0, 0, 0},
+};
+
 DRIVER_MODULE(hptiop, pci, hptiop_pci_driver, hptiop_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;U16:device;D:#", pci, hptiop, hptiop_devs,
+    sizeof(hptiop_devs), nitems(hptiop_devs) - 1);
 MODULE_DEPEND(hptiop, cam, 1, 1, 1);
 
 static int hptiop_probe(device_t dev)
 {
 	struct hpt_iop_hba *hba;
-	u_int32_t id;
+	const struct hptiop_dev *hptd;
+	size_t i;
+	u_int32_t did;
 	static char buf[256];
 	int sas = 0;
 	struct hptiop_adapter_ops *ops;
@@ -1819,45 +1866,15 @@ static int hptiop_probe(device_t dev)
 	if (pci_get_vendor(dev) != 0x1103)
 		return (ENXIO);
 
-	id = pci_get_device(dev);
+	did = pci_get_device(dev);
 
-	switch (id) {
-		case 0x4520:
-		case 0x4521:
-		case 0x4522:
-			sas = 1;
-		case 0x3620:
-		case 0x3622:
-		case 0x3640:
-			ops = &hptiop_mvfrey_ops;
-			break;
-		case 0x4210:
-		case 0x4211:
-		case 0x4310:
-		case 0x4311:
-		case 0x4320:
-		case 0x4321:
- 		case 0x4322:
-			sas = 1;
-		case 0x3220:
-		case 0x3320:
-		case 0x3410:
-		case 0x3520:
-		case 0x3510:
-		case 0x3511:
-		case 0x3521:
-		case 0x3522:
-		case 0x3530:
-		case 0x3540:
-		case 0x3560:
-			ops = &hptiop_itl_ops;
-			break;
-		case 0x3020:
-		case 0x3120:
-		case 0x3122:
-			ops = &hptiop_mv_ops;
-			break;
-		default:
+	for (i = 0; i < nitems(hptiop_devs); i++) {
+		hptd = &hptiop_devs[i];
+		if (hptd->deviceid == did) {
+			sas = hptd->sas;
+			ops = hptd->ops;
+		}
+		else
 			return (ENXIO);
 	}
 
@@ -1866,7 +1883,7 @@ static int hptiop_probe(device_t dev)
 		pci_get_function(dev), pci_get_irq(dev));
 
 	sprintf(buf, "RocketRAID %x %s Controller\n",
-				id, sas ? "SAS" : "SATA");
+				did, sas ? "SAS" : "SATA");
 	device_set_desc_copy(dev, buf);
 
 	hba = (struct hpt_iop_hba *)device_get_softc(dev);
