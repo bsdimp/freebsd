@@ -157,6 +157,27 @@ SND_DECLARE_FILE("$FreeBSD$");
 #define A_EXTOUT_ADC_CAP_L	0x16
 #define A_EXTOUT_ADC_CAP_R	0x17
 
+static struct emu_pci_dev {
+	uint32_t devid;
+	const char *description;
+	uint8_t rev;
+} emu_pci_devs[] = {
+	{EMU10K1_PCI_ID, "Creative EMU10K1", 0},
+	{EMU10K2_PCI_ID, "Creative Audigy (EMU10K2)", 0},
+	{EMU10K2_PCI_ID, "Creative Audigy 2 (EMU10K2)", 0x04},
+	{EMU10K3_PCI_ID, "Creative Audigy 2 (EMU10K3)", 0},
+	{0, 0, 0},
+};
+
+static struct emujoy_pci_dev {
+	uint32_t devid;
+	const char *description;
+} emujoy_pci_devs[] = {
+	{0x70021102, "Creative EMU10K1 Joystick"},
+	{0x70031102, "Creative EMU10K2 Joystick"},
+	{0, 0},
+};
+
 struct emu_memblk {
 	SLIST_ENTRY(emu_memblk) link;
 	void *buf;
@@ -2044,31 +2065,24 @@ emu_uninit(struct sc_info *sc)
 static int
 emu_pci_probe(device_t dev)
 {
-	char *s = NULL;
+	const struct emu_pci_dev *emud;
+	uint32_t devid;
+	size_t i;
+	uint8_t rev;
 
-	switch (pci_get_devid(dev)) {
-	case EMU10K1_PCI_ID:
-		s = "Creative EMU10K1";
-		break;
-
-	case EMU10K2_PCI_ID:
-		if (pci_get_revid(dev) == 0x04)
-			s = "Creative Audigy 2 (EMU10K2)";
-		else
-			s = "Creative Audigy (EMU10K2)";
-		break;
-
-	case EMU10K3_PCI_ID:
-		s = "Creative Audigy 2 (EMU10K3)";
-		break;
-
-	default:
-		return ENXIO;
+	devid = pci_get_devid(dev);
+	rev = pci_get_revid(dev);
+	for (i = 0; i < nitems(emu_pci_devs); i++) {
+		emud = &emu_pci_devs[i];
+		if ((emud->devid == devid) &&
+		    ((emud->rev == rev) || emud->rev == 0)) {
+			device_set_desc(dev, emud->description);
+			return BUS_PROBE_LOW_PRIORITY;
+		}
 	}
-
-	device_set_desc(dev, s);
-	return BUS_PROBE_LOW_PRIORITY;
+	return ENXIO;
 }
+
 
 static int
 emu_pci_attach(device_t dev)
@@ -2200,6 +2214,8 @@ static driver_t emu_driver = {
 };
 
 DRIVER_MODULE(snd_emu10k1, pci, emu_driver, pcm_devclass, NULL, NULL);
+MODULE_PNP_INFO("W32:vendor/device;D:#", pci, snd_emu101k1,
+    emu_pci_devs, sizeof(emu_pci_devs[0]), nitems(emu_pci_devs) - 1);
 MODULE_DEPEND(snd_emu10k1, sound, SOUND_MINVER, SOUND_PREFVER, SOUND_MAXVER);
 MODULE_VERSION(snd_emu10k1, 1);
 MODULE_DEPEND(snd_emu10k1, midi, 1, 1, 1);
@@ -2208,21 +2224,20 @@ MODULE_DEPEND(snd_emu10k1, midi, 1, 1, 1);
 static int
 emujoy_pci_probe(device_t dev)
 {
-	char *s = NULL;
+	const struct emujoy_pci_dev *emujd;
+	size_t i;
+	uint32_t devid;
 
-	switch (pci_get_devid(dev)) {
-	case 0x70021102:
-		s = "Creative EMU10K1 Joystick";
-		device_quiet(dev);
-		break;
-	case 0x70031102:
-		s = "Creative EMU10K2 Joystick";
-		device_quiet(dev);
-		break;
+	devid = pci_get_devid(dev);
+	for (i = 0; i < nitems(emujoy_pci_devs); i++) {
+		emujd = &emujoy_pci_devs[i];
+		if(emujd->devid == devid) {
+			device_set_desc(dev, emujd->description);
+			device_quiet(dev);
+			return -1000;
+		}
 	}
-
-	if (s) device_set_desc(dev, s);
-	return s ? -1000 : ENXIO;
+	return ENXIO;
 }
 
 static int
@@ -2256,3 +2271,5 @@ static driver_t emujoy_driver = {
 static devclass_t emujoy_devclass;
 
 DRIVER_MODULE(emujoy, pci, emujoy_driver, emujoy_devclass, NULL, NULL);
+MODULE_PNP_INFO("W32:vendor/device;D:#", pci, emujoy, emujoy_pci_devs,
+    sizeof(emujoy_pci_devs[0]), nitems(emujoy_pci_devs) - 1);
