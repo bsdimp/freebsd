@@ -56,6 +56,18 @@ __FBSDID("$FreeBSD$");
 #define PCI_DEVICE_ID_BUSLOGIC_MULTIMASTER_NC	0x0140104Bul
 #define PCI_DEVICE_ID_BUSLOGIC_FLASHPOINT	0x8130104Bul
 
+static struct bt_dev {
+	uint16_t vendorid;
+	uint32_t deviceid;
+	const char *description;
+} bt_devs[] = {
+	{0x104B, PCI_DEVICE_ID_BUSLOGIC_MULTIMASTER,
+	    "Buslogic Multi-Master SCSI Host Adapter"},
+	{0x104B, PCI_DEVICE_ID_BUSLOGIC_MULTIMASTER_NC,
+	    "Buslogic Multi-Master SCSI Host Adapter"},
+	{0, 0, 0},
+};
+
 static int
 bt_pci_alloc_resources(device_t dev)
 {
@@ -106,10 +118,14 @@ bt_pci_release_resources(device_t dev)
 static int
 bt_pci_probe(device_t dev)
 {
-	switch (pci_get_devid(dev)) {
-		case PCI_DEVICE_ID_BUSLOGIC_MULTIMASTER:
-		case PCI_DEVICE_ID_BUSLOGIC_MULTIMASTER_NC:
-		{
+	const struct bt_dev *btd;
+	uint32_t did;
+	size_t i;
+
+        did = pci_get_devid(dev);
+	for (i = 0; i < nitems(bt_devs) - 1; i++) {
+		btd = &bt_devs[i];
+		if (btd->deviceid == did) {
 			struct bt_softc   *bt = device_get_softc(dev);
 			pci_info_data_t pci_info;
 			int error;
@@ -128,29 +144,26 @@ bt_pci_probe(device_t dev)
 				       /*param*/NULL, /*paramlen*/0,
 				       (u_int8_t*)&pci_info, sizeof(pci_info),
 				       DEFAULT_CMD_TIMEOUT);
-			if (error == 0
-			 && pci_info.io_port < BIO_DISABLED) {
-				bt_mark_probed_bio(pci_info.io_port);
-				if (rman_get_start(bt->port) !=
-				    bt_iop_from_bio(pci_info.io_port)) {
-					u_int8_t new_addr;
+		     if (error == 0
+		        && pci_info.io_port < BIO_DISABLED) {
+		        bt_mark_probed_bio(pci_info.io_port);
+			     if (rman_get_start(bt->port) !=
+				 bt_iop_from_bio(pci_info.io_port)) {
+				     u_int8_t new_addr;
 
-					new_addr = BIO_DISABLED;
-					bt_cmd(bt, BOP_MODIFY_IO_ADDR,
-					       /*param*/&new_addr,
-					       /*paramlen*/1, /*reply_buf*/NULL,
-					       /*reply_len*/0,
-					       DEFAULT_CMD_TIMEOUT);
+				     new_addr = BIO_DISABLED;
+				     bt_cmd(bt, BOP_MODIFY_IO_ADDR,
+					    /*param*/&new_addr,
+					    /*paramlen*/1, /*reply_buf*/NULL,
+					    /*reply_len*/0,
+					    DEFAULT_CMD_TIMEOUT);
 				}
-			}
-			bt_pci_release_resources(dev);
-			device_set_desc(dev, "Buslogic Multi-Master SCSI Host Adapter");
-			return (BUS_PROBE_DEFAULT);
+		     }
+		     bt_pci_release_resources(dev);
+		     device_set_desc(dev, btd->description);
+		     return (BUS_PROBE_DEFAULT);
 		}
-		default:
-			break;
 	}
-
 	return (ENXIO);
 }
 
@@ -218,4 +231,6 @@ static driver_t bt_pci_driver = {
 static devclass_t bt_devclass;
 
 DRIVER_MODULE(bt, pci, bt_pci_driver, bt_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;W32:vendor/device;D:#", pci, bt, bt_devs,
+    sizeof(bt_devs[0]), nitems(bt_devs) - 1);
 MODULE_DEPEND(bt, pci, 1, 1, 1);
