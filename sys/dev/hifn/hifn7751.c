@@ -106,6 +106,21 @@ static	int hifn_newsession(device_t, u_int32_t *, struct cryptoini *);
 static	int hifn_freesession(device_t, u_int64_t);
 static	int hifn_process(device_t, struct cryptop *, int);
 
+static struct hifn_dev {
+	uint16_t vendorid;
+	uint16_t deviceid;
+} hifn_devs[] = {
+	{PCI_VENDOR_INVERTEX, PCI_PRODUCT_INVERTEX_AEON},
+	{PCI_VENDOR_HIFN, PCI_PRODUCT_HIFN_7751},
+	{PCI_VENDOR_HIFN, PCI_PRODUCT_HIFN_7951},
+	{PCI_VENDOR_HIFN, PCI_PRODUCT_HIFN_7955},
+	{PCI_VENDOR_HIFN, PCI_PRODUCT_HIFN_7956},
+	{PCI_VENDOR_HIFN, PCI_PRODUCT_HIFN_7811},
+	{PCI_VENDOR_NETSEC, PCI_PRODUCT_NETSEC_7751},
+	{0, 0},
+};
+
+
 static device_method_t hifn_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		hifn_probe),
@@ -130,6 +145,8 @@ static driver_t hifn_driver = {
 static devclass_t hifn_devclass;
 
 DRIVER_MODULE(hifn, pci, hifn_driver, hifn_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;U16:device", pci, hifn, hifn_devs,
+    sizeof(hifn_devs[0]), nitems(hifn_devs) - 1);
 MODULE_DEPEND(hifn, crypto, 1, 1, 1);
 #ifdef HIFN_RNDTEST
 MODULE_DEPEND(hifn, rndtest, 1, 1, 1);
@@ -205,19 +222,20 @@ SYSCTL_INT(_hw_hifn, OID_AUTO, maxbatch, CTLFLAG_RW, &hifn_maxbatch,
 static int
 hifn_probe(device_t dev)
 {
-	if (pci_get_vendor(dev) == PCI_VENDOR_INVERTEX &&
-	    pci_get_device(dev) == PCI_PRODUCT_INVERTEX_AEON)
-		return (BUS_PROBE_DEFAULT);
-	if (pci_get_vendor(dev) == PCI_VENDOR_HIFN &&
-	    (pci_get_device(dev) == PCI_PRODUCT_HIFN_7751 ||
-	     pci_get_device(dev) == PCI_PRODUCT_HIFN_7951 ||
-	     pci_get_device(dev) == PCI_PRODUCT_HIFN_7955 ||
-	     pci_get_device(dev) == PCI_PRODUCT_HIFN_7956 ||
-	     pci_get_device(dev) == PCI_PRODUCT_HIFN_7811))
-		return (BUS_PROBE_DEFAULT);
-	if (pci_get_vendor(dev) == PCI_VENDOR_NETSEC &&
-	    pci_get_device(dev) == PCI_PRODUCT_NETSEC_7751)
-		return (BUS_PROBE_DEFAULT);
+	const struct hifn_dev *hifd;
+	size_t i;
+	u_int16_t vid;
+	u_int16_t did;
+
+	vid = pci_get_vendor(dev);
+	did = pci_get_device(dev);
+	for (i = 0; i < nitems(hifn_devs); i++) {
+		hifd = &hifn_devs[i];
+		if ((hifd->vendorid == vid) &&
+		    (hifd->deviceid == did)) {
+			return (BUS_PROBE_DEFAULT);
+		}
+	}
 	return (ENXIO);
 }
 
