@@ -200,6 +200,16 @@ EARLY_DRIVER_MODULE(ebus, nexus, ebus_nexus_driver, ebus_devclass, 0, 0,
     BUS_PASS_BUS + 1);
 MODULE_DEPEND(ebus, nexus, 1, 1, 1);
 
+static struct ebus_pci_dev {
+	uint16_t vendorid;
+	uint16_t deviceid;
+	const char *description;
+} ebus_pci_devs[] = {
+	{0x108e, 0x1000, "PCI-EBus2 bridge"},
+	{0x108e, 0x1100, "PCI-EBus3 bridge"},
+	{0, 0, 0},
+}
+
 static device_method_t ebus_pci_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		ebus_pci_probe),
@@ -240,6 +250,8 @@ static driver_t ebus_pci_driver = {
 
 EARLY_DRIVER_MODULE(ebus, pci, ebus_pci_driver, ebus_devclass, 0, 0,
     BUS_PASS_BUS);
+MODULE_PNP_INFO("U16:vendor;U16:device;D:#", pci, ebus, ebus_pci_devs,
+    sizeof(ebus_pci_devs[0]), nitems(ebus_pci_devs) - 1);
 MODULE_DEPEND(ebus, pci, 1, 1, 1);
 MODULE_VERSION(ebus, 1);
 
@@ -260,19 +272,23 @@ ebus_nexus_probe(device_t dev)
 static int
 ebus_pci_probe(device_t dev)
 {
+	const struct ebus_pci_dev *ebd;
+	uint16_t did;
+	size_t i;
 
+	did = pci_get_device(dev);
 	if (pci_get_class(dev) != PCIC_BRIDGE ||
 	    pci_get_vendor(dev) != 0x108e ||
 	    strcmp(ofw_bus_get_name(dev), "ebus") != 0)
 		return (ENXIO);
-
-	if (pci_get_device(dev) == 0x1000)
-		device_set_desc(dev, "PCI-EBus2 bridge");
-	else if (pci_get_device(dev) == 0x1100)
-		device_set_desc(dev, "PCI-EBus3 bridge");
-	else
-		return (ENXIO);
-	return (BUS_PROBE_GENERIC);
+        for (i = 0; i < nitems(ebus_pci_devs) - 1; i++) {
+		ebd = &ebus_pci_devs[i];
+		if (did == ebd->deviceid) {
+			device_set_desc(dev, ebd->description);
+			return (BUS_PROBE_GENERIC);
+		}
+	}
+	return (ENXIO);
 }
 
 static int
