@@ -739,6 +739,12 @@ out:
 	return (how);
 }
 
+caddr_t
+ptov(uintptr_t x)
+{
+	return ((caddr_t)x);
+}
+
 EFI_STATUS
 main(int argc, CHAR16 *argv[])
 {
