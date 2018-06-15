@@ -21,7 +21,6 @@ SRCS=	autoload.c \
 	framebuffer.c \
 	main.c \
 	self_reloc.c \
-	smbios.c \
 	vers.c
 
 .if ${MK_ZFS} != "no"
@@ -42,8 +41,6 @@ CWARNFLAGS.self_reloc.c+=	-Wno-error=maybe-uninitialized
 CWARNFLAGS.main.c+=	-Wno-format
 
 .PATH: ${.CURDIR}/arch/${MACHINE}
-# For smbios.c
-.PATH: ${BOOTSRC}/i386/libi386
 .include "${.CURDIR}/arch/${MACHINE}/Makefile.inc"
 
 CFLAGS+=	-I${.CURDIR}
@@ -51,20 +48,7 @@ CFLAGS+=	-I${.CURDIR}/arch/${MACHINE}
 CFLAGS+=	-I${EFISRC}/include
 CFLAGS+=	-I${EFISRC}/include/${MACHINE}
 CFLAGS+=	-I${SYSDIR}/contrib/dev/acpica/include
-CFLAGS+=	-I${BOOTSRC}/i386/libi386
-CFLAGS+=	-DNO_PCI -DEFI
-
-.if !defined(BOOT_HIDE_SERIAL_NUMBERS)
-# Export serial numbers, UUID, and asset tag from loader.
-CFLAGS+= -DSMBIOS_SERIAL_NUMBERS
-.if defined(BOOT_LITTLE_ENDIAN_UUID)
-# Use little-endian UUID format as defined in SMBIOS 2.6.
-CFLAGS+= -DSMBIOS_LITTLE_ENDIAN_UUID
-.elif defined(BOOT_NETWORK_ENDIAN_UUID)
-# Use network-endian UUID format for backward compatibility.
-CFLAGS+= -DSMBIOS_NETWORK_ENDIAN_UUID
-.endif
-.endif
+CFLAGS+=	-DNO_PCI
 
 .if defined(HAVE_FDT) && ${MK_FDT} != "no"
 .include	"${BOOTSRC}/fdt.mk"
