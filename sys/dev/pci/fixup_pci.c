@@ -55,6 +55,15 @@ static int	fixup_pci_probe(device_t dev);
 static void	fixwsc_natoma(device_t dev);
 static void	fixc1_nforce2(device_t dev);
 
+static struct fixup_pci_dev {
+	uint32_t devid;
+	const char *description;
+} fixup_pci_devs[] = {
+	{0x12378086, "Intel 82440FX (Natoma)"},
+	{0x01e010de, "nVidia nForce2"},
+	{0, 0},
+};
+
 static device_method_t fixup_pci_methods[] = {
     /* Device interface */
     DEVMETHOD(device_probe,		fixup_pci_probe),
@@ -71,19 +80,24 @@ static driver_t fixup_pci_driver = {
 static devclass_t fixup_pci_devclass;
 
 DRIVER_MODULE(fixup_pci, pci, fixup_pci_driver, fixup_pci_devclass, 0, 0);
+MODULE_PNP_INFO("W32:vendor/device;D:#", pci, fixup_pci, fixup_pci_devs,
+    sizeof(fixup_pci_devs[0]), nitems(fixup_pci_devs) - 1);
 
 static int
 fixup_pci_probe(device_t dev)
 {
-    switch (pci_get_devid(dev)) {
-    case 0x12378086:		/* Intel 82440FX (Natoma) */
-	fixwsc_natoma(dev);
-	break;
-    case 0x01e010de:		/* nVidia nForce2 */
-	fixc1_nforce2(dev);
-	break;
-    }
-    return(ENXIO);
+	const struct fixup_pci_dev *fixd;
+	uint32_t devid;
+	size_t i;
+
+	devid = pci_get_devid(dev);
+	for (i = 0; i < nitems(fixup_pci_devs); i++) {
+		fixd = &fixup_pci_devs[i];
+		if(fixd->devid == devid) {
+			fixwsc_natoma(dev);
+		}
+	}
+	return(ENXIO);
 }
 
 static void
