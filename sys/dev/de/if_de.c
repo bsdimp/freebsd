@@ -161,6 +161,21 @@ static void	tulip_dma_map_addr(void *, bus_dma_segment_t *, int, int);
 static void	tulip_dma_map_rxbuf(void *, bus_dma_segment_t *, int,
 		    bus_size_t, int);
 
+static struct de_dev {
+	uint16_t vendorid;
+	uint16_t deviceid;
+	uint8_t revid;
+	const char *description;
+} de_devs[] = {
+	{DEC_VENDORID, CHIPID_21040, 0, "Digital 21040 Ethernet"},
+	{DEC_VENDORID, CHIPID_21041, 0, "Digital 21041 Ethernet"},
+	{DEC_VENDORID, CHIPID_21140, 0, "Digital 21140 Fast Ethernet"},
+	{DEC_VENDORID, CHIPID_21140, 0x20, "Digital 21140A Fast Ethernet"},
+	{DEC_VENDORID, CHIPID_21142, 0, "Digital 21142 Fast Ethernet"},
+	{DEC_VENDORID, CHIPID_21142, 0x20, "Digital 21143 Fast Ethernet"},
+	{0, 0, 0, 0},
+};
+
 static void
 tulip_dma_map_addr(void *arg, bus_dma_segment_t *segs, int nseg, int error)
 {
@@ -4670,43 +4685,39 @@ tulip_initring(
 static int
 tulip_pci_probe(device_t dev)
 {
-    const char *name = NULL;
+	const char *name = NULL;
+    	const struct de_dev *ded;
+	uint16_t vid;
+	uint16_t did;
+	uint8_t revid;
+	size_t i;
 
-    if (pci_get_vendor(dev) != DEC_VENDORID)
+	vid = pci_get_vendor(dev);
+	did = pci_get_device(dev);
+	revid = pci_get_revid(dev);
+	
+	if (vid != DEC_VENDORID)
+		return ENXIO;
+
+	/*
+	* Some LanMedia WAN cards use the Tulip chip, but they have
+	* their own driver, and we should not recognize them
+	*/
+	if (pci_get_subvendor(dev) == 0x1376)
+		return ENXIO;
+	
+	for (i = 0; i < nitems(de_devs); i++) {
+		ded = &de_devs[i];
+		if ((ded->deviceid == did) &&
+		    ((revid >= ded->revid) || (ded->revid == 0))) {
+			    name = ded->description;
+		}
+	}
+	if (name) {
+		device_set_desc(dev, name);
+		return BUS_PROBE_LOW_PRIORITY;
+	}
 	return ENXIO;
-
-    /*
-     * Some LanMedia WAN cards use the Tulip chip, but they have
-     * their own driver, and we should not recognize them
-     */
-    if (pci_get_subvendor(dev) == 0x1376)
-	return ENXIO;
-
-    switch (pci_get_device(dev)) {
-    case CHIPID_21040:
-	name = "Digital 21040 Ethernet";
-	break;
-    case CHIPID_21041:
-	name = "Digital 21041 Ethernet";
-	break;
-    case CHIPID_21140:
-	if (pci_get_revid(dev) >= 0x20)
-	    name = "Digital 21140A Fast Ethernet";
-	else
-	    name = "Digital 21140 Fast Ethernet";
-	break;
-    case CHIPID_21142:
-	if (pci_get_revid(dev) >= 0x20)
-	    name = "Digital 21143 Fast Ethernet";
-	else
-	    name = "Digital 21142 Fast Ethernet";
-	break;
-    }
-    if (name) {
-	device_set_desc(dev, name);
-	return BUS_PROBE_LOW_PRIORITY;
-    }
-    return ENXIO;
 }
 
 static int
@@ -4908,6 +4919,8 @@ static driver_t tulip_pci_driver = {
 static devclass_t tulip_devclass;
 
 DRIVER_MODULE(de, pci, tulip_pci_driver, tulip_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;U16:device", pci, de, de_devs,
+    sizeof(de_devs[0]), nitems(de_devs) - 1);
 
 #ifdef DDB
 void	tulip_dumpring(int unit, int ring);
