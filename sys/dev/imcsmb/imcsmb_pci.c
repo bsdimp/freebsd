@@ -129,22 +129,23 @@ static struct imcsmb_reg_set imcsmb_regs[] = {
 };
 
 static struct imcsmb_pci_device {
-	uint16_t	id;
+	uint16_t   vendorid;
+	uint16_t   deviceid;
 	char		*name;
 } imcsmb_pci_devices[] = {
-	{IMCSMB_PCI_DEV_ID_IMC0_SBX,
+	{PCI_VENDOR_INTEL, IMCSMB_PCI_DEV_ID_IMC0_SBX,
 	    "Intel Sandybridge Xeon iMC 0 SMBus controllers"	},
-	{IMCSMB_PCI_DEV_ID_IMC0_IBX,
+	{PCI_VENDOR_INTEL, IMCSMB_PCI_DEV_ID_IMC0_IBX,
 	    "Intel Ivybridge Xeon iMC 0 SMBus controllers"	},
-	{IMCSMB_PCI_DEV_ID_IMC0_HSX,
+	{PCI_VENDOR_INTEL, IMCSMB_PCI_DEV_ID_IMC0_HSX,
 	    "Intel Haswell Xeon iMC 0 SMBus controllers"	},
-	{IMCSMB_PCI_DEV_ID_IMC1_HSX,
+	{PCI_VENDOR_INTEL, IMCSMB_PCI_DEV_ID_IMC1_HSX,
 	    "Intel Haswell Xeon iMC 1 SMBus controllers"	},
-	{IMCSMB_PCI_DEV_ID_IMC0_BDX,
+	{PCI_VENDOR_INTEL, IMCSMB_PCI_DEV_ID_IMC0_BDX,
 	    "Intel Broadwell Xeon iMC 0 SMBus controllers"	},
-	{IMCSMB_PCI_DEV_ID_IMC1_BDX,
+	{PCI_VENDOR_INTEL, IMCSMB_PCI_DEV_ID_IMC1_BDX,
 	    "Intel Broadwell Xeon iMC 1 SMBus controllers"	},
-	{0, NULL},
+	{0, 0, NULL},
 };
 
 /* Device methods. */
@@ -247,9 +248,9 @@ imcsmb_pci_probe(device_t dev)
 
 	pci_dev_id = pci_get_device(dev);
 	for (pci_device = imcsmb_pci_devices;
-	    pci_device->name != NULL;
-	    pci_device++) {
-		if (pci_dev_id == pci_device->id) {
+	  pci_device->name != NULL;
+	  pci_device++) {
+		if (pci_dev_id == pci_device->deviceid) {
 			device_set_desc(dev, pci_device->name);
 			rc = BUS_PROBE_DEFAULT;
 			goto out;
@@ -339,6 +340,8 @@ static driver_t imcsmb_pci_driver = {
 };
 
 DRIVER_MODULE(imcsmb_pci, pci, imcsmb_pci_driver, imcsmb_pci_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;U16:device;D:#", pci, imcsmb_pci, imcsmb_pci_devices,
+    sizeof(imcsmb_pci_devices[0]), nitems(imcsmb_pci_devices) - 1);
 MODULE_DEPEND(imcsmb_pci, pci, 1, 1, 1);
 MODULE_VERSION(imcsmb_pci, 1);
 
