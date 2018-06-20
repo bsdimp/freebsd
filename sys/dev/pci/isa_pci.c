@@ -59,6 +59,33 @@ static struct resource *	isab_pci_alloc_resource(device_t dev,
 static int	isab_pci_release_resource(device_t dev, device_t child,
     int type, int rid, struct resource *r);
 
+static struct isab_pci_dev {
+	uint32_t devid;
+	const char *description;
+} isab_pci_devs[] = {
+	{0x04848086, "PCI-ISA bridge"}, /* Intel 82378ZB/82378IB */
+	{0x122e8086, "PCI-ISA bridge"}, /* Intel 82371FB */
+	{0x70008086, "PCI-ISA bridge"}, /* Intel 82371SB */
+	{0x71108086, "PCI-ISA bridge"}, /* Intel 82371AB */
+	{0x71988086, "PCI-ISA bridge"}, /* Intel 82443MX */
+	{0x24108086, "PCI-ISA bridge"}, /* Intel 82801AA (ICH) */
+	{0x24208086, "PCI-ISA bridge"}, /* Intel 82801AB (ICH0) */
+	{0x24408086, "PCI-ISA bridge"}, /* Intel 82801AB (ICH2) */
+	{0x00061004, "PCI-ISA bridge"}, /* VLSI 82C593 */
+	{0x05861106, "PCI-ISA bridge"}, /* VIA 82C586 */
+	{0x05961106, "PCI-ISA bridge"}, /* VIA 82C596 */
+	{0x06861106, "PCI-ISA bridge"}, /* VIA 82C686 */
+	{0x153310b9, "PCI-ISA bridge"}, /* AcerLabs M1533 */
+	{0x154310b9, "PCI-ISA bridge"}, /* AcerLabs M1543 */
+	{0x00081039, "PCI-ISA bridge"}, /* SiS 85c503 */
+	{0x00001078, "PCI-ISA bridge"}, /* Cyrix Cx5510 */
+	{0x01001078, "PCI-ISA bridge"}, /* Cyrix Cx5530 */
+	{0xc7001045, "PCI-ISA bridge"}, /* OPTi 82C700 (FireStar) */
+	{0x886a1060, "PCI-ISA bridge"}, /* UMC UM8886 ISA */
+	{0x02001166, "PCI-ISA bridge"}, /* ServerWorks IB6566 PCI */
+	{0, 0},                         /* sentinel */
+};
+
 static device_method_t isab_methods[] = {
     /* Device interface */
     DEVMETHOD(device_probe,		isab_pci_probe),
@@ -96,6 +123,8 @@ static driver_t isab_driver = {
 };
 
 DRIVER_MODULE(isab, pci, isab_driver, isab_devclass, 0, 0);
+MODULE_PNP_INFO("U32:vendor/device", pci, isab, isab_pci_devs,
+    sizeof(isab_pci_devs[0]), nitems(isab_pci_devs) - 1);
 
 /*
  * XXX we need to add a quirk list here for bridges that don't correctly
@@ -105,13 +134,18 @@ static int
 isab_pci_probe(device_t dev)
 {
     int		matched = 0;
+    const struct isab_pci_dev *isad;
+    uint32_t did;
+    size_t i;
+
+    did = pci_get_devid(dev);
 
     /*
      * Try for a generic match based on class/subclass.
      */
     if ((pci_get_class(dev) == PCIC_BRIDGE) &&
 	(pci_get_subclass(dev) == PCIS_BRIDGE_ISA)) {
-	matched = 1;
+	    matched = 1;
     } else {
 	/*
 	 * These are devices that we *know* are PCI:ISA bridges. 
@@ -119,41 +153,20 @@ isab_pci_probe(device_t dev)
 	 * such.  Check in case one of them is pretending to be
 	 * something else.
 	 */
-	switch (pci_get_devid(dev)) {
-	case 0x04848086:	/* Intel 82378ZB/82378IB */
-	case 0x122e8086:	/* Intel 82371FB */
-	case 0x70008086:	/* Intel 82371SB */
-	case 0x71108086:	/* Intel 82371AB */
-	case 0x71988086:	/* Intel 82443MX */
-	case 0x24108086:	/* Intel 82801AA (ICH) */
-	case 0x24208086:	/* Intel 82801AB (ICH0) */
-	case 0x24408086:	/* Intel 82801AB (ICH2) */
-	case 0x00061004:	/* VLSI 82C593 */
-	case 0x05861106:	/* VIA 82C586 */
-	case 0x05961106:	/* VIA 82C596 */
-	case 0x06861106:	/* VIA 82C686 */
-	case 0x153310b9:	/* AcerLabs M1533 */
-	case 0x154310b9:	/* AcerLabs M1543 */
-	case 0x00081039:	/* SiS 85c503 */
-	case 0x00001078:	/* Cyrix Cx5510 */
-	case 0x01001078:	/* Cyrix Cx5530 */
-	case 0xc7001045:	/* OPTi 82C700 (FireStar) */
-	case 0x886a1060:	/* UMC UM8886 ISA */
-	case 0x02001166:	/* ServerWorks IB6566 PCI */
-	    if (bootverbose)
-		printf("PCI-ISA bridge with incorrect subclass 0x%x\n",
-		       pci_get_subclass(dev));
-	    matched = 1;
-	    break;
-	
-	default:
-	    break;
+	for (i = 0; i < nitems(isab_pci_devs) - 1; i++) {
+		isad = &isab_pci_devs[i];
+		if (isad->devid == did) {
+			matched = 1;
+			if (bootverbose)
+				printf("PCI-ISA bridge with incorrect subclass 0x%x\n",
+				  pci_get_subclass(dev));
+		}
 	}
     }
 
     if (matched) {
-	device_set_desc(dev, "PCI-ISA bridge");
-	return(-10000);
+	    device_set_desc(dev, "PCI-ISA bridge");
+	    return(-10000);
     }
     return(ENXIO);
 }
