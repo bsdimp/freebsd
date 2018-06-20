@@ -43,6 +43,13 @@ __FBSDID("$FreeBSD$");
 #include <dev/pci/pcivar.h>
 
 static int	ignore_pci_probe(device_t dev);
+static struct ignore_pci_dev {
+	uint32_t devid;
+	const char *description;
+} ignore_pci_devs[] = {
+	{0x10001042, "ignored"},
+	{0, 0},
+};
 
 static device_method_t ignore_pci_methods[] = {
     /* Device interface */
@@ -60,6 +67,8 @@ static driver_t ignore_pci_driver = {
 static devclass_t ignore_pci_devclass;
 
 DRIVER_MODULE(ignore_pci, pci, ignore_pci_driver, ignore_pci_devclass, 0, 0);
+MODULE_PNP_INFO("U32:vendor/device", pci, ignore_pci, ignore_pci_devs,
+    sizeof(ignore_pci_devs[0]), nitems(ignore_pci_devs) - 1);
 
 static int
 ignore_pci_probe(device_t dev)
