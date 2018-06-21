@@ -171,6 +171,9 @@ static driver_t ixgb_driver = {
 
 static devclass_t ixgb_devclass;
 DRIVER_MODULE(ixgb, pci, ixgb_driver, ixgb_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;U16:device;U16:subvendor;U16:subdevice",
+    pci, ixgb, ixgb_vendor_info_array, sizeof(ixgb_vendor_info_array[0]),
+        nitems(ixgb_vendor_info_array) - 1);
 
 MODULE_DEPEND(ixgb, pci, 1, 1, 1);
 MODULE_DEPEND(ixgb, ether, 1, 1, 1);
