@@ -5694,21 +5694,23 @@ iwm_intr(void *arg)
 #define	PCI_PRODUCT_INTEL_WL_8265_1	0x24fd
 
 static const struct iwm_devices {
+	uint16_t                vendor;
 	uint16_t		device;
 	const struct iwm_cfg	*cfg;
 } iwm_devices[] = {
-	{ PCI_PRODUCT_INTEL_WL_3160_1, &iwm3160_cfg },
-	{ PCI_PRODUCT_INTEL_WL_3160_2, &iwm3160_cfg },
-	{ PCI_PRODUCT_INTEL_WL_3165_1, &iwm3165_cfg },
-	{ PCI_PRODUCT_INTEL_WL_3165_2, &iwm3165_cfg },
-	{ PCI_PRODUCT_INTEL_WL_3168_1, &iwm3168_cfg },
-	{ PCI_PRODUCT_INTEL_WL_7260_1, &iwm7260_cfg },
-	{ PCI_PRODUCT_INTEL_WL_7260_2, &iwm7260_cfg },
-	{ PCI_PRODUCT_INTEL_WL_7265_1, &iwm7265_cfg },
-	{ PCI_PRODUCT_INTEL_WL_7265_2, &iwm7265_cfg },
-	{ PCI_PRODUCT_INTEL_WL_8260_1, &iwm8260_cfg },
-	{ PCI_PRODUCT_INTEL_WL_8260_2, &iwm8260_cfg },
-	{ PCI_PRODUCT_INTEL_WL_8265_1, &iwm8265_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_3160_1, &iwm3160_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_3160_2, &iwm3160_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_3165_1, &iwm3165_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_3165_2, &iwm3165_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_3168_1, &iwm3168_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_7260_1, &iwm7260_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_7260_2, &iwm7260_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_7265_1, &iwm7265_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_7265_2, &iwm7265_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_8260_1, &iwm8260_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_8260_2, &iwm8260_cfg },
+	{PCI_VENDOR_INTEL, PCI_PRODUCT_INTEL_WL_8265_1, &iwm8265_cfg },
+	{0, 0, NULL},
 };
 
 static int
@@ -6460,6 +6462,8 @@ static driver_t iwm_pci_driver = {
 static devclass_t iwm_devclass;
 
 DRIVER_MODULE(iwm, pci, iwm_pci_driver, iwm_devclass, NULL, NULL);
+MODULE_PNP_INFO("U16:vendor;U16:device", pci, iwm, iwm_devices,
+    sizeof(iwm_devices[0]), nitems(iwm_devices) - 1);
 MODULE_DEPEND(iwm, firmware, 1, 1, 1);
 MODULE_DEPEND(iwm, pci, 1, 1, 1);
 MODULE_DEPEND(iwm, wlan, 1, 1, 1);
