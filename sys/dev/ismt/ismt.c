@@ -718,27 +718,32 @@ fail:
 #define ID_INTEL_S1200_SMT1		0x0c5a8086
 #define ID_INTEL_C2000_SMT		0x1f158086
 
+static struct ismt_dev {
+	uint32_t devid;
+	const char *description;
+} ismt_devs[] = {
+	{ID_INTEL_S1200_SMT0, "Atom Processor S1200 SMBus 2.0 Controller 0"},
+	{ID_INTEL_S1200_SMT1, "Atom Processor S1200 SMBus 2.0 Controller 1"},
+	{ID_INTEL_C2000_SMT, "Atom Processor C2000 SMBus 2.0"},
+	{0, NULL},
+};
+
 static int
 ismt_probe(device_t dev)
 {
-	const char *desc;
+	uint32_t did;
+        size_t i;
 
-	switch (pci_get_devid(dev)) {
-	case ID_INTEL_S1200_SMT0:
-		desc = "Atom Processor S1200 SMBus 2.0 Controller 0";
-		break;
-	case ID_INTEL_S1200_SMT1:
-		desc = "Atom Processor S1200 SMBus 2.0 Controller 1";
-		break;
-	case ID_INTEL_C2000_SMT:
-		desc = "Atom Processor C2000 SMBus 2.0";
-		break;
-	default:
-		return (ENXIO);
+	did = pci_get_devid(dev);
+	const struct ismt_dev *ismtd;
+	for (i = 0; i < nitems(ismt_devs) - 1; i++) {
+		ismtd = &ismt_devs[i];
+		if (did == ismtd->devid) {
+			device_set_desc(dev, ismtd->description);
+			return (BUS_PROBE_DEFAULT);
+		}
 	}
-
-	device_set_desc(dev, desc);
-	return (BUS_PROBE_DEFAULT);
+	return (ENXIO);
 }
 
 /* Device methods */
@@ -771,6 +776,8 @@ static driver_t ismt_pci_driver = {
 static devclass_t ismt_pci_devclass;
 
 DRIVER_MODULE(ismt, pci, ismt_pci_driver, ismt_pci_devclass, 0, 0);
+MODULE_PNP_INFO("W32:vendor/device;D:#", pci, ismt, ismt_devs,
+    sizeof(ismt_devs[0]), nitems(ismt_devs) - 1);
 DRIVER_MODULE(smbus, ismt, smbus_driver, smbus_devclass, 0, 0);
 
 MODULE_DEPEND(ismt, pci, 1, 1, 1);
