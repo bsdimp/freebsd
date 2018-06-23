@@ -141,6 +141,16 @@ void            gdt_mpr_release_event(struct gdt_softc *);
 void            gdt_mpr_set_sema0(struct gdt_softc *);
 int             gdt_mpr_test_busy(struct gdt_softc *);
 
+static struct iir_pci_dev {
+	uint16_t vendorid;
+	uint16_t deviceid;
+	const char *description;
+} iir_pci_devs[] = {
+	{INTEL_VENDOR_ID_IIR, INTEL_DEVICE_ID_IIR, "Intel Integrated RAID Controller"},
+	{GDT_VENDOR_ID, GDT_DEVICE_ID_NEWRX, "ICP Disk Array Controller"},
+	{0, 0, NULL},
+};
+
 static device_method_t iir_pci_methods[] = {
         /* Device interface */
         DEVMETHOD(device_probe,         iir_pci_probe),
@@ -159,23 +169,36 @@ static  driver_t iir_pci_driver =
 static devclass_t iir_devclass;
 
 DRIVER_MODULE(iir, pci, iir_pci_driver, iir_devclass, 0, 0);
+MODULE_PNP_INFO("U16:vendor;U16:device;D:#", pci, iir, iir_pci_devs,
+    sizeof(iir_pci_devs[0]), nitems(iir_pci_devs) - 1);
 MODULE_DEPEND(iir, pci, 1, 1, 1);
 MODULE_DEPEND(iir, cam, 1, 1, 1);
 
 static int
 iir_pci_probe(device_t dev)
 {
-    if (pci_get_vendor(dev) == INTEL_VENDOR_ID_IIR &&
-        pci_get_device(dev) == INTEL_DEVICE_ID_IIR) {
-        device_set_desc(dev, "Intel Integrated RAID Controller");
-        return (BUS_PROBE_DEFAULT);
+    const struct iir_pci_dev *iird;
+    uint16_t did;
+    uint16_t vid;
+    size_t i;
+
+    vid = pci_get_vendor(dev);
+    did = pci_get_device(dev);
+    if (vid == GDT_VENDOR_ID && 
+	(did >= GDT_DEVICE_ID_MIN &&
+	did <= GDT_DEVICE_ID_MAX)) {
+	    device_set_desc(dev, "ICP Disk Array Controller");
+	    return (BUS_PROBE_DEFAULT);
     }
-    if (pci_get_vendor(dev) == GDT_VENDOR_ID &&
-        ((pci_get_device(dev) >= GDT_DEVICE_ID_MIN &&
-        pci_get_device(dev) <= GDT_DEVICE_ID_MAX) ||
-        pci_get_device(dev) == GDT_DEVICE_ID_NEWRX)) {
-        device_set_desc(dev, "ICP Disk Array Controller");
-        return (BUS_PROBE_DEFAULT);
+    else {
+	    for (i = 0; i < nitems(iir_pci_devs) - 1; i++) {
+		    iird = &iir_pci_devs[i];
+		    if (vid == iird->vendorid &&
+			did == iird->deviceid) {
+			    device_set_desc(dev, iird->description);
+			    return (BUS_PROBE_DEFAULT);
+		    }
+	    }
     }
     return (ENXIO);
 }
