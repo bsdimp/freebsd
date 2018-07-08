@@ -125,24 +125,21 @@ struct amdsmb_softc {
 
 static int	amdsmb_detach(device_t dev);
 
+struct pci_device_table amdsmb_devs[] = {
+	{ PCI_DEV(AMDSMB_VENDORID_AMD, AMDSMB_DEVICEID_AMD8111_SMB2),
+	 PCI_DESCR("AMD-8111 SMBus 2.0 Controller") }
+};
+
 static int
 amdsmb_probe(device_t dev)
 {
-	u_int16_t vid;
-	u_int16_t did;
+	const struct pci_device_table *tbl;
 
-	vid = pci_get_vendor(dev);
-	did = pci_get_device(dev);
-
-	if (vid == AMDSMB_VENDORID_AMD) {
-		switch(did) {
-		case AMDSMB_DEVICEID_AMD8111_SMB2:
-			device_set_desc(dev, "AMD-8111 SMBus 2.0 Controller");
-			return (BUS_PROBE_DEFAULT);
-		}
-	}
-
-	return (ENXIO);
+	tbl = PCI_MATCH(dev, amdsmb_devs);
+	if (tbl == NULL)
+		return (ENXIO);
+	device_set_desc(dev, tbl->descr);
+	return (BUS_PROBE_DEFAULT);
 }
 
 static int
@@ -578,6 +575,7 @@ static driver_t amdsmb_driver = {
 };
 
 DRIVER_MODULE(amdsmb, pci, amdsmb_driver, amdsmb_devclass, 0, 0);
+PCI_PNP_INFO(amdsmb_devs);
 DRIVER_MODULE(smbus, amdsmb, smbus_driver, smbus_devclass, 0, 0);
 
 MODULE_DEPEND(amdsmb, pci, 1, 1, 1);
