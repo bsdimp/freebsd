@@ -87,8 +87,6 @@ CLEANFILES+=	loader.efi
 
 NEWVERSWHAT=	"EFI loader" ${MACHINE}
 
-loader.efi: ${PROG}
-
 .if defined(PROG)
 SRCS+=${SRCS.${PROG}}
 DPADD=${LIBS.${PROG}}
@@ -109,7 +107,6 @@ FILESMODE_${i:tl}_loader.efi=	${BINMODE}
 # for build reproducibility.
 SOURCE_DATE_EPOCH?=1451606400
 ${i:tl}_loader.efi: ${i:tl}_loader.sym
->>>>>>> 6ed2716dc7c... snap -- broken
 	if ${NM} ${.ALLSRC} | grep ' U '; then \
 		echo "Undefined symbols in ${.ALLSRC}"; \
 		exit 1; \
