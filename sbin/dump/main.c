@@ -532,7 +532,6 @@ main(int argc, char *argv[])
 	"can't allocate tape buffers - try a smaller blocking factor.\n");
 
 	startnewtape(1);
-	(void)time((time_t *)&(tstart_writing));
 	dumpmap(usedinomap, TS_CLRI, maxino - 1);
 
 	passno = 3;
@@ -556,6 +555,7 @@ main(int argc, char *argv[])
 	}
 
 	passno = 4;
+	(void)time((time_t *)&(tstart_writing));
 	setproctitle("%s: pass 4: regular files", disk);
 	msg("dumping (Pass IV) [regular files]\n");
 	for (map = dumpinomap, ino = 1; ino < maxino; ino++) {

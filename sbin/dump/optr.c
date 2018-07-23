@@ -199,8 +199,17 @@ timeest(void)
 	if (blockswritten > tapesize) {
 		setproctitle("%s: 99.99%% done, finished soon", disk);
 		if (tnow >= tschedule) {
-			tschedule = tnow + 300;
+			tschedule = tnow + 60;
 			msg("99.99%% done, finished soon\n");
+		}
+	} if (tstart_writing == 0) {
+		percent = (blockswritten * 100.0) / tapesize;
+		setproctitle(
+			"%s: pass %d: %3.2f%% done",
+			    disk, passno, percent);
+		if (tnow >= tschedule) {
+			tschedule = tnow + 60;
+			msg("%3.2f%% done\n", percent);
 		}
 	} else {
 		deltat = (blockswritten == 0) ? 0 : tstart_writing - tnow +
@@ -216,7 +225,7 @@ timeest(void)
 		    "%s: pass %d: %3.2f%% done, finished in %d:%02d at %s",
 		    disk, passno, percent, hours, mins, tdone_str);
 		if (tnow >= tschedule) {
-			tschedule = tnow + 300;
+			tschedule = tnow + 60;
 			if (blockswritten < 500)
 				return;
 			msg("%3.2f%% done, finished in %d:%02d at %s\n", percent,
