@@ -61,6 +61,32 @@ __FBSDID("$FreeBSD$");
 
 #define	DEFAULT_RCLK	1843200
 
+#ifdef DEV_ACPI
+static struct acpi_uart_compat_data acpi_compat_data[] = {
+	{"PNP0500", &uart_ns8250_class, 0},
+	{"PNP0501", &uart_ns8250_class, 0},
+	{"PNP0502", &uart_ns8250_class, 0},
+	{"PNP0510", &uart_ns8250_class, 0},
+	{"PNP0511", &uart_ns8250_class, 0},
+	{"WACF004", &uart_ns8250_class, 0},
+	{"WACF00E", &uart_ns8250_class, 0},
+	{"FUJ02E5", &uart_ns8250_class, 0},
+	{NULL, NULL, 0},
+#if 0
+	{0x0005d041, "Standard PC COM port"},		/* PNP0500 */
+	{0x0105d041, "16550A-compatible COM port"},	/* PNP0501 */
+	{0x0205d041, "Multiport serial device (non-intelligent 16550)"}, /* PNP0502 */
+	{0x1005d041, "Generic IRDA-compatible device"},	/* PNP0510 */
+	{0x1105d041, "Generic IRDA-compatible device"},	/* PNP0511 */
+	{0x04f0235c, "Wacom Tablet PC Screen"},		/* WACF004 */
+	{0x0ef0235c, "Wacom Tablet PC Screen 00e"},	/* WACF00e */
+	{0xe502aa1a, "Wacom Tablet at FuS Lifebook T"},	/* FUJ02E5 */
+	{0}
+#endif
+};
+UART_ACPI_CLASS_AND_DEVICE(acpi_compat_data);
+#endif
+
 /*
  * Set the default baudrate tolerance to 3.0%.
  *
