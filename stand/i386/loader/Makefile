@@ -15,7 +15,6 @@ LOADER_BZIP2_SUPPORT?=	yes
 .include <bsd.init.mk>
 
 LOADER?=	loader
-PROG=		${LOADER}.sym
 INTERNALPROG=
 NEWVERSWHAT?=	"bootstrap loader" x86
 VERSION_FILE=	${.CURDIR}/../loader/version
@@ -57,28 +56,40 @@ CFLAGS+=	-I${BOOTSRC}/i386
 #CFLAGS+=	-g
 #LDFLAGS+=	-g
 
-${LOADER}: ${LOADER}.bin ${BTXLDR} ${BTXKERN}
-	btxld -v -f aout -e ${LOADER_ADDRESS} -o ${.TARGET} -l ${BTXLDR} \
-		-b ${BTXKERN} ${LOADER}.bin
+.if defined(PROG)
+SRCS+=${SRCS.${PROG}}
+DPADD=${LIBS.${PROG}}
+LDADD=${LIBS.${PROG}}
+.if "${PROG}" == "${DEF_LANG:tl}_${LOADER}.sym"
+LINKS= ${BINDIR}/${DEF_LANG:tl}_${LOADER} ${BINDIR}/${LOADER}
+.endif
+.endif
 
-${LOADER}.bin: ${LOADER}.sym
+.for i in ${LDR_LANGS}
+PROGS+=		${i:tl}_${LOADER}.sym
+LIBS.${i:tl}_${LOADER}.sym=${${i}_LIBS32}
+SRCS.${i:tl}_${LOADER}.sym=${${i}_SRCS}
+
+${i:tl}_${LOADER}: ${i:tl}_${LOADER}.bin ${BTXLDR} ${BTXKERN}
+	btxld -v -f aout -e ${LOADER_ADDRESS} -o ${.TARGET} -l ${BTXLDR} \
+		-b ${BTXKERN} ${i:tl}_${LOADER}.bin
+
+${i:tl}_${LOADER}.bin: ${i:tl}_${LOADER}.sym
 	strip -R .comment -R .note -o ${.TARGET} ${.ALLSRC}
 
-.if ${MK_ZFS} == "yes"
-LINKS=		${BINDIR}/${LOADER} ${BINDIR}/zfs${LOADER}
-.endif
-FILES+=	${LOADER}
+FILES+=	${i:tl}_${LOADER}
 # XXX INSTALLFLAGS_loader= -b
-FILESMODE_${LOADER}= ${BINMODE} -b
+FILESMODE_${i:tl}_${LOADER}= ${BINMODE} -b
+.endfor
 
 # XXX crt0.o needs to be first for pxeboot(8) to work
 OBJS=	${BTXCRT}
 
-DPADD=	${LDR_INTERP32} ${LIBFIREWIRE} ${LIBI386} ${LIBSA32}
-LDADD=	${LDR_INTERP32} ${LIBFIREWIRE} ${LIBI386} ${LIBSA32}
+DPADD+=	${LIBFIREWIRE} ${LIBI386} ${LIBSA32}
+LDADD+=	${LIBFIREWIRE} ${LIBI386} ${LIBSA32}
 
 .if ${MACHINE_CPUARCH} == "amd64"
 CFLAGS+=	-DLOADER_PREFER_AMD64
 .endif
 
-.include <bsd.prog.mk>
+.include <bsd.progs.mk>

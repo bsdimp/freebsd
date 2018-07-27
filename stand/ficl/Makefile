@@ -12,6 +12,7 @@ BASE_SRCS=	dict.c ficl.c fileaccess.c float.c loader.c math64.c \
 SRCS=		${BASE_SRCS} sysdep.c softcore.c
 CLEANFILES+=	softcore.c testmain testmain.o
 
+CFLAGS+=	${FORTH_CFLAGS}
 .ifmake testmain
 CFLAGS=	-DTESTMAIN -D_TESTMAIN
 CFLAGS+=	-I${FICLSRC} -I${FICLSRC}/${FICL_CPUARCH} -I${LDRSRC}

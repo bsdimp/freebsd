@@ -8,7 +8,6 @@ LOADER_EXT2FS_SUPPORT?=	no
 
 .include <bsd.init.mk>
 
-PROG=		loader.sym
 INTERNALPROG=
 WARNS?=		3
 
@@ -81,9 +80,6 @@ CFLAGS+=	-DEFI_STAGING_SIZE=${EFI_STAGING_SIZE}
 # Always add MI sources
 .include	"${BOOTSRC}/loader.mk"
 
-FILES+=	loader.efi
-FILESMODE_loader.efi=	${BINMODE}
-
 LDSCRIPT=	${.CURDIR}/arch/${MACHINE}/ldscript.${MACHINE}
 LDFLAGS+=	-Wl,-T${LDSCRIPT},-Bsymbolic,-znotext -shared
 
@@ -92,6 +88,28 @@ CLEANFILES+=	loader.efi
 NEWVERSWHAT=	"EFI loader" ${MACHINE}
 
 loader.efi: ${PROG}
+
+.if defined(PROG)
+SRCS+=${SRCS.${PROG}}
+DPADD=${LIBS.${PROG}}
+LDADD=${LIBS.${PROG}}
+.if "${PROG}" == "${DEF_LANG:tl}_${LOADER}.sym"
+LINKS= ${BINDIR}/${DEF_LANG:tl}_${LOADER} ${BINDIR}/${LOADER}
+.endif
+.endif
+
+.for i in ${LDR_LANGS}
+PROGS+=		${i:tl}_loader.sym
+LIBS.${i:tl}_loader.sym=${${i}_LIBS}
+SRCS.${i:tl}_loader.sym=${${i}_SRCS}
+FILES+=	${i:tl}_loader.efi
+FILESMODE_${i:tl}_loader.efi=	${BINMODE}
+
+# Arbitrarily set the PE/COFF header timestamps to 1 Jan 2016 00:00:00
+# for build reproducibility.
+SOURCE_DATE_EPOCH?=1451606400
+${i:tl}_loader.efi: ${i:tl}_loader.sym
+>>>>>>> 6ed2716dc7c... snap -- broken
 	if ${NM} ${.ALLSRC} | grep ' U '; then \
 		echo "Undefined symbols in ${.ALLSRC}"; \
 		exit 1; \
@@ -102,10 +120,11 @@ loader.efi: ${PROG}
 		-j .rela.dyn -j .reloc -j .eh_frame -j set_Xcommand_set \
 		-j set_Xficl_compile_set \
 		--output-target=${EFI_TARGET} ${.ALLSRC} ${.TARGET}
+.endfor
 
 LIBEFI=		${BOOTOBJ}/efi/libefi/libefi.a
 
-DPADD=		${LDR_INTERP} ${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSA} ${LDSCRIPT}
-LDADD=		${LDR_INTERP} ${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSA}
+DPADD=		${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSA} ${LDSCRIPT}
+LDADD=		${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSA}
 
 .include <bsd.prog.mk>

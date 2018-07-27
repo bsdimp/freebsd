@@ -27,6 +27,7 @@ SRCS+=	lerrno.c lfs.c lstd.c lutils.c
 
 WARNS=	3
 
+CFLAGS+= ${LUA_CFLAGS}
 CFLAGS+= -DLUA_PATH_DEFAULT=\"/boot/lua/\?.lua\"
 CFLAGS+= -ffreestanding -nostdlib -DLUA_USE_POSIX
 CFLAGS+= -fno-stack-protector -D__BSD_VISIBLE

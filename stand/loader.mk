@@ -57,20 +57,24 @@ SRCS+=	isapnp.c
 SRCS+=	pnp.c
 .endif
 
+LDR_LANGS=LUA FORTH SIMPLE
+DEF_LANG=FORTH
 # Forth interpreter
 .if ${MK_LOADER_LUA} != "no"
-SRCS+=	interp_lua.c
 .include "${BOOTSRC}/lua.mk"
-LDR_INTERP=	${LIBLUA}
-LDR_INTERP32=	${LIBLUA32}
-.elif ${MK_FORTH} != "no"
-SRCS+=	interp_forth.c
-.include "${BOOTSRC}/ficl.mk"
-LDR_INTERP=	${LIBFICL}
-LDR_INTERP32=	${LIBFICL32}
-.else
-SRCS+=	interp_simple.c
+LUA_SRCS+=	interp_lua.c
+CFLAGS.interp_lua.c=${LUA_CFLAGS}
+LUA_LIBS=	${LIBLUA}
+LUA_LIBS32=	${LIBLUA32}
 .endif
+
+.include "${BOOTSRC}/ficl.mk"
+FORTH_SRCS+=	interp_forth.c
+CFLAGS.interp_forth.c=${FORTH_CFLAGS}
+FORTH_LIBS=	${LIBFICL}
+FORTH_LIBS32=	${LIBFICL32}
+
+SIMPLE_SRCS+=	interp_simple.c
 
 .if defined(BOOT_PROMPT_123)
 CFLAGS+=	-DBOOT_PROMPT_123
