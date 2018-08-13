@@ -51,22 +51,25 @@ __FBSDID("$FreeBSD$");
 
 #include "dev/pst/pst-iop.h"
 
+struct pci_device_table iop_devs[] = {
+	/* tested with actual hardware kindly donated by Promise */
+	{PCI_DEVID(0x19628086), PCI_SUBVID(0x105a),
+	 PCI_DESCR("Promise SuperTrak SX6000 ATA RAID controller")},
+	/* support the older SuperTrak 100 as well */
+	{PCI_DEVID(0x19608086), PCI_SUBVID(0x105a),
+	 PCI_DESCR("Promise SuperTrak 100 ATA RAID controller")}
+};
+
 static int
 iop_pci_probe(device_t dev)
 {
-    /* tested with actual hardware kindly donated by Promise */
-    if (pci_get_devid(dev) == 0x19628086 && pci_get_subvendor(dev) == 0x105a) {
-	device_set_desc(dev, "Promise SuperTrak SX6000 ATA RAID controller");
-	return BUS_PROBE_DEFAULT;
-    } 
+	const struct pci_device_table *iopd;
 
-    /* support the older SuperTrak 100 as well */
-    if (pci_get_devid(dev) == 0x19608086 && pci_get_subvendor(dev) == 0x105a) {
-	device_set_desc(dev, "Promise SuperTrak 100 ATA RAID controller");
-	return BUS_PROBE_DEFAULT;
-    } 
-
-    return ENXIO;
+	iopd = PCI_MATCH(dev, iop_devs);
+	if (iopd == NULL)
+		return (ENXIO);
+	device_set_desc(dev, iopd->descr);
+	return (BUS_PROBE_DEFAULT);
 }
 
 static int
@@ -133,3 +136,4 @@ static driver_t pst_pci_driver = {
 static devclass_t pst_pci_devclass;
 
 DRIVER_MODULE(pstpci, pci, pst_pci_driver, pst_pci_devclass, 0, 0);
+PCI_PNP_INFO(iop_devs);

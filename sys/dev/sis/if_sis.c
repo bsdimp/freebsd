@@ -129,11 +129,13 @@ MODULE_DEPEND(sis, miibus, 1, 1, 1);
 /*
  * Various supported device vendors/types and their names.
  */
-static const struct sis_type sis_devs[] = {
-	{ SIS_VENDORID, SIS_DEVICEID_900, "SiS 900 10/100BaseTX" },
-	{ SIS_VENDORID, SIS_DEVICEID_7016, "SiS 7016 10/100BaseTX" },
-	{ NS_VENDORID, NS_DEVICEID_DP83815, "NatSemi DP8381[56] 10/100BaseTX" },
-	{ 0, 0, NULL }
+struct pci_device_table sis_devs[] = {
+	{PCI_DEV(SIS_VENDORID, SIS_DEVICEID_900),
+	 PCI_DESCR("SiS 900 10/100BaseTX")},
+	{PCI_DEV(SIS_VENDORID, SIS_DEVICEID_7016),
+	 PCI_DESCR("SiS 7016 10/100BaseTX")},
+	{PCI_DEV(NS_VENDORID, NS_DEVICEID_DP83815),
+	 PCI_DESCR("NatSemi DP8381[56] 10/100BaseTX")}
 };
 
 static int sis_detach(device_t);
@@ -866,20 +868,13 @@ sis_reset(struct sis_softc *sc)
 static int
 sis_probe(device_t dev)
 {
-	const struct sis_type	*t;
+	const struct pci_device_table	*sisd;
 
-	t = sis_devs;
-
-	while (t->sis_name != NULL) {
-		if ((pci_get_vendor(dev) == t->sis_vid) &&
-		    (pci_get_device(dev) == t->sis_did)) {
-			device_set_desc(dev, t->sis_name);
-			return (BUS_PROBE_DEFAULT);
-		}
-		t++;
-	}
-
-	return (ENXIO);
+	sisd = PCI_MATCH(dev, sis_devs);
+	if (sisd == NULL)
+		return (ENXIO);
+	device_set_desc(dev, sisd->descr);
+	return (BUS_PROBE_DEFAULT);
 }
 
 /*
@@ -2408,4 +2403,5 @@ static driver_t sis_driver = {
 static devclass_t sis_devclass;
 
 DRIVER_MODULE(sis, pci, sis_driver, sis_devclass, 0, 0);
+PCI_PNP_INFO(sis_devs);
 DRIVER_MODULE(miibus, sis, miibus_driver, miibus_devclass, 0, 0);

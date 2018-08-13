@@ -101,10 +101,11 @@ MODULE_DEPEND(sge, miibus, 1, 1, 1);
 /*
  * Various supported device vendors/types and their names.
  */
-static struct sge_type sge_devs[] = {
-	{ SIS_VENDORID, SIS_DEVICEID_190, "SiS190 Fast Ethernet" },
-	{ SIS_VENDORID, SIS_DEVICEID_191, "SiS191 Fast/Gigabit Ethernet" },
-	{ 0, 0, NULL }
+struct pci_device_table sge_devs[] = {
+	{PCI_DEV(SIS_VENDORID, SIS_DEVICEID_190),
+	 PCI_DESCR("SiS190 Fast Ethernet")},
+	{PCI_DEV(SIS_VENDORID, SIS_DEVICEID_191),
+	 PCI_DESCR("SiS191 Fast/Gigabit Ethernet")}
 };
 
 static int	sge_probe(device_t);
@@ -176,6 +177,7 @@ static driver_t sge_driver = {
 static devclass_t sge_devclass;
 
 DRIVER_MODULE(sge, pci, sge_driver, sge_devclass, 0, 0);
+PCI_PNP_INFO(sge_devs);
 DRIVER_MODULE(miibus, sge, miibus_driver, miibus_devclass, 0, 0);
 
 /*
@@ -531,19 +533,13 @@ sge_reset(struct sge_softc *sc)
 static int
 sge_probe(device_t dev)
 {
-	struct sge_type *t;
+	const struct pci_device_table *sged;
 
-	t = sge_devs;
-	while (t->sge_name != NULL) {
-		if ((pci_get_vendor(dev) == t->sge_vid) &&
-		    (pci_get_device(dev) == t->sge_did)) {
-			device_set_desc(dev, t->sge_name);
-			return (BUS_PROBE_DEFAULT);
-		}
-		t++;
-	}
-
-	return (ENXIO);
+	sged = PCI_MATCH(dev, sge_devs);
+	if (sged == NULL)
+		return (ENXIO);
+	device_set_desc(dev, sged->descr);
+	return (BUS_PROBE_DEFAULT);
 }
 
 /*

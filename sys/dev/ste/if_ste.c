@@ -88,11 +88,13 @@ MODULE_DEPEND(ste, miibus, 1, 1, 1);
 /*
  * Various supported device vendors/types and their names.
  */
-static const struct ste_type ste_devs[] = {
-	{ ST_VENDORID, ST_DEVICEID_ST201_1, "Sundance ST201 10/100BaseTX" },
-	{ ST_VENDORID, ST_DEVICEID_ST201_2, "Sundance ST201 10/100BaseTX" },
-	{ DL_VENDORID, DL_DEVICEID_DL10050, "D-Link DL10050 10/100BaseTX" },
-	{ 0, 0, NULL }
+struct pci_device_table ste_devs[] = {
+	{PCI_DEV(ST_VENDORID, ST_DEVICEID_ST201_1),
+	 PCI_DESCR("Sundance ST201 10/100BaseTX")},
+	{PCI_DEV(ST_VENDORID, ST_DEVICEID_ST201_2),
+	 PCI_DESCR("Sundance ST201 10/100BaseTX")},
+	{PCI_DEV(DL_VENDORID, DL_DEVICEID_DL10050),
+	 PCI_DESCR("D-Link DL10050 10/100BaseTX")}
 };
 
 static int	ste_attach(device_t);
@@ -181,6 +183,7 @@ static driver_t ste_driver = {
 static devclass_t ste_devclass;
 
 DRIVER_MODULE(ste, pci, ste_driver, ste_devclass, 0, 0);
+PCI_PNP_INFO(ste_devs);
 DRIVER_MODULE(miibus, ste, miibus_driver, miibus_devclass, 0, 0);
 
 #define STE_SETBIT4(sc, reg, x)				\
@@ -881,20 +884,13 @@ ste_stats_update(struct ste_softc *sc)
 static int
 ste_probe(device_t dev)
 {
-	const struct ste_type *t;
+	const struct pci_device_table *sted;
 
-	t = ste_devs;
-
-	while (t->ste_name != NULL) {
-		if ((pci_get_vendor(dev) == t->ste_vid) &&
-		    (pci_get_device(dev) == t->ste_did)) {
-			device_set_desc(dev, t->ste_name);
-			return (BUS_PROBE_DEFAULT);
-		}
-		t++;
-	}
-
-	return (ENXIO);
+	sted = PCI_MATCH(dev, ste_devs);
+	if (sted == NULL)
+		return (ENXIO);
+	device_set_desc(dev, sted->descr);
+	return (BUS_PROBE_DEFAULT);
 }
 
 /*
