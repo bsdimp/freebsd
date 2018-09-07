@@ -251,6 +251,7 @@ vm86_emulate(struct vm86frame *vmf)
 
 		/* VME if no redirection support */
 		case INTn:
+			/* XXX V7 syscall vectors here, I think */
 			break;
 
 		/* VME if trying to set PSL_T, or PSL_I when VIP is set */

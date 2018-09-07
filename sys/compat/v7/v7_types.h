@@ -6,6 +6,7 @@
 typedef unsigned char	v7_uchar_t;
 typedef unsigned long	v7_ulong_t;
 
+/* Need to check all these */
 typedef char *		v7_caddr_t;
 typedef long		v7_daddr_t;
 typedef long		v7_off_t;
@@ -20,5 +21,8 @@ typedef long		v7_time_t;
 typedef long		v7_clock_t;
 typedef unsigned short	v7_mode_t;
 typedef short		v7_pid_t;
+
+typedef short		v7_int;
+
 
 #endif	/* _COMPAT_V7_TYPES_H */

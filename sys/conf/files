@@ -351,6 +351,7 @@ compat/freebsd32/freebsd32_ioctl.c	optional compat_freebsd32
 compat/freebsd32/freebsd32_misc.c	optional compat_freebsd32
 compat/freebsd32/freebsd32_syscalls.c	optional compat_freebsd32
 compat/freebsd32/freebsd32_sysent.c	optional compat_freebsd32
+compat/v7/v7_sys1.c			optional compat_v7
 compat/v7/v7_syscalls.c			optional compat_v7
 compat/v7/v7_sysent.c			optional compat_v7
 contrib/ck/src/ck_array.c				standard compile-with "${NORMAL_C} -I$S/contrib/ck/include"

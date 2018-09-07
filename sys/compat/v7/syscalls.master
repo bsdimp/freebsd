@@ -35,7 +35,7 @@
 ; #ifdef's, etc. may be included, and are copied to the output files.
 
 0	AUE_NULL	STD	{ int v7_nosys(void); }
-1	AUE_EXIT	STD	{ void v7_exit(int rval); }
+1	AUE_EXIT	STD	{ void v7_exit(v7_int rval); }
 2	AUE_FORK	STD	{ int v7_fork(void); }
 3	AUE_NULL	STD	{ int v7_read(int fd, char *buf, \
 				    u_int nbytes); }
