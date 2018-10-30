@@ -52,6 +52,7 @@ __FBSDID("$FreeBSD$");
 static void nvme_ctrlr_construct_and_submit_aer(struct nvme_controller *ctrlr,
 						struct nvme_async_event_request *aer);
 static void nvme_ctrlr_setup_interrupts(struct nvme_controller *ctrlr);
+static void nvme_ctrlr_shutdown(struct nvme_controller *ctrlr);
 
 static int
 nvme_ctrlr_allocate_bar(struct nvme_controller *ctrlr)
@@ -312,7 +313,7 @@ nvme_ctrlr_disable(struct nvme_controller *ctrlr)
 	return (nvme_ctrlr_wait_for_ready(ctrlr, 0));
 }
 
-static int
+int
 nvme_ctrlr_enable(struct nvme_controller *ctrlr)
 {
 	uint32_t	cc;
@@ -894,10 +895,8 @@ nvme_ctrlr_start(void *ctrlr_arg)
 }
 
 void
-nvme_ctrlr_start_config_hook(void *arg)
+nvme_ctrlr_init_io_qpairs(struct nvme_controller *ctrlr)
 {
-	struct nvme_controller *ctrlr = arg;
-
 	nvme_qpair_reset(&ctrlr->adminq);
 	nvme_admin_qpair_enable(&ctrlr->adminq);
 
@@ -906,6 +905,14 @@ nvme_ctrlr_start_config_hook(void *arg)
 		nvme_ctrlr_start(ctrlr);
 	else
 		nvme_ctrlr_fail(ctrlr);
+}
+
+void
+nvme_ctrlr_start_config_hook(void *arg)
+{
+	struct nvme_controller *ctrlr = arg;
+
+	nvme_ctrlr_init_io_qpairs(ctrlr);
 
 	nvme_sysctl_initialize_ctrlr(ctrlr);
 	config_intrhook_disestablish(&ctrlr->config_hook);
@@ -1300,6 +1307,58 @@ nvme_ctrlr_construct(struct nvme_controller *ctrlr, device_t dev)
 	return (0);
 }
 
+/*
+ * From the NVMe Standard, Section 7.6.2:
+ *
+ * The host should perform the following actions in sequence for a normal
+ * shutdown:
+ *
+ * 1. Stop submitting any new I/O commands to the controller and allow any
+ * outstanding commands to complete;
+ *
+ * 2. The host should delete all I/O Submission Queues, using the Delete I/O
+ * Submission Queue command. A result of the successful completion of the Delete
+ * I/O Submission Queue command is that any remaining commands outstanding are
+ * aborted;
+ *
+ * 3. The host should delete all I/O Completion Queues, using the Delete I/O
+ * Completion Queue command; and
+ *
+ * 4. The host should set the Shutdown Notification (CC.SHN) field to 01b to
+ * indicate a normal shutdown operation. The controller indicates when shutdown
+ * processing is completed by updating the Shutdown Status (CSTS.SHST) field to
+ * 10b
+ *
+ * Later it says: "It is not recommended to disable the controller via the CC.EN
+ * field. This causes a Controller Reset which may impact the time required to
+ * complete shutdown processing."
+ *
+ * We assume #1 has already happened...
+ */
+void
+nvme_ctrlr_clean_shutdown(struct nvme_controller *ctrlr)
+{
+	int				i;
+
+	/* do #2 & #3 */
+	for (i = 0; i < ctrlr->num_io_queues; i++) {
+		nvme_ctrlr_destroy_qpair(ctrlr, &ctrlr->ioq[i]);
+		nvme_io_qpair_destroy(&ctrlr->ioq[i]);
+	}
+	free(ctrlr->ioq, M_NVME);
+	ctrlr->ioq = NULL;
+
+	/*
+	 *  Notify the controller of a shutdown, even though this may be due to
+	 *  a driver unload, not a system shutdown (this path is not invoked
+	 *  during shutdown).  This ensures the controller receives a shutdown
+	 *  notification in case the system is shutdown before reloading the
+	 *  driver.
+	 * #4 above...
+	 */
+	nvme_ctrlr_shutdown(ctrlr);
+}
+
 void
 nvme_ctrlr_destruct(struct nvme_controller *ctrlr, device_t dev)
 {
@@ -1316,23 +1375,8 @@ nvme_ctrlr_destruct(struct nvme_controller *ctrlr, device_t dev)
 	if (ctrlr->cdev)
 		destroy_dev(ctrlr->cdev);
 
-	for (i = 0; i < ctrlr->num_io_queues; i++) {
-		nvme_ctrlr_destroy_qpair(ctrlr, &ctrlr->ioq[i]);
-		nvme_io_qpair_destroy(&ctrlr->ioq[i]);
-	}
-	free(ctrlr->ioq, M_NVME);
-
+	nvme_ctrlr_clean_shutdown(ctrlr);
 	nvme_admin_qpair_destroy(&ctrlr->adminq);
-
-	/*
-	 *  Notify the controller of a shutdown, even though this is due to
-	 *   a driver unload, not a system shutdown (this path is not invoked
-	 *   during shutdown).  This ensures the controller receives a
-	 *   shutdown notification in case the system is shutdown before
-	 *   reloading the driver.
-	 */
-	nvme_ctrlr_shutdown(ctrlr);
-
 	nvme_ctrlr_disable(ctrlr);
 
 	if (ctrlr->taskqueue)
@@ -1360,7 +1404,7 @@ nores:
 	mtx_destroy(&ctrlr->lock);
 }
 
-void
+static void
 nvme_ctrlr_shutdown(struct nvme_controller *ctrlr)
 {
 	uint32_t	cc;

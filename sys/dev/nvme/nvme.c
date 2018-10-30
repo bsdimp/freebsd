@@ -61,6 +61,8 @@ static int    nvme_probe(device_t);
 static int    nvme_attach(device_t);
 static int    nvme_detach(device_t);
 static int    nvme_shutdown(device_t);
+static int    nvme_suspend(device_t);
+static int    nvme_resume(device_t);
 
 static devclass_t nvme_devclass;
 
@@ -70,6 +72,8 @@ static device_method_t nvme_pci_methods[] = {
 	DEVMETHOD(device_attach,    nvme_attach),
 	DEVMETHOD(device_detach,    nvme_detach),
 	DEVMETHOD(device_shutdown,  nvme_shutdown),
+	DEVMETHOD(device_suspend,   nvme_suspend),
+	DEVMETHOD(device_resume,    nvme_resume),
 	{ 0, 0 }
 };
 
@@ -186,7 +190,47 @@ nvme_shutdown(device_t dev)
 	struct nvme_controller	*ctrlr;
 
 	ctrlr = DEVICE2SOFTC(dev);
-	nvme_ctrlr_shutdown(ctrlr);
+	nvme_ctrlr_clean_shutdown(ctrlr);
+
+	return (0);
+}
+
+/*
+ * We assume that all the I/Os are done when we're called.
+ *
+ * In section 7.6,2:
+ *
+ * "For entry to the D3 power state, the shutdown steps outlined for a
+ * normal shutdown should be followed."
+ *
+ * We have to assume that we're going to enter D3 state (or worse
+ * be powered down entirely).
+ */
+static int
+nvme_suspend(device_t dev)
+{
+	struct nvme_controller	*ctrlr;
+
+	ctrlr = DEVICE2SOFTC(dev);
+	nvme_ctrlr_clean_shutdown(ctrlr);
+
+	return (0);
+}
+
+static int
+nvme_resume(device_t dev)
+{
+	struct nvme_controller	*ctrlr;
+
+	ctrlr = DEVICE2SOFTC(dev);
+	/*
+	 * From 7.6.2:
+	 * "To start executing commands on the controller after a shutdown
+	 * operation, a Controller Reset (CC.EN cleared from '1' to '0' is
+	 * required."
+	 */
+	nvme_ctrlr_enable(ctrlr);
+	nvme_ctrlr_init_io_qpairs(ctrlr);
 
 	return (0);
 }
