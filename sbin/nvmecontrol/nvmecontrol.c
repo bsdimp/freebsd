@@ -48,8 +48,20 @@ __FBSDID("$FreeBSD$");
 #include <unistd.h>
 
 #include "nvmecontrol.h"
+#include "opts.h"
 
 SET_CONCAT_DEF(top, struct nvme_function);
+
+int
+arg_parse_and_open(int argc, char * const * argv, const char *desc, const struct args *args)
+{
+	int fd;
+
+	if (arg_parse(argc, argv, desc, args))
+		return (-1);
+	open_dev(argv[optind], &fd, 1, 1);
+	return (fd);
+}
 
 static void
 print_usage(const struct nvme_function *f)

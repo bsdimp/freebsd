@@ -41,13 +41,16 @@ struct nvme_function {
 	const char	*name;
 	nvme_fn_t	fn;
 	const char	*usage;
+	const char	*args;
+	const char	*descr;
 };
 
 #define NVME_SETNAME(set)	set
 #define	NVME_CMDSET(set, sym)	DATA_SET(NVME_SETNAME(set), sym)
-#define NVME_COMMAND(set, nam, function, usage_str)			\
+#define NVME_COMMAND(set, nam, function, usage_str, args_str, descr_str) \
 	static struct nvme_function function ## _nvme_cmd =		\
-	{ .name = #nam, .fn = function, .usage = usage_str };		\
+	{ .name = #nam, .fn = function, .usage = usage_str,		\
+	  .args = args_str, .descr = descr_str };			\
 	NVME_CMDSET(set, function ## _nvme_cmd)
 #define NVME_CMD_BEGIN(set)	SET_BEGIN(NVME_SETNAME(set))
 #define NVME_CMD_LIMIT(set)	SET_LIMIT(NVME_SETNAME(set))
@@ -128,6 +131,9 @@ void dispatch_set(int argc, char *argv[], const struct nvme_function * const *tb
 	dispatch_set(argc, argv,					\
 	    (const struct nvme_function * const *)NVME_CMD_BEGIN(set),	\
 	    (const struct nvme_function * const *)NVME_CMD_LIMIT(set))	\
+
+struct args;
+int arg_parse_and_open(int argc, char * const * argv, const char *desc, const struct args *args);
 
 /* Utility Routines */
 /*
