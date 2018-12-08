@@ -45,6 +45,8 @@ __FBSDID("$FreeBSD$");
 
 #define DEVLIST_USAGE							       \
 	"devlist\n"
+#define DEVLIST_DESCR \
+	"Display a list of NVMe controllers and namespaces."
 
 #define NVME_MAX_UNIT 256
 
@@ -120,4 +122,4 @@ devlist(const struct nvme_function *nf, int argc, char *argv[])
 	exit(1);
 }
 
-NVME_COMMAND(top, devlist, devlist, DEVLIST_USAGE);
+NVME_COMMAND(top, devlist, devlist, DEVLIST_USAGE, NULL, DEVLIST_DESCR);

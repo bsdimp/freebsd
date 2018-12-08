@@ -45,6 +45,10 @@ __FBSDID("$FreeBSD$");
 
 #define IDENTIFY_USAGE							       \
 	"identify [-x [-v]] <controller id|namespace id>\n"
+#define IDENTIFY_ARGS \
+	"<controller id|namespace id>"
+#define IDENTIFY_DESCR \
+	"Print a human-readable summary of the IDENTIFY information from namespace or controller"
 
 static void
 print_namespace(struct nvme_namespace_data *nsdata)
@@ -289,4 +293,4 @@ identify(const struct nvme_function *nf, int argc, char *argv[])
 		identify_ns(nf, argc, argv);
 }
 
-NVME_COMMAND(top, identify, identify, IDENTIFY_USAGE);
+NVME_COMMAND(top, identify, identify, IDENTIFY_USAGE, IDENTIFY_ARGS, IDENTIFY_DESCR);

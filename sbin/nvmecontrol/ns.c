@@ -60,15 +60,29 @@ NVME_CMD_DECLARE(ns, struct nvme_function);
 #define NSDETACH_USAGE							\
 	"ns detach -n nsid [-c ctrlrid] nvmeN\n"
 
+#define CREATE_DESCR \
+	"Create a new namespace"
+#define DELETE_DESCR \
+	"Delete a new namespace"
+#define ATTACH_DESCR \
+	"Attach a new namespace"
+#define DETACH_DESCR \
+	"Detach a new namespace"
+
+#define NS_ARGS \
+	"<controller-id>"
+#define NS_DESCR \
+	"Various commands to create and manage namespaces"
+
 static void nscreate(const struct nvme_function *nf, int argc, char *argv[]);
 static void nsdelete(const struct nvme_function *nf, int argc, char *argv[]);
 static void nsattach(const struct nvme_function *nf, int argc, char *argv[]);
 static void nsdetach(const struct nvme_function *nf, int argc, char *argv[]);
 
-NVME_COMMAND(ns, create, nscreate, NSCREATE_USAGE);
-NVME_COMMAND(ns, delete, nsdelete, NSDELETE_USAGE);
-NVME_COMMAND(ns, attach, nsattach, NSATTACH_USAGE);
-NVME_COMMAND(ns, detach, nsdetach, NSDETACH_USAGE);
+NVME_COMMAND(ns, create, nscreate, NSCREATE_USAGE, NS_ARGS, CREATE_DESCR);
+NVME_COMMAND(ns, delete, nsdelete, NSDELETE_USAGE, NS_ARGS, DELETE_DESCR);
+NVME_COMMAND(ns, attach, nsattach, NSATTACH_USAGE, NS_ARGS, ATTACH_DESCR);
+NVME_COMMAND(ns, detach, nsdetach, NSDETACH_USAGE, NS_ARGS, DETACH_DESCR);
 
 struct ns_result_str {
 	uint16_t res;
@@ -443,4 +457,4 @@ ns(const struct nvme_function *nf __unused, int argc, char *argv[])
 	DISPATCH(argc, argv, ns);
 }
 
-NVME_COMMAND(top, ns, ns, NS_USAGE);
+NVME_COMMAND(top, ns, ns, NS_USAGE, NS_ARGS, NS_DESCR);

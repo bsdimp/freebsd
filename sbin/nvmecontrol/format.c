@@ -43,8 +43,12 @@ __FBSDID("$FreeBSD$");
 
 #include "nvmecontrol.h"
 
-#define FORMAT_USAGE							       \
+#define FORMAT_USAGE \
 	"format [-f fmt] [-m mset] [-p pi] [-l pil] [-E] [-C] <controller id|namespace id>\n"
+#define FORMAT_ARGS \
+	"<controller id|namespace id>"
+#define FORMAT_DESCR \
+	"Format/erase one or all the namespaces."
 
 static void
 format(const struct nvme_function *nf, int argc, char *argv[])
@@ -181,4 +185,4 @@ format(const struct nvme_function *nf, int argc, char *argv[])
 	exit(0);
 }
 
-NVME_COMMAND(top, format, format, FORMAT_USAGE);
+NVME_COMMAND(top, format, format, FORMAT_USAGE, FORMAT_ARGS, FORMAT_DESCR);

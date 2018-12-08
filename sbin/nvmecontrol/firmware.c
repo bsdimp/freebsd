@@ -50,8 +50,13 @@ __FBSDID("$FreeBSD$");
 
 #include "nvmecontrol.h"
 
-#define FIRMWARE_USAGE							       \
+#define FIRMWARE_USAGE \
 	"firmware [-s slot] [-f path_to_firmware] [-a] <controller id>\n"
+#define FIRMWARE_ARGS \
+	"<controller id>"
+#define FIRMWARE_DESCR \
+	"Download firmware image to controller."
+
 
 static int
 slot_has_valid_firmware(int fd, int slot)
@@ -334,4 +339,4 @@ firmware(const struct nvme_function *nf, int argc, char *argv[])
 	exit(0);
 }
 
-NVME_COMMAND(top, firmware, firmware, FIRMWARE_USAGE);
+NVME_COMMAND(top, firmware, firmware, FIRMWARE_USAGE, FIRMWARE_ARGS, FIRMWARE_DESCR);
