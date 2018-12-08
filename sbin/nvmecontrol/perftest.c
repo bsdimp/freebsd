@@ -50,6 +50,10 @@ __FBSDID("$FreeBSD$");
 	"         <-s size_in_bytes> <-t time_in_seconds>\n"	       \
 	"         <-i intr|wait> [-f refthread] [-p]\n"	       \
 	"         <namespace id>\n"
+#define PERFTEST_ARGS \
+	"<namespace id>"
+#define PERFTEST_DESCR \
+	"PErform low-level driver performance testing."
 
 static void
 print_perftest(struct nvme_io_test *io_test, bool perthread)
@@ -75,7 +79,7 @@ print_perftest(struct nvme_io_test *io_test, bool perthread)
 }
 
 static void
-perftest(const struct nvme_function *nf, int argc, char *argv[])
+perftest(const struct cmd_function *nf, int argc, char *argv[])
 {
 	struct nvme_io_test		io_test;
 	int				fd;
@@ -176,4 +180,4 @@ perftest(const struct nvme_function *nf, int argc, char *argv[])
 	exit(0);
 }
 
-NVME_COMMAND(top, perftest, perftest, PERFTEST_USAGE);
+CMD_COMMAND(top, perftest, perftest, PERFTEST_USAGE, PERFTEST_ARGS, PERFTEST_DESCR);

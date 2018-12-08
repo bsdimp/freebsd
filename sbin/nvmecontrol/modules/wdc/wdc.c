@@ -41,21 +41,27 @@ __FBSDID("$FreeBSD$");
 
 #include "nvmecontrol.h"
 
-#define WDC_USAGE							       \
+#define WDC_USAGE \
 	"wdc (cap-diag)\n"
+#define WDC_ARGS \
+	"subcommand"
+#define WDC_DESCR \
+	"Western Digital (WDC, HGST) specific commands"
 
-NVME_CMD_DECLARE(wdc, struct nvme_function);
+CMD_DECLARE(wdc, struct cmd_function);
 
 #define WDC_NVME_TOC_SIZE	8
 
 #define WDC_NVME_CAP_DIAG_OPCODE	0xe6
 #define WDC_NVME_CAP_DIAG_CMD		0x0000
 
-static void wdc_cap_diag(const struct nvme_function *nf, int argc, char *argv[]);
+static void wdc_cap_diag(const struct cmd_function *nf, int argc, char *argv[]);
 
 #define WDC_CAP_DIAG_USAGE	"wdc cap-diag [-o path-template]\n"
+#define WDC_CAP_ARGS "<controller-id>"
+#define WDC_CAP_DESCR "Retrieve the drive's cap-diag logs"
 
-NVME_COMMAND(wdc, cap-diag, wdc_cap_diag, WDC_CAP_DIAG_USAGE);
+CMD_COMMAND(wdc, cap-diag, wdc_cap_diag, WDC_CAP_DIAG_USAGE, WDC_CAP_ARGS, WDC_CAP_DESCR);
 
 static void
 wdc_append_serial_name(int fd, char *buf, size_t len, const char *suffix)
@@ -153,7 +159,7 @@ wdc_do_dump(int fd, char *tmpl, const char *suffix, uint32_t opcode,
 }
 
 static void
-wdc_cap_diag(const struct nvme_function *nf, int argc, char *argv[])
+wdc_cap_diag(const struct cmd_function *nf, int argc, char *argv[])
 {
 	char path_tmpl[MAXPATHLEN];
 	int ch, fd;
@@ -182,7 +188,7 @@ wdc_cap_diag(const struct nvme_function *nf, int argc, char *argv[])
 }
 
 static void
-wdc(const struct nvme_function *nf __unused, int argc, char *argv[])
+wdc(const struct cmd_function *nf __unused, int argc, char *argv[])
 {
 
 	DISPATCH(argc, argv, wdc);
@@ -593,4 +599,4 @@ NVME_LOGPAGE(hgst_info,
 NVME_LOGPAGE(wdc_info,
     HGST_INFO_LOG,			"wdc",	"Detailed Health/SMART",
     print_hgst_info_log,		DEFAULT_SIZE);
-NVME_COMMAND(top, wdc, wdc, WDC_USAGE);
+CMD_COMMAND(top, wdc, wdc, WDC_USAGE, WDC_ARGS, WDC_DESCR);

@@ -41,7 +41,7 @@ __FBSDID("$FreeBSD$");
 
 #include "nvmecontrol.h"
 
-NVME_CMD_DECLARE(ns, struct nvme_function);
+CMD_DECLARE(ns, struct cmd_function);
 
 #define NS_USAGE							\
 	"ns (create|delete|attach|detach)\n"
@@ -60,15 +60,29 @@ NVME_CMD_DECLARE(ns, struct nvme_function);
 #define NSDETACH_USAGE							\
 	"ns detach -n nsid [-c ctrlrid] nvmeN\n"
 
-static void nscreate(const struct nvme_function *nf, int argc, char *argv[]);
-static void nsdelete(const struct nvme_function *nf, int argc, char *argv[]);
-static void nsattach(const struct nvme_function *nf, int argc, char *argv[]);
-static void nsdetach(const struct nvme_function *nf, int argc, char *argv[]);
+#define CREATE_DESCR \
+	"Create a new namespace"
+#define DELETE_DESCR \
+	"Delete a new namespace"
+#define ATTACH_DESCR \
+	"Attach a new namespace"
+#define DETACH_DESCR \
+	"Detach a new namespace"
 
-NVME_COMMAND(ns, create, nscreate, NSCREATE_USAGE);
-NVME_COMMAND(ns, delete, nsdelete, NSDELETE_USAGE);
-NVME_COMMAND(ns, attach, nsattach, NSATTACH_USAGE);
-NVME_COMMAND(ns, detach, nsdetach, NSDETACH_USAGE);
+#define NS_ARGS \
+	"<controller-id>"
+#define NS_DESCR \
+	"Various commands to create and manage namespaces"
+
+static void nscreate(const struct cmd_function *nf, int argc, char *argv[]);
+static void nsdelete(const struct cmd_function *nf, int argc, char *argv[]);
+static void nsattach(const struct cmd_function *nf, int argc, char *argv[]);
+static void nsdetach(const struct cmd_function *nf, int argc, char *argv[]);
+
+CMD_COMMAND(ns, create, nscreate, NSCREATE_USAGE, NS_ARGS, CREATE_DESCR);
+CMD_COMMAND(ns, delete, nsdelete, NSDELETE_USAGE, NS_ARGS, DELETE_DESCR);
+CMD_COMMAND(ns, attach, nsattach, NSATTACH_USAGE, NS_ARGS, ATTACH_DESCR);
+CMD_COMMAND(ns, detach, nsdetach, NSDETACH_USAGE, NS_ARGS, DETACH_DESCR);
 
 struct ns_result_str {
 	uint16_t res;
@@ -110,7 +124,7 @@ get_res_str(uint16_t res)
  * 0xb = Thin Provisioning Not supported
  */
 static void
-nscreate(const struct nvme_function *nf, int argc, char *argv[])
+nscreate(const struct cmd_function *nf, int argc, char *argv[])
 {
 	struct nvme_pt_command	pt;
 	struct nvme_controller_data cd;
@@ -205,7 +219,7 @@ nscreate(const struct nvme_function *nf, int argc, char *argv[])
 }
 
 static void
-nsdelete(const struct nvme_function *nf, int argc, char *argv[])
+nsdelete(const struct cmd_function *nf, int argc, char *argv[])
 {
 	struct nvme_pt_command	pt;
 	struct nvme_controller_data cd;
@@ -272,7 +286,7 @@ nsdelete(const struct nvme_function *nf, int argc, char *argv[])
  * 0x2 Invalid Field can occur if ctrlrid d.n.e in system.
  */
 static void
-nsattach(const struct nvme_function *nf, int argc, char *argv[])
+nsattach(const struct cmd_function *nf, int argc, char *argv[])
 {
 	struct nvme_pt_command	pt;
 	struct nvme_controller_data cd;
@@ -351,7 +365,7 @@ nsattach(const struct nvme_function *nf, int argc, char *argv[])
 }
 
 static void
-nsdetach(const struct nvme_function *nf, int argc, char *argv[])
+nsdetach(const struct cmd_function *nf, int argc, char *argv[])
 {
 	struct nvme_pt_command	pt;
 	struct nvme_controller_data cd;
@@ -437,10 +451,10 @@ nsdetach(const struct nvme_function *nf, int argc, char *argv[])
 }
 
 static void
-ns(const struct nvme_function *nf __unused, int argc, char *argv[])
+ns(const struct cmd_function *nf __unused, int argc, char *argv[])
 {
 
 	DISPATCH(argc, argv, ns);
 }
 
-NVME_COMMAND(top, ns, ns, NS_USAGE);
+CMD_COMMAND(top, ns, ns, NS_USAGE, NS_ARGS, NS_DESCR);

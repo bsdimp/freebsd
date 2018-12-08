@@ -45,6 +45,10 @@ __FBSDID("$FreeBSD$");
 
 #define IDENTIFY_USAGE							       \
 	"identify [-x [-v]] <controller id|namespace id>\n"
+#define IDENTIFY_ARGS \
+	"<controller id|namespace id>"
+#define IDENTIFY_DESCR \
+	"Print a human-readable summary of the IDENTIFY information from namespace or controller"
 
 static void
 print_namespace(struct nvme_namespace_data *nsdata)
@@ -150,7 +154,7 @@ print_namespace(struct nvme_namespace_data *nsdata)
 }
 
 static void
-identify_ctrlr(const struct nvme_function *nf, int argc, char *argv[])
+identify_ctrlr(const struct cmd_function *nf, int argc, char *argv[])
 {
 	struct nvme_controller_data	cdata;
 	int				ch, fd, hexflag = 0, hexlength;
@@ -197,7 +201,7 @@ identify_ctrlr(const struct nvme_function *nf, int argc, char *argv[])
 }
 
 static void
-identify_ns(const struct nvme_function *nf,int argc, char *argv[])
+identify_ns(const struct cmd_function *nf,int argc, char *argv[])
 {
 	struct nvme_namespace_data	nsdata;
 	char				path[64];
@@ -261,7 +265,7 @@ identify_ns(const struct nvme_function *nf,int argc, char *argv[])
 }
 
 static void
-identify(const struct nvme_function *nf, int argc, char *argv[])
+identify(const struct cmd_function *nf, int argc, char *argv[])
 {
 	char	*target;
 
@@ -289,4 +293,4 @@ identify(const struct nvme_function *nf, int argc, char *argv[])
 		identify_ns(nf, argc, argv);
 }
 
-NVME_COMMAND(top, identify, identify, IDENTIFY_USAGE);
+CMD_COMMAND(top, identify, identify, IDENTIFY_USAGE, IDENTIFY_ARGS, IDENTIFY_DESCR);
