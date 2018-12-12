@@ -1969,7 +1969,7 @@ device_delete_child(device_t dev, device_t child)
 	/* detach parent before deleting children, if any */
 	if ((error = device_detach(child)) != 0)
 		return (error);
-	
+
 	/* remove children second */
 	while ((grandchild = TAILQ_FIRST(&child->children)) != NULL) {
 		error = device_delete_child(child, grandchild);
@@ -5701,7 +5701,6 @@ devctl2_ioctl(struct cdev *cdev, u_long cmd, caddr_t data, int fflag,
 				break;
 			}
 		}
-		
 		error = device_delete_child(parent, dev);
 		break;
 	}
