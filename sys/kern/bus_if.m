@@ -74,7 +74,7 @@ CODE {
  * This is called from system code which prints out a description of a
  * device. It should describe the attachment that the child has with
  * the parent. For instance the TurboLaser bus prints which node the
- * device is attached to. See bus_generic_print_child() for more 
+ * device is attached to. See bus_generic_print_child() for more
  * information.
  *
  * @param _dev		the device whose child is being printed
@@ -95,7 +95,7 @@ METHOD int print_child {
  *
  * @param _dev		the device whose child was being probed
  * @param _child	the child device which failed to probe
- */   
+ */
 METHOD void probe_nomatch {
         device_t _dev;
         device_t _child;
@@ -172,6 +172,82 @@ METHOD void child_deleted {
 	device_t _dev;
 	device_t _child;
 };
+
+/**
+ * @brief Read the value of a bus-specific attribute of a device as a string
+ *
+ * This method will perform a mapping from the specified string to
+ * the bus specific ivar index, fetch the result from the ivar (or other
+ * location) and return the result as the most appropriate string for
+ * that resource.  There's no reason why other attributes of the device
+ * on the bus than are embodied in the ivars, but generally such attributes
+ * don't make sense.
+ * 
+ * @param _dev		the device whose child was being examined
+ * @param _child	the child device whose attribute is being read
+ * @param _attr		the instance variable to read
+ * @param _result	a loction to recieve the instance variable
+ *			value
+ * @param _reslen	Size of the buffer for the result.
+ *
+ * @retval 0		success
+ * @retval ENOATTR	no such attribute is supported by @p _dev 
+ * @retval EOVERFLOW	value of @p _attr is longer than @p _reslen
+ */
+METHOD int read_attr {
+	device_t _dev;
+	device_t _child;
+	const char *_attr;
+	char *_result;
+	size_t _reslen;
+};
+
+/**
+ * @brief Write the value of a bus-specific attribute of a device
+ * 
+ * This method sets the value of an attribute to @p _value.
+ * 
+ * @param _dev		the device whose child was being updated
+ * @param _child	the child device whose attribute is being written
+ * @param _attr		the instance variable to write
+ * @param _newval	the new value to set
+ * 
+ * @retval 0		success
+ * @retval ENOATTR	no such attribute is supported by @p _dev 
+ * @retval EINVAL	cannot interpret @p _newval for @p _attr
+ * @retval EROFS	cannot change @p _attr
+ */
+METHOD int write_attr {
+	device_t _dev;
+	device_t _child;
+	const char *_attr;
+	const char *_newval;
+};
+
+/**
+ * @brief As a bus to reset any modified attributes.
+ *
+ * Called when a new set of mapping tables are loaded into the kernel.  The
+ * bus should re-read the attributes of the device from hardware and reset
+ * values stored in ivars or similar data structures to a base state (or
+ * it should restore the base state from a saved copy for buses that can
+ * only be enumerated once).  Buses should make no assumptions about which
+ * devices have this called on them, nor the order of the calls.
+ *
+ * When this routine returns EINVAL, the bus cannot cope with the new mapping
+ * API.  When the driver returns EINVAL, then bus_add_driver() isn't called
+ * when new mapping data is loaded into the kernel.
+ *
+ * @param _dev		the bus which the device to reset
+ * @param _child	the child device to reset attributes for
+ *
+ * @retval 0		success
+ * @retval EINVAL	Default return value -- disable mapping
+ */
+METHOD int reset_attr {
+	device_t _dev;
+	device_t _child;
+} DEFAULT bus_generic_reset_attr;
 
 /**
  * @brief Notify a bus that a child was detached

@@ -95,6 +95,7 @@ struct u_device {
 #define	DF_QUIET_CHILDREN 0x200		/* Default to quiet for all my children */
 #define	DF_ATTACHED_ONCE 0x400		/* Has been attached at least once */
 #define	DF_NEEDNOMATCH	0x800		/* Has a pending NOMATCH event */
+#define	DF_REMAPPED	0x1000		/* all remapping completed */
 
 /**
  * @brief Device request structure used for ioctl's.
@@ -453,6 +454,7 @@ int	bus_generic_map_resource(device_t dev, device_t child, int type,
 				 struct resource_map_request *args,
 				 struct resource_map *map);
 void	bus_generic_new_pass(device_t dev);
+int	bus_generic_reset_attr(device_t dev, device_t child);
 int	bus_print_child_header(device_t dev, device_t child);
 int	bus_print_child_domain(device_t dev, device_t child);
 int	bus_print_child_footer(device_t dev, device_t child);
