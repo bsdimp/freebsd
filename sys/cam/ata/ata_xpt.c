@@ -1352,7 +1352,7 @@ done:
 		TAILQ_REMOVE(&softc->request_ccbs,
 		    &done_ccb->ccb_h, periph_links.tqe);
 		done_ccb->ccb_h.status = found ? CAM_REQ_CMP : CAM_REQ_CMP_ERR;
-		xpt_done(done_ccb);
+		xpt_done_queue(done_ccb);
 	}
 	/* Drop freeze taken due to CAM_DEV_QFREEZE flag set. */
 	cam_release_devq(path, 0, 0, 0, FALSE);

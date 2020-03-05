@@ -4619,6 +4619,17 @@ xpt_release_simq(struct cam_sim *sim, int run_queue)
 	mtx_unlock(&devq->send_mtx);
 }
 
+/*
+ * This is like xpt_done, except it's called when you just want to queue work
+ * for CAMISR to do. This is a transition tool until all consumers can go via
+ * xpt_action.
+ */
+void
+xpt_done_queue(union ccb *done_ccb)
+{
+	xpt_done(done_ccb);
+}
+
 void
 xpt_done(union ccb *done_ccb)
 {

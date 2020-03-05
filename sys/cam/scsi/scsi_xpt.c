@@ -1805,7 +1805,7 @@ probe_device_check:
 	done_ccb = (union ccb *)TAILQ_FIRST(&softc->request_ccbs);
 	TAILQ_REMOVE(&softc->request_ccbs, &done_ccb->ccb_h, periph_links.tqe);
 	done_ccb->ccb_h.status = CAM_REQ_CMP;
-	xpt_done(done_ccb);
+	xpt_done_queue(done_ccb);
 	if (TAILQ_FIRST(&softc->request_ccbs) == NULL) {
 		CAM_DEBUG(periph->path, CAM_DEBUG_PROBE, ("Probe completed\n"));
 		/* Drop freeze taken due to CAM_DEV_QFREEZE flag set. */
