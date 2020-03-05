@@ -162,6 +162,14 @@ static struct ata_quirk_entry ata_quirk_table[] =
 	},
 };
 
+#define proberegister			ata_probe_register
+#define probeschedule			ata_probe_schedule
+#define probestart			ata_probe_start
+#define proberequestdefaultnegotiation	ata_probe_proberequestdefaultnegotiation
+#define proberequestbackoff		ata_probe_proberequestbackoff
+#define probedone			ata_probe_probedone
+#define probecleanup			ata_probe_probecleanup
+
 static cam_status	proberegister(struct cam_periph *periph,
 				      void *arg);
 static void	 probeschedule(struct cam_periph *probe_periph);

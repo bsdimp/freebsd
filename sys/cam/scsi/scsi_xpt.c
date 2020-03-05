@@ -566,6 +566,13 @@ static struct scsi_quirk_entry scsi_quirk_table[] =
 	},
 };
 
+#define proberegister			scsi_probe_register
+#define probeschedule			scsi_probe_schedule
+#define probestart			scsi_probe_start
+#define proberequestdefaultnegotiation	scsi_probe_proberequestdefaultnegotiation
+#define proberequestbackoff		scsi_probe_proberequestbackoff
+#define probedone			scsi_probe_probedone
+
 static cam_status	proberegister(struct cam_periph *periph,
 				      void *arg);
 static void	 probeschedule(struct cam_periph *probe_periph);
