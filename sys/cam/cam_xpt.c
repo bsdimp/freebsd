@@ -2049,7 +2049,7 @@ xptedtmatch(struct ccb_dev_match *cdm)
 			return(0);
 		}
 		bus = (struct cam_eb *)cdm->pos.cookie.bus;
-		bus->refcount++;
+		xpt_acquire_bus(bus);
 	} else
 		bus = NULL;
 	xpt_unlock_buses();
@@ -2255,7 +2255,7 @@ xptbustraverse(struct cam_eb *start_bus, xpt_busfunc_t *tr_func, void *arg)
 			xpt_unlock_buses();
 			return (retval);
 		}
-		bus->refcount++;
+		xpt_acquire_bus(bus);
 		xpt_unlock_buses();
 	}
 	for (; bus != NULL; bus = next_bus) {
@@ -2267,7 +2267,7 @@ xptbustraverse(struct cam_eb *start_bus, xpt_busfunc_t *tr_func, void *arg)
 		xpt_lock_buses();
 		next_bus = TAILQ_NEXT(bus, links);
 		if (next_bus)
-			next_bus->refcount++;
+			xpt_acquire_bus(next_bus);
 		xpt_unlock_buses();
 		xpt_release_bus(bus);
 	}
@@ -3737,7 +3737,7 @@ xpt_path_counts(struct cam_path *path, uint32_t *bus_ref,
 	xpt_lock_buses();
 	if (bus_ref) {
 		if (path->bus)
-			*bus_ref = path->bus->refcount;
+			*bus_ref = path->bus->refcnt;
 		else
 			*bus_ref = 0;
 	}
@@ -4036,7 +4036,7 @@ xpt_bus_register(struct cam_sim *sim, device_t parent, u_int32_t bus)
 	new_bus->sim = sim;
 	timevalclear(&new_bus->last_reset);
 	new_bus->flags = 0;
-	new_bus->refcount = 1;	/* Held until a bus_deregister event */
+	refcount_init(&new_bus->refcnt, 1);	/* Held until a bus_deregister event */
 	new_bus->generation = 0;
 
 	xpt_lock_buses();
@@ -4750,21 +4750,21 @@ static void
 xpt_acquire_bus(struct cam_eb *bus)
 {
 
-	xpt_lock_buses();
-	bus->refcount++;
-	xpt_unlock_buses();
+	KASSERT(bus->refcnt >= 1,
+	    ("%s: too few references", __func__, bus->refcnt));
+	refcount_acquire(&bus->refcnt);
 }
 
 static void
 xpt_release_bus(struct cam_eb *bus)
 {
 
-	xpt_lock_buses();
-	KASSERT(bus->refcount >= 1, ("bus->refcount >= 1"));
-	if (--bus->refcount > 0) {
-		xpt_unlock_buses();
+	KASSERT(bus->refcnt >= 1,
+	    ("%s: too few references", __func__, bus->refcnt));
+	if (!refcount_release(&bus->refcnt))
 		return;
-	}
+
+	xpt_lock_buses();
 	TAILQ_REMOVE(&xsoftc.xpt_busses, bus, links);
 	xsoftc.bus_generation++;
 	xpt_unlock_buses();
@@ -4799,7 +4799,7 @@ xpt_alloc_target(struct cam_eb *bus, target_id_t target_id)
 	 * Hold a reference to our parent bus so it
 	 * will not go away before we do.
 	 */
-	bus->refcount++;
+	xpt_acquire_bus(bus);
 
 	/* Insertion sort into our bus's target list */
 	cur_target = TAILQ_FIRST(&bus->et_entries);
@@ -5012,7 +5012,7 @@ xpt_find_bus(path_id_t path_id)
 	     bus != NULL;
 	     bus = TAILQ_NEXT(bus, links)) {
 		if (bus->path_id == path_id) {
-			bus->refcount++;
+			xpt_acquire_bus(bus);
 			break;
 		}
 	}

@@ -191,7 +191,7 @@ struct cam_eb {
 	struct timeval	     last_reset;
 	u_int32_t	     flags;
 #define	CAM_EB_RUNQ_SCHEDULED	0x01
-	u_int32_t	     refcount;
+	u_int32_t	     refcnt;
 	u_int		     generation;
 	device_t	     parent_dev;
 	struct xpt_xport     *xport;
