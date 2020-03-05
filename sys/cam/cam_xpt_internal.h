@@ -170,7 +170,7 @@ struct cam_et {
 	TAILQ_ENTRY(cam_et) links;
 	struct	cam_eb	*bus;
 	target_id_t	target_id;
-	u_int32_t	refcount;
+	u_int		refcnt;
 	u_int		generation;
 	struct		timeval last_reset;
 	u_int		rpl_size;

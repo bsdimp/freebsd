@@ -1785,7 +1785,7 @@ xptedtbusfunc(struct cam_eb *bus, void *arg)
 			return (0);
 		}
 		target = (struct cam_et *)cdm->pos.cookie.target;
-		target->refcount++;
+		xpt_acquire_target(target);
 	} else
 		target = NULL;
 	mtx_unlock(&bus->eb_mtx);
@@ -2291,7 +2291,7 @@ xpttargettraverse(struct cam_eb *bus, struct cam_et *start_target,
 			mtx_unlock(&bus->eb_mtx);
 			return (retval);
 		}
-		target->refcount++;
+		xpt_acquire_target(target);
 		mtx_unlock(&bus->eb_mtx);
 	}
 	for (; target != NULL; target = next_target) {
@@ -2303,7 +2303,7 @@ xpttargettraverse(struct cam_eb *bus, struct cam_et *start_target,
 		mtx_lock(&bus->eb_mtx);
 		next_target = TAILQ_NEXT(target, links);
 		if (next_target)
-			next_target->refcount++;
+			xpt_acquire_target(next_target);
 		mtx_unlock(&bus->eb_mtx);
 		xpt_release_target(target);
 	}
@@ -3750,7 +3750,7 @@ xpt_path_counts(struct cam_path *path, uint32_t *bus_ref,
 	xpt_unlock_buses();
 	if (target_ref) {
 		if (path->target)
-			*target_ref = path->target->refcount;
+			*target_ref = path->target->refcnt;
 		else
 			*target_ref = 0;
 	}
@@ -4790,7 +4790,7 @@ xpt_alloc_target(struct cam_eb *bus, target_id_t target_id)
 	TAILQ_INIT(&target->ed_entries);
 	target->bus = bus;
 	target->target_id = target_id;
-	target->refcount = 1;
+	refcount_init(&target->refcnt, 1);
 	target->generation = 0;
 	target->luns = NULL;
 	mtx_init(&target->luns_mtx, "CAM LUNs lock", NULL, MTX_DEF);
@@ -4817,11 +4817,9 @@ xpt_alloc_target(struct cam_eb *bus, target_id_t target_id)
 static void
 xpt_acquire_target(struct cam_et *target)
 {
-	struct cam_eb *bus = target->bus;
-
-	mtx_lock(&bus->eb_mtx);
-	target->refcount++;
-	mtx_unlock(&bus->eb_mtx);
+	KASSERT(target->refcnt >= 1,
+	    ("%s: too few references", __func__, target->refcnt));
+	refcount_acquire(&target->refcnt);
 }
 
 static void
@@ -4829,11 +4827,12 @@ xpt_release_target(struct cam_et *target)
 {
 	struct cam_eb *bus = target->bus;
 
-	mtx_lock(&bus->eb_mtx);
-	if (--target->refcount > 0) {
-		mtx_unlock(&bus->eb_mtx);
+	KASSERT(target->refcnt >= 1,
+	    ("%s: too few references", __func__, target->refcnt));
+	if (!refcount_release(&target->refcnt))
 		return;
-	}
+
+	mtx_lock(&bus->eb_mtx);
 	TAILQ_REMOVE(&bus->et_entries, target, links);
 	bus->generation++;
 	mtx_unlock(&bus->eb_mtx);
@@ -4915,7 +4914,7 @@ xpt_alloc_device(struct cam_eb *bus, struct cam_et *target, lun_id_t lun_id)
 	 * Hold a reference to our parent bus so it
 	 * will not go away before we do.
 	 */
-	target->refcount++;
+	xpt_acquire_target(target);
 
 	cur_device = TAILQ_FIRST(&target->ed_entries);
 	while (cur_device != NULL && cur_device->lun_id < lun_id)
@@ -5031,7 +5030,7 @@ xpt_find_target(struct cam_eb *bus, target_id_t	target_id)
 	     target != NULL;
 	     target = TAILQ_NEXT(target, links)) {
 		if (target->target_id == target_id) {
-			target->refcount++;
+			xpt_acquire_target(target);
 			break;
 		}
 	}
