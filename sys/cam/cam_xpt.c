@@ -4751,7 +4751,7 @@ xpt_acquire_bus(struct cam_eb *bus)
 {
 
 	KASSERT(bus->refcnt >= 1,
-	    ("%s: too few references", __func__, bus->refcnt));
+	    ("%s: too few references %d", __func__, bus->refcnt));
 	refcount_acquire(&bus->refcnt);
 }
 
@@ -4760,7 +4760,7 @@ xpt_release_bus(struct cam_eb *bus)
 {
 
 	KASSERT(bus->refcnt >= 1,
-	    ("%s: too few references", __func__, bus->refcnt));
+	    ("%s: too few references %d", __func__, bus->refcnt));
 	if (!refcount_release(&bus->refcnt))
 		return;
 
@@ -4818,7 +4818,7 @@ static void
 xpt_acquire_target(struct cam_et *target)
 {
 	KASSERT(target->refcnt >= 1,
-	    ("%s: too few references", __func__, target->refcnt));
+	    ("%s: too few references %d", __func__, target->refcnt));
 	refcount_acquire(&target->refcnt);
 }
 
@@ -4828,7 +4828,7 @@ xpt_release_target(struct cam_et *target)
 	struct cam_eb *bus = target->bus;
 
 	KASSERT(target->refcnt >= 1,
-	    ("%s: too few references", __func__, target->refcnt));
+	    ("%s: too few references %d", __func__, target->refcnt));
 	if (!refcount_release(&target->refcnt))
 		return;
 
