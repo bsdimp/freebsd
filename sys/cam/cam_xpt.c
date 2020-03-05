@@ -45,6 +45,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/conf.h>
 #include <sys/fcntl.h>
 #include <sys/proc.h>
+#include <sys/refcount.h>
 #include <sys/sbuf.h>
 #include <sys/smp.h>
 #include <sys/taskqueue.h>
@@ -1820,7 +1821,7 @@ xptedttargetfunc(struct cam_et *target, void *arg)
 			return(0);
 		}
 		device = (struct cam_ed *)cdm->pos.cookie.device;
-		device->refcount++;
+		xpt_acquire_device(device);
 	} else
 		device = NULL;
 	mtx_unlock(&bus->eb_mtx);
@@ -2328,7 +2329,7 @@ xptdevicetraverse(struct cam_et *target, struct cam_ed *start_device,
 			mtx_unlock(&bus->eb_mtx);
 			return (retval);
 		}
-		device->refcount++;
+		xpt_acquire_device(device);
 		mtx_unlock(&bus->eb_mtx);
 	}
 	for (; device != NULL; device = next_device) {
@@ -2342,7 +2343,7 @@ xptdevicetraverse(struct cam_et *target, struct cam_ed *start_device,
 		mtx_lock(&bus->eb_mtx);
 		next_device = TAILQ_NEXT(device, links);
 		if (next_device)
-			next_device->refcount++;
+			xpt_acquire_device(next_device);
 		mtx_unlock(&bus->eb_mtx);
 		xpt_release_device(device);
 	}
@@ -3755,7 +3756,7 @@ xpt_path_counts(struct cam_path *path, uint32_t *bus_ref,
 	}
 	if (device_ref) {
 		if (path->device)
-			*device_ref = path->device->refcount;
+			*device_ref = path->device->refcnt;
 		else
 			*device_ref = 0;
 	}
@@ -4906,7 +4907,7 @@ xpt_alloc_device(struct cam_eb *bus, struct cam_et *target, lun_id_t lun_id)
 	device->flags = CAM_DEV_UNCONFIGURED;
 	device->tag_delay_count = 0;
 	device->tag_saved_openings = 0;
-	device->refcount = 1;
+	refcount_init(&device->refcnt, 1);
 	mtx_init(&device->device_mtx, "CAM device lock", NULL, MTX_DEF);
 	callout_init_mtx(&device->callout, &devq->send_mtx, 0);
 	TASK_INIT(&device->device_destroy_task, 0, xpt_destroy_device, device);
@@ -4930,11 +4931,10 @@ xpt_alloc_device(struct cam_eb *bus, struct cam_et *target, lun_id_t lun_id)
 void
 xpt_acquire_device(struct cam_ed *device)
 {
-	struct cam_eb *bus = device->target->bus;
 
-	mtx_lock(&bus->eb_mtx);
-	device->refcount++;
-	mtx_unlock(&bus->eb_mtx);
+	KASSERT(device->refcnt >= 1,
+	    ("%s: bad ref count %d", __func__, device->refcnt));
+	refcount_acquire(&device->refcnt);
 }
 
 void
@@ -4943,11 +4943,12 @@ xpt_release_device(struct cam_ed *device)
 	struct cam_eb *bus = device->target->bus;
 	struct cam_devq *devq;
 
-	mtx_lock(&bus->eb_mtx);
-	if (--device->refcount > 0) {
-		mtx_unlock(&bus->eb_mtx);
+	KASSERT(device->refcnt >= 1,
+	    ("%s: bad ref count %d", __func__, device->refcnt));
+	if (!refcount_release(&device->refcnt))
 		return;
-	}
+
+	mtx_lock(&bus->eb_mtx);
 
 	TAILQ_REMOVE(&device->target->ed_entries, device,links);
 	device->target->generation++;
@@ -5047,7 +5048,7 @@ xpt_find_device(struct cam_et *target, lun_id_t lun_id)
 	     device != NULL;
 	     device = TAILQ_NEXT(device, links)) {
 		if (device->lun_id == lun_id) {
-			device->refcount++;
+			xpt_acquire_device(device);
 			break;
 		}
 	}

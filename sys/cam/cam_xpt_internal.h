@@ -150,7 +150,7 @@ struct cam_ed {
 	u_int32_t	 tag_delay_count;
 #define	CAM_TAG_DELAY_COUNT		5
 	u_int32_t	 tag_saved_openings;
-	u_int32_t	 refcount;
+	u_int		 refcnt;
 	struct callout	 callout;
 	STAILQ_ENTRY(cam_ed) highpowerq_entry;
 	struct mtx	 device_mtx;
