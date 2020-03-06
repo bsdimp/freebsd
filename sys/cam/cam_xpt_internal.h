@@ -203,6 +203,7 @@ struct cam_path {
 	struct cam_eb	  *bus;
 	struct cam_et	  *target;
 	struct cam_ed	  *device;
+	u_int		   refcnt;
 };
 
 struct cam_ed *		xpt_alloc_device(struct cam_eb *bus,

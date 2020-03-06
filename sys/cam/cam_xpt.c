@@ -324,7 +324,19 @@ static xpt_devicefunc_t	xptsetasyncfunc;
 static xpt_busfunc_t	xptsetasyncbusfunc;
 static cam_status	xptregister(struct cam_periph *periph,
 				    void *arg);
-static __inline int device_is_queued(struct cam_ed *device);
+/*
+ * Do we need to bump the reference count for the path if we queue this ccb
+ * using the path. All XPT_FC_QUEUED should get this. However, the
+ * XPT_FC_XPT_ONLY function codes don't work because the discovery / probing
+ * that the xpt does doesn't do the proper xpt_action() -> xpt_done(), but often
+ * calls xpt_done() directly. This needs more investigation, but for now the
+ * debugging we're doing with this and the reference counting is enough.
+ */
+static __inline bool
+ccb_needs_ref(struct ccb_hdr *ccb_h)
+{
+	return ((ccb_h->func_code & (XPT_FC_QUEUED | XPT_FC_XPT_ONLY)) == XPT_FC_QUEUED);
+}
 
 static __inline int
 xpt_schedule_devq(struct cam_devq *devq, struct cam_ed *dev)
@@ -2633,6 +2645,8 @@ xpt_action(union ccb *start_ccb)
 	    ("xpt_action: func %#x %s\n", start_ccb->ccb_h.func_code,
 		xpt_action_name(start_ccb->ccb_h.func_code)));
 
+	if (ccb_needs_ref(&start_ccb->ccb_h))
+		refcount_acquire(&(start_ccb->ccb_h.path->refcnt));
 	start_ccb->ccb_h.status = CAM_REQ_INPROG;
 	(*(start_ccb->ccb_h.path->bus->xport->ops->action))(start_ccb);
 }
@@ -3671,6 +3685,7 @@ xpt_compile_path(struct cam_path *new_path, struct cam_periph *perph,
 		new_path->bus = bus;
 		new_path->target = target;
 		new_path->device = device;
+		refcount_init(&new_path->refcnt, 1);
 		CAM_DEBUG(new_path, CAM_DEBUG_TRACE, ("xpt_compile_path\n"));
 	} else {
 		if (device != NULL)
@@ -3698,6 +3713,7 @@ xpt_clone_path(struct cam_path **new_path_ptr, struct cam_path *path)
 		xpt_acquire_target(path->target);
 	if (path->device != NULL)
 		xpt_acquire_device(path->device);
+	refcount_init(&new_path->refcnt, 1);
 	*new_path_ptr = new_path;
 	return (CAM_REQ_CMP);
 }
@@ -3705,6 +3721,10 @@ xpt_clone_path(struct cam_path **new_path_ptr, struct cam_path *path)
 void
 xpt_release_path(struct cam_path *path)
 {
+
+	KASSERT(path->refcnt == 1, ("%s: %d active CCBs path %p",
+		__func__, path->refcnt - 1, path));
+
 	CAM_DEBUG(path, CAM_DEBUG_TRACE, ("xpt_release_path\n"));
 	if (path->device != NULL) {
 		xpt_release_device(path->device);
@@ -4627,6 +4647,10 @@ xpt_release_simq(struct cam_sim *sim, int run_queue)
 void
 xpt_done_queue(union ccb *done_ccb)
 {
+
+	/* Hack -- do the acquire that we would have done in xpt_action */
+	if (ccb_needs_ref(&done_ccb->ccb_h))
+		refcount_acquire(&done_ccb->ccb_h.path->refcnt);
 	xpt_done(done_ccb);
 }
 
@@ -4636,12 +4660,16 @@ xpt_done(union ccb *done_ccb)
 	struct cam_doneq *queue;
 	int	run, hash;
 
+	KASSERT(!ccb_needs_ref(&done_ccb->ccb_h) || done_ccb->ccb_h.path->refcnt > 1,
+	    ("%s: Too few (%d) refs for %s ccb %p path %p",
+		__func__, done_ccb->ccb_h.path->refcnt, xpt_action_name(done_ccb->ccb_h.func_code),
+		done_ccb, done_ccb->ccb_h.path));
+
 #if defined(BUF_TRACKING) || defined(FULL_BUF_TRACKING)
 	if (done_ccb->ccb_h.func_code == XPT_SCSI_IO &&
 	    done_ccb->csio.bio != NULL)
 		biotrack(done_ccb->csio.bio, __func__);
 #endif
-
 	CAM_DEBUG(done_ccb->ccb_h.path, CAM_DEBUG_TRACE,
 	    ("xpt_done: func= %#x %s status %#x\n",
 		done_ccb->ccb_h.func_code,
@@ -5493,6 +5521,8 @@ xpt_done_process(struct ccb_hdr *ccb_h)
 
 	/* Call the peripheral driver's callback */
 	ccb_h->pinfo.index = CAM_UNQUEUED_INDEX;
+	if (ccb_needs_ref(ccb_h))	// XXX callbacks can free path. drop reference. likely bad.
+		refcount_release(&(ccb_h->path->refcnt));
 	(*ccb_h->cbfcnp)(ccb_h->path->periph, (union ccb *)ccb_h);
 	if (mtx != NULL)
 		mtx_unlock(mtx);
