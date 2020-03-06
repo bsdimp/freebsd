@@ -229,7 +229,7 @@ cam_periph_alloc(periph_ctor_t *periph_ctor,
 			       "valid device %s%d rejected flags %#x "
 			       "refcount %d\n", periph->periph_name,
 			       periph->unit_number, periph->flags,
-			       periph->refcount);
+			       periph->refcnt);
 		}
 		return (CAM_REQ_INVALID);
 	}
@@ -254,7 +254,7 @@ cam_periph_alloc(periph_ctor_t *periph_ctor,
 	periph->periph_name = name;
 	periph->scheduled_priority = CAM_PRIORITY_NONE;
 	periph->immediate_priority = CAM_PRIORITY_NONE;
-	periph->refcount = 1;		/* Dropped by invalidation. */
+	refcount_init(&periph->refcnt, 1);		/* Dropped by invalidation. */
 	periph->sim = sim;
 	SLIST_INIT(&periph->ccb_list);
 	status = xpt_create_path(&path, periph, path_id, target_id, lun_id);
@@ -420,7 +420,7 @@ cam_periph_acquire(struct cam_periph *periph)
 	status = ENOENT;
 	xpt_lock_buses();
 	if ((periph->flags & CAM_PERIPH_INVALID) == 0) {
-		periph->refcount++;
+		refcount_acquire(&periph->refcnt);
 		status = 0;
 	}
 	xpt_unlock_buses();
@@ -433,9 +433,9 @@ cam_periph_doacquire(struct cam_periph *periph)
 {
 
 	xpt_lock_buses();
-	KASSERT(periph->refcount >= 1,
-	    ("cam_periph_doacquire() with refcount == %d", periph->refcount));
-	periph->refcount++;
+	KASSERT(periph->refcnt >= 1,
+	    ("cam_periph_doacquire() with refcount == %d", periph->refcnt));
+	refcount_acquire(&periph->refcnt);
 	xpt_unlock_buses();
 }
 
@@ -444,8 +444,8 @@ cam_periph_release_locked_buses(struct cam_periph *periph)
 {
 
 	cam_periph_assert(periph, MA_OWNED);
-	KASSERT(periph->refcount >= 1, ("periph->refcount >= 1"));
-	if (--periph->refcount == 0)
+	KASSERT(periph->refcnt >= 1, ("periph->refcnt >= 1"));
+	if (refcount_release(&periph->refcnt))
 		camperiphfree(periph);
 }
 

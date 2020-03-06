@@ -1958,7 +1958,7 @@ xptedtdevicefunc(struct cam_ed *device, void *arg)
 			return(0);
 		}
 		periph = (struct cam_periph *)cdm->pos.cookie.periph;
-		periph->refcount++;
+		refcount_acquire(&periph->refcnt);
 	} else
 		periph = NULL;
 	mtx_unlock(&bus->eb_mtx);
@@ -2100,7 +2100,7 @@ xptplistpdrvfunc(struct periph_driver **pdrv, void *arg)
 			return(0);
 		}
 		periph = (struct cam_periph *)cdm->pos.cookie.periph;
-		periph->refcount++;
+		refcount_acquire(&periph->refcnt);
 	} else
 		periph = NULL;
 	xpt_unlock_buses();
@@ -2386,7 +2386,7 @@ xptperiphtraverse(struct cam_ed *device, struct cam_periph *start_periph,
 			xpt_unlock_buses();
 			return (retval);
 		}
-		periph->refcount++;
+		refcount_acquire(&periph->refcnt);
 		mtx_unlock(&bus->eb_mtx);
 		xpt_unlock_buses();
 	}
@@ -2403,7 +2403,7 @@ xptperiphtraverse(struct cam_ed *device, struct cam_periph *start_periph,
 		    (next_periph->flags & CAM_PERIPH_FREE) != 0)
 			next_periph = SLIST_NEXT(next_periph, periph_links);
 		if (next_periph)
-			next_periph->refcount++;
+			refcount_acquire(&next_periph->refcnt);
 		mtx_unlock(&bus->eb_mtx);
 		xpt_unlock_buses();
 		cam_periph_release_locked(periph);
@@ -2460,7 +2460,7 @@ xptpdperiphtraverse(struct periph_driver **pdrv,
 			xpt_unlock_buses();
 			return (retval);
 		}
-		periph->refcount++;
+		refcount_acquire(&periph->refcnt);
 		xpt_unlock_buses();
 	}
 	for (; periph != NULL; periph = next_periph) {
@@ -2477,7 +2477,7 @@ xptpdperiphtraverse(struct periph_driver **pdrv,
 		    (next_periph->flags & CAM_PERIPH_FREE) != 0)
 			next_periph = TAILQ_NEXT(next_periph, unit_links);
 		if (next_periph)
-			next_periph->refcount++;
+			refcount_acquire(&next_periph->refcnt);
 		xpt_unlock_buses();
 		cam_periph_release(periph);
 	}
@@ -3763,7 +3763,7 @@ xpt_path_counts(struct cam_path *path, uint32_t *bus_ref,
 	}
 	if (periph_ref) {
 		if (path->periph)
-			*periph_ref = path->periph->refcount;
+			*periph_ref = path->periph->refcnt;
 		else
 			*periph_ref = 0;
 	}

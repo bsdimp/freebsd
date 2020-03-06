@@ -2774,11 +2774,11 @@ static  int hptiop_os_query_remove_device(struct hpt_iop_hba * hba,
 
 	if (status == CAM_REQ_CMP) {
 		if ((periph = cam_periph_find(path, "da")) != NULL) {
-			if (periph->refcount >= 1) {
+			if (periph->refcnt >= 1) {
 				device_printf(hba->pcidev, "%d ,"
 					"target_id=0x%x,"
 					"refcount=%d",
-				    hba->pciunit, target_id, periph->refcount);
+				    hba->pciunit, target_id, periph->refcnt);
 				retval = -1;
 			}
 		}

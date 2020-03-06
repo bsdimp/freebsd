@@ -39,6 +39,7 @@
 #ifdef _KERNEL
 #include <sys/lock.h>
 #include <sys/mutex.h>
+#include <sys/refcount.h>
 #include <sys/sysctl.h>
 #include <sys/taskqueue.h>
 
@@ -140,7 +141,7 @@ struct cam_periph {
 	uint32_t		 immediate_priority;
 	int			 periph_allocating;
 	int			 periph_allocated;
-	u_int32_t		 refcount;
+	u_int			 refcnt;
 	SLIST_HEAD(, ccb_hdr)	 ccb_list;	/* For "immediate" requests */
 	SLIST_ENTRY(cam_periph)  periph_links;
 	TAILQ_ENTRY(cam_periph)  unit_links;
@@ -240,7 +241,7 @@ cam_periph_acquire_first(struct periph_driver *driver)
 	while (periph != NULL && (periph->flags & CAM_PERIPH_INVALID) != 0)
 		periph = TAILQ_NEXT(periph, unit_links);
 	if (periph != NULL)
-		periph->refcount++;
+		refcount_acquire(&periph->refcnt);
 	xpt_unlock_buses();
 	return (periph);
 }
@@ -256,7 +257,7 @@ cam_periph_acquire_next(struct cam_periph *pperiph)
 		periph = TAILQ_NEXT(periph, unit_links);
 	} while (periph != NULL && (periph->flags & CAM_PERIPH_INVALID) != 0);
 	if (periph != NULL)
-		periph->refcount++;
+		refcount_acquire(&periph->refcnt);
 	xpt_unlock_buses();
 	cam_periph_release(pperiph);
 	return (periph);
