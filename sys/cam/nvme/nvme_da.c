@@ -321,7 +321,7 @@ ndaclose(struct disk *dp)
 	    ("ndaclose\n"));
 
 	if ((softc->flags & NDA_FLAG_DIRTY) != 0 &&
-	    (periph->flags & CAM_PERIPH_INVALID) == 0 &&
+	    cam_periph_is_invalid(periph) &&
 	    cam_periph_hold(periph, PRIBIO) == 0) {
 
 		ccb = cam_periph_getccb(periph, CAM_PRIORITY_NORMAL);
@@ -380,7 +380,7 @@ ndastrategy(struct bio *bp)
 	/*
 	 * If the device has been made invalid, error out
 	 */
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0) {
+	if (cam_periph_is_invalid(periph)) {
 		cam_periph_unlock(periph);
 		biofinish(bp, NULL, ENXIO);
 		return;
@@ -422,7 +422,7 @@ ndadump(void *arg, void *virtual, vm_offset_t physical, off_t offset, size_t len
 	lba = offset / secsize;
 	count = length / secsize;
 	
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0)
+	if (cam_periph_is_invalid(periph))
 		return (ENXIO);
 
 	/* xpt_get_ccb returns a zero'd allocation for the ccb, mimic that here */
@@ -614,7 +614,7 @@ ndasysctlinit(void *context, int pending)
 	periph = (struct cam_periph *)context;
 
 	/* periph was held for us when this task was enqueued */
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0) {
+	if (cam_periph_is_invalid(periph)) {
 		cam_periph_release(periph);
 		return;
 	}

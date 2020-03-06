@@ -1764,7 +1764,7 @@ daopen(struct disk *dp)
 	if (error != 0)
 		xpt_print(periph->path, "unable to retrieve capacity data\n");
 
-	if (periph->flags & CAM_PERIPH_INVALID)
+	if (cam_periph_is_invalid(periph))
 		error = ENXIO;
 
 	if (error == 0 && (softc->flags & DA_FLAG_PACK_REMOVABLE) != 0 &&
@@ -2238,7 +2238,7 @@ dasysctlinit(void *context, int pending)
 	/*
 	 * periph was held for us when this task was enqueued
 	 */
-	if (periph->flags & CAM_PERIPH_INVALID) {
+	if (cam_periph_is_invalid(periph)) {
 		da_periph_release(periph, DA_REF_SYSCTL);
 		return;
 	}

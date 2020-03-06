@@ -981,7 +981,7 @@ adaclose(struct disk *dp)
 	/* We only sync the cache if the drive is capable of it. */
 	if ((softc->flags & ADA_FLAG_DIRTY) != 0 &&
 	    (softc->flags & ADA_FLAG_CAN_FLUSHCACHE) != 0 &&
-	    (periph->flags & CAM_PERIPH_INVALID) == 0 &&
+	    !cam_periph_is_invalid(periph) &&
 	    cam_periph_hold(periph, PRIBIO) == 0) {
 
 		ccb = cam_periph_getccb(periph, CAM_PRIORITY_NORMAL);
@@ -1049,7 +1049,7 @@ adastrategy(struct bio *bp)
 	/*
 	 * If the device has been made invalid, error out
 	 */
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0) {
+	if (cam_periph_is_invalid(periph)) {
 		cam_periph_unlock(periph);
 		biofinish(bp, NULL, ENXIO);
 		return;
@@ -1095,7 +1095,7 @@ adadump(void *arg, void *virtual, vm_offset_t physical, off_t offset, size_t len
 	secsize = softc->params.secsize;
 	lba = offset / secsize;
 	count = length / secsize;
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0)
+	if (cam_periph_is_invalid(periph))
 		return (ENXIO);
 
 	memset(&ataio, 0, sizeof(ataio));
@@ -1447,7 +1447,7 @@ adasysctlinit(void *context, int pending)
 	periph = (struct cam_periph *)context;
 
 	/* periph was held for us when this task was enqueued */
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0) {
+	if (cam_periph_is_invalid(periph)) {
 		cam_periph_release(periph);
 		return;
 	}

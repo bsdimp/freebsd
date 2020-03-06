@@ -218,7 +218,7 @@ cam_periph_alloc(periph_ctor_t *periph_ctor,
 	 */
 	if ((periph = cam_periph_find(path, name)) != NULL) {
 
-		if ((periph->flags & CAM_PERIPH_INVALID) != 0
+		if (cam_periph_is_invalid(periph)
 		 && (periph->flags & CAM_PERIPH_NEW_DEV_FOUND) == 0) {
 			periph->flags |= CAM_PERIPH_NEW_DEV_FOUND;
 			periph->deferred_callback = ac_callback;
@@ -418,12 +418,10 @@ cam_periph_acquire(struct cam_periph *periph)
 		return (EINVAL);
 
 	status = ENOENT;
-	xpt_lock_buses();
-	if ((periph->flags & CAM_PERIPH_INVALID) == 0) {
+	if (cam_periph_is_invalid(periph) == 0) {
 		refcount_acquire(&periph->refcnt);
 		status = 0;
 	}
-	xpt_unlock_buses();
 
 	return (status);
 }
@@ -432,11 +430,9 @@ void
 cam_periph_doacquire(struct cam_periph *periph)
 {
 
-	xpt_lock_buses();
 	KASSERT(periph->refcnt >= 1,
 	    ("cam_periph_doacquire() with refcount == %d", periph->refcnt));
 	refcount_acquire(&periph->refcnt);
-	xpt_unlock_buses();
 }
 
 void
@@ -505,7 +501,7 @@ cam_periph_hold(struct cam_periph *periph, int priority)
 			cam_periph_release_locked(periph);
 			return (error);
 		}
-		if (periph->flags & CAM_PERIPH_INVALID) {
+		if (cam_periph_is_invalid(periph)) {
 			cam_periph_release_locked(periph);
 			return (ENXIO);
 		}
@@ -652,7 +648,7 @@ cam_periph_invalidate(struct cam_periph *periph)
 	 * We only tear down the device the first time a peripheral is
 	 * invalidated.
 	 */
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0)
+	if (cam_periph_is_invalid(periph))
 		return;
 
 	CAM_DEBUG(periph->path, CAM_DEBUG_INFO, ("Periph invalidated\n"));
@@ -665,7 +661,7 @@ cam_periph_invalidate(struct cam_periph *periph)
 		sbuf_finish(&sb);
 		sbuf_putbuf(&sb);
 	}
-	periph->flags |= CAM_PERIPH_INVALID;
+	atomic_store_rel_int(&periph->invalid, 1);
 	periph->flags &= ~CAM_PERIPH_NEW_DEV_FOUND;
 	if (periph->periph_oninval != NULL)
 		periph->periph_oninval(periph);
@@ -1607,7 +1603,7 @@ camperiphscsistatuserror(union ccb *ccb, union ccb **orig_ccb,
 		 * command completes or a 1 second timeout.
 		 */
 		periph = xpt_path_periph(ccb->ccb_h.path);
-		if (periph->flags & CAM_PERIPH_INVALID) {
+		if (cam_periph_is_invalid(periph)) {
 			error = EIO;
 			*action_string = "Periph was invalidated";
 		} else if ((sense_flags & SF_RETRY_BUSY) != 0 ||
@@ -1710,7 +1706,7 @@ camperiphscsisenseerror(union ccb *ccb, union ccb **orig,
 		 */
 		if ((err_action & SSQ_DECREMENT_COUNT) != 0) {
 		 	if (ccb->ccb_h.retry_count > 0 &&
-			    (periph->flags & CAM_PERIPH_INVALID) == 0)
+			    !cam_periph_is_invalid(periph))
 		 		ccb->ccb_h.retry_count--;
 			else {
 				*action_string = "Retries exhausted";
@@ -1907,7 +1903,7 @@ cam_periph_error(union ccb *ccb, cam_flags camflags,
 	case CAM_SEL_TIMEOUT:
 		if ((camflags & CAM_RETRY_SELTO) != 0) {
 			if (ccb->ccb_h.retry_count > 0 &&
-			    (periph->flags & CAM_PERIPH_INVALID) == 0) {
+			    !cam_periph_is_invalid(periph)) {
 				ccb->ccb_h.retry_count--;
 				error = ERESTART;
 
@@ -1948,7 +1944,7 @@ cam_periph_error(union ccb *ccb, cam_flags camflags,
 		 */
 	case CAM_REQUEUE_REQ:
 		/* Unconditional requeue if device is still there */
-		if (periph->flags & CAM_PERIPH_INVALID) {
+		if (cam_periph_is_invalid(periph)) {
 			action_string = "Periph was invalidated";
 			error = EIO;
 		} else if (sense_flags & SF_NO_RETRY) {
@@ -1977,7 +1973,7 @@ cam_periph_error(union ccb *ccb, cam_flags camflags,
 	case CAM_UNCOR_PARITY:
 	case CAM_DATA_RUN_ERR:
 	default:
-		if (periph->flags & CAM_PERIPH_INVALID) {
+		if (cam_periph_is_invalid(periph)) {
 			error = EIO;
 			action_string = "Periph was invalidated";
 		} else if (ccb->ccb_h.retry_count == 0) {

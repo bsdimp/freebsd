@@ -2302,7 +2302,7 @@ sasysctlinit(void *context, int pending)
 	/*
 	 * If the periph is invalid, no need to setup the sysctls.
 	 */
-	if (periph->flags & CAM_PERIPH_INVALID)
+	if (cam_periph_is_invalid(periph))
 		goto bailout;
 
 	softc = (struct sa_softc *)periph->softc;

@@ -439,7 +439,7 @@ pass_add_physpath(void *context, int pending)
 	mtx = cam_periph_mtx(periph);
 	mtx_lock(mtx);
 
-	if (periph->flags & CAM_PERIPH_INVALID)
+	if (cam_periph_is_invalid(periph))
 		goto out;
 
 	if (xpt_getattr(physpath, MAXPATHLEN,

@@ -682,7 +682,7 @@ chdone(struct cam_periph *periph, union ccb *done_ccb)
 				 * them and re-send the command.
 				 */
 				if ((sms->byte2 & SMS_DBD) != 0 &&
-				    (periph->flags & CAM_PERIPH_INVALID) == 0) {
+				    !cam_periph_is_invalid(periph)) {
 					sms->byte2 &= ~SMS_DBD;
 					xpt_action(done_ccb);
 					softc->quirks |= CH_Q_NO_DBD;

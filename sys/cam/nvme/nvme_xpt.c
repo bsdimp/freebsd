@@ -492,7 +492,7 @@ nvme_scan_lun(struct cam_periph *periph, struct cam_path *path,
 	if (lock)
 		xpt_path_lock(path);
 	if ((old_periph = cam_periph_find(path, "nvme_probe")) != NULL) {
-		if ((old_periph->flags & CAM_PERIPH_INVALID) == 0) {
+		if (!cam_periph_is_invalid(old_periph)) {
 			nvme_probe_softc *softc;
 
 			softc = (nvme_probe_softc *)old_periph->softc;

@@ -129,7 +129,7 @@ struct cam_periph {
 #define CAM_PERIPH_RUNNING		0x01
 #define CAM_PERIPH_LOCKED		0x02
 #define CAM_PERIPH_LOCK_WANTED		0x04
-#define CAM_PERIPH_INVALID		0x08
+//#define CAM_PERIPH_INVALID		0x08
 #define CAM_PERIPH_NEW_DEV_FOUND	0x10
 #define CAM_PERIPH_RECOVERY_INPROG	0x20
 #define CAM_PERIPH_RUN_TASK		0x40
@@ -142,6 +142,7 @@ struct cam_periph {
 	int			 periph_allocating;
 	int			 periph_allocated;
 	u_int			 refcnt;
+	u_int			 invalid;
 	SLIST_HEAD(, ccb_hdr)	 ccb_list;	/* For "immediate" requests */
 	SLIST_ENTRY(cam_periph)  periph_links;
 	TAILQ_ENTRY(cam_periph)  unit_links;
@@ -231,6 +232,13 @@ cam_periph_mtx(struct cam_periph *periph)
 #define cam_periph_sleep(periph, chan, priority, wmesg, timo)		\
 	xpt_path_sleep((periph)->path, (chan), (priority), (wmesg), (timo))
 
+static __inline bool
+cam_periph_is_invalid(struct cam_periph *periph)
+{
+	return (atomic_load_acq_int(&periph->invalid));
+}
+
+
 static inline struct cam_periph *
 cam_periph_acquire_first(struct periph_driver *driver)
 {
@@ -238,7 +246,7 @@ cam_periph_acquire_first(struct periph_driver *driver)
 
 	xpt_lock_buses();
 	periph = TAILQ_FIRST(&driver->units);
-	while (periph != NULL && (periph->flags & CAM_PERIPH_INVALID) != 0)
+	while (periph != NULL && cam_periph_is_invalid(periph))
 		periph = TAILQ_NEXT(periph, unit_links);
 	if (periph != NULL)
 		refcount_acquire(&periph->refcnt);
@@ -255,7 +263,7 @@ cam_periph_acquire_next(struct cam_periph *pperiph)
 	xpt_lock_buses();
 	do {
 		periph = TAILQ_NEXT(periph, unit_links);
-	} while (periph != NULL && (periph->flags & CAM_PERIPH_INVALID) != 0);
+	} while (periph != NULL && cam_periph_is_invalid(periph));
 	if (periph != NULL)
 		refcount_acquire(&periph->refcnt);
 	xpt_unlock_buses();
