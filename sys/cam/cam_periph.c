@@ -412,18 +412,33 @@ retry:
 int
 cam_periph_acquire(struct cam_periph *periph)
 {
-	int status;
+	bool locked;
 
 	if (periph == NULL)
 		return (EINVAL);
 
-	status = ENOENT;
-	if (cam_periph_is_invalid(periph) == 0) {
-		refcount_acquire(&periph->refcnt);
-		status = 0;
+	/*
+	 * Take a reference to guard against a race with invalidation code. If
+	 * it invalidates just after we check it can completely tear down the
+	 * object before we can ref count it so when we do we're in a use after
+	 * free situation.
+	 *
+	 * We assume that we're called from a context that ensures a ref to the
+	 * periph on entry, such as an open routine. XXX need to verify this and
+	 * verify the other invalid checks are kosher from this perspective.
+	 */
+	cam_periph_doacquire(periph);
+	if (cam_periph_is_invalid(periph)) {
+		locked = mtx_owned(xpt_path_mtx(periph->path));
+		if (!locked)
+			cam_periph_lock(periph);
+		cam_periph_release(periph);
+		if (!locked)
+			cam_periph_unlock(periph);
+		return (ENOENT);
 	}
 
-	return (status);
+	return (0);
 }
 
 void

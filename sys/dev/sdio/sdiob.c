@@ -983,7 +983,7 @@ sdiobdiscover(void *context, int pending)
 	CAM_DEBUG(periph->path, CAM_DEBUG_TRACE, ("%s\n", __func__));
 
 	/* Periph was held for us when this task was enqueued. */
-	if ((periph->flags & CAM_PERIPH_INVALID) != 0) {
+	if (cam_periph_is_invalid(periph)) {
 		cam_periph_release(periph);
 		return;
 	}
