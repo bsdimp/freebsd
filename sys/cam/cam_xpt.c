@@ -2294,9 +2294,10 @@ xpttargettraverse(struct cam_eb *bus, struct cam_et *start_target,
 	int retval;
 
 	retval = 1;
-	if (start_target)
+	if (start_target) {
 		target = start_target;
-	else {
+		xpt_acquire_target(target);
+	} else {
 		mtx_lock(&bus->eb_mtx);
 		target = TAILQ_FIRST(&bus->et_entries);
 		if (target == NULL) {
