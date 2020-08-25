@@ -35,7 +35,7 @@
 # $Id: newvers.sh,v 1.15 1995/04/22 21:39:15 phk Exp $
 
 TYPE="FreeBSD"
-RELEASE="2.0-CURRENT"
+RELEASE="2.0.5-STABLE"
 RELDATE="199504"
 
 if [ "x$RELEASE" = x2.0-CURRENT ] ; then
