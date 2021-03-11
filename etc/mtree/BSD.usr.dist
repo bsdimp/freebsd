@@ -462,6 +462,8 @@
             store        tags=package=tests
             ..
         ..
+        license
+        ..
         locale
             af_ZA.ISO8859-1
             ..
