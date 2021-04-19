@@ -54,10 +54,18 @@
  *
  *	documentation/content/en/books/porters-handbook/versions/chapter.adoc
  *
- * scheme is:  <major><two digit minor>Rxx
+ * Encoding:	<major><two digit minor>Rxx
  *		'R' is in the range 0 to 4 if this is a release branch or
  *		X.0-CURRENT before releng/X.0 is created, otherwise 'R' is
  *		in the range 5 to 9.
+ * Short hand: MMmmXXX
+ *
+ * __FreeBSD_version is bumped every time there's a change in the base system
+ * that's noteworthy. A noteworthy change is any change which changes the
+ * kernel's KBI in -CURRENT, one that changes some detail about the system that
+ * external software (or the ports system) would want to know about, one that
+ * adds a system call, one that adds or deletes a shipped library, or similar
+ * change not specifically noted here.
  */
 #undef __FreeBSD_version
 #define __FreeBSD_version 1400009	/* Master, propagated to newvers */
