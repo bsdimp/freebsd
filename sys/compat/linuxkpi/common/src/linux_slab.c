@@ -96,7 +96,7 @@ linux_kmem_ctor(void *mem, int size, void *arg, int flags)
 	return (0);
 }
 
-static void
+void
 linux_kmem_cache_free_rcu_callback(struct rcu_head *head)
 {
 	struct linux_kmem_rcu *rcu =
