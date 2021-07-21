@@ -52,9 +52,10 @@ struct irq_ent {
 	struct resource	*res;
 	void		*arg;
 	irqreturn_t	(*handler)(int, void *);
-	irqreturn_t	(*thread_handler)(int, void *);
 	void		*tag;
 	unsigned int	irq;
+	/* XXX ALL NEW ENTRIES MUST BE AFTER THIS IN STABLE-13 */
+	irqreturn_t	(*thread_handler)(int, void *);
 };
 
 void linux_irq_handler(void *);
