@@ -296,28 +296,31 @@ uint64_t
 kboot_loadaddr(u_int type, void *data, uint64_t addr)
 {
 
+	printf("Type %d addr %#jx ", type, (uintmax_t)addr);
 	if (type == LOAD_ELF)
 		addr = roundup(addr, PAGE_SIZE);
 	else
 		addr += kboot_get_phys_load_segment();
 
+	printf("addr %#jx ", (uintmax_t)addr);
 	return (addr);
 }
 
 static void
 kboot_kseg_get(int *nseg, void **ptr)
 {
-#if 0
 	int a;
 
+	printf("kseg_get: %d segments\n", nkexec_segments);
+	printf("VA               SZ       PA               MEMSZ\n");
+	printf("---------------- -------- ---------------- -----\n");
 	for (a = 0; a < nkexec_segments; a++) {
-		printf("kseg_get: %jx %jx %jx %jx\n",
+		printf("%016jx %08jx %016jx %08jx\n",
 			(uintmax_t)loaded_segments[a].buf,
 			(uintmax_t)loaded_segments[a].bufsz,
 			(uintmax_t)loaded_segments[a].mem,
 			(uintmax_t)loaded_segments[a].memsz);
 	}
-#endif
 
 	*nseg = nkexec_segments;
 	*ptr = &loaded_segments[0];
