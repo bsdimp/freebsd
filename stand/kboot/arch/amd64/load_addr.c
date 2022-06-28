@@ -83,6 +83,11 @@ file2str(const char *fn, char *buffer, size_t buflen)
 		return false;
 	}
 	buffer[len] = '\0';
+	/*
+	 * Trim trailing white space
+	 */
+	while (isspace(buffer[len - 1]))
+		buffer[--len] = '\0';
 	host_close(fd);
 	return true;
 }
@@ -124,12 +129,15 @@ read_memmap(struct memory_segments *segs, int maxseg)
 	n = 0;
 	do {
 		snprintf(name, sizeof(name), "%s/%d/start", MEMMAP, n);
+		printf("Reading %s\n", name);
 		if (!file2u64(name, &segs[n].start))
 			break;
-		snprintf(name, sizeof(name), "%s/%d/length", MEMMAP, n);
+		snprintf(name, sizeof(name), "%s/%d/end", MEMMAP, n);
+		printf("Reading %s\n", name);
 		if (!file2u64(name, &segs[n].end))
 			break;
 		snprintf(name, sizeof(name), "%s/%d/type", MEMMAP, n);
+		printf("Reading %s\n", name);
 		if (!file2str(name, buf, sizeof(buf)))
 			break;
 		if (!str2type(str2type_kv, buf, &segs[n].type))
@@ -150,6 +158,11 @@ find_ram(struct memory_segments *segs, int nr_seg, uint64_t minpa, uint64_t alig
 {
 	uint64_t start;
 
+	printf("minpa %#jx align %#jx sz %#jx maxpa %#jx\n",
+	    (uintmax_t)minpa,
+	    (uintmax_t)align,
+	    (uintmax_t)sz,
+	    (uintmax_t)maxpa);
 	/* XXX assume segs are sorted in numeric order -- assumed not ensured */
 	for (int i = 0; i < nr_seg; i++) {
 		if (segs[i].type != system_ram ||

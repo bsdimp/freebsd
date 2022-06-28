@@ -41,6 +41,8 @@ __FBSDID("$FreeBSD$");
 #ifdef EFI
 #include <efi.h>
 #include <efilib.h>
+#else
+#include "host_syscall.h"
 #endif
 
 #include "bootstrap.h"
@@ -53,9 +55,7 @@ __FBSDID("$FreeBSD$");
 
 #ifdef EFI
 #include "loader_efi.h"
-#endif
 
-#ifdef EFI
 static EFI_GUID acpi_guid = ACPI_TABLE_GUID;
 static EFI_GUID acpi20_guid = ACPI_20_TABLE_GUID;
 #endif
@@ -63,7 +63,7 @@ static EFI_GUID acpi20_guid = ACPI_20_TABLE_GUID;
 #ifdef EFI
 #define LOADER_PAGE_SIZE EFI_PAGE_SIZE
 #else
-#define LOADER_PAGE_SIZE 8192
+#define LOADER_PAGE_SIZE PAGE_SIZE
 #endif
 
 extern int bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp,
@@ -81,13 +81,13 @@ static struct file_format amd64_elf_obj = {
 	.l_exec = elf64_obj_exec,
 };
 
-#if 0
+#ifdef EFI
 extern struct file_format multiboot2;
 extern struct file_format multiboot2_obj;
 #endif
 
 struct file_format *file_formats[] = {
-#if 0
+#ifdef EFI
 	&multiboot2,
 	&multiboot2_obj,
 #endif
@@ -96,12 +96,27 @@ struct file_format *file_formats[] = {
 	NULL
 };
 
-#ifdef EFI
+#ifndef	EFI
+/*
+ * See comments in amd64_tramp.S. These are the parameters to that amd64_tramp needs
+ * but can't pass on the stack due to limitations in Linux's kexec interface. They
+ * live in bytes 8-39 of the trampoline area.
+ */
+struct trampoline_data {
+	uint64_t	entry;			//  0 (VA > KERNBASE)
+	uint64_t	pt4;			//  8 PA of page tables
+	uint64_t	modulep;		// 16 module metadata
+	uint64_t	kernend;		// 24 kernel end
+};
+#endif
+
 static pml4_entry_t *PT4;
-static pdp_entry_t *PT3;
 static pdp_entry_t *PT3_l, *PT3_u;
-static pd_entry_t *PT2;
 static pd_entry_t *PT2_l0, *PT2_l1, *PT2_l2, *PT2_l3, *PT2_u0, *PT2_u1;
+
+#ifdef EFI
+static pdp_entry_t *PT3;
+static pd_entry_t *PT2;
 
 extern EFI_PHYSICAL_ADDRESS staging;
 
@@ -111,6 +126,91 @@ static void (*trampoline)(uint64_t stack, void *copy_finish, uint64_t kernend,
 
 extern uintptr_t amd64_tramp;
 extern uint32_t amd64_tramp_size;
+#ifndef EFI
+extern uint32_t amd64_tramp_data_offset;
+#endif
+
+#ifndef EFI
+static uint8_t *base_addr;
+#define PTOV(x) (base_addr + (x))
+
+static ACPI_TABLE_RSDP *
+kboot_rsdp_from_efi()
+{
+	int fd;
+	char buffer[512 + 1];
+	char *walker, *ep;
+	ssize_t len;
+
+	fd = host_open("/sys/firmware/efi/systab", O_RDONLY, 0);
+	if (fd == -1)	/* Not an EFI system */
+		return 0;
+	len = host_read(fd, buffer, sizeof(buffer) - 1);
+	close(fd);
+	if (len <= 0)
+		return (NULL);
+	buffer[len] = '\0';
+	ep = buffer + len;
+	walker = buffer;
+	while (walker < ep) {
+		if (strncmp("ACPI20=", walker, 7) == 0)
+			return((ACPI_TABLE_RSDP *)PTOV(strtoul(walker + 7, NULL, 0)));
+		if (strncmp("ACPI=", walker, 5) == 0)
+			return((ACPI_TABLE_RSDP *)PTOV(strtoul(walker + 5, NULL, 0)));
+		walker += strcspn(walker, "\n");
+	}
+	return (NULL);
+}
+
+/*
+ * Find the RSDP in low memory.  See section 5.2.2 of the ACPI spec.  This is
+ * only valid on x86, however, and only if we're booted not via EFI. Otherwise,
+ * in a Linux environment, we get it via kboot_rsdp_from_efi().
+ */
+#if defined(__i386__) || defined(__amd64__)
+#define RSDP_CHECKSUM_LENGTH 20
+static ACPI_TABLE_RSDP *
+biosacpi_search_rsdp(uint64_t addr, int len)
+{
+	ACPI_TABLE_RSDP	*rsdp;
+	uint8_t		*cp, sum;
+	int		ofs, idx;
+
+	/* search on 16-byte boundaries */
+	for (ofs = 0; ofs < len; ofs += 16) {
+		rsdp = (ACPI_TABLE_RSDP *)PTOV(addr + ofs);
+
+		/* compare signature, validate checksum */
+		if (!strncmp(rsdp->Signature, ACPI_SIG_RSDP, strlen(ACPI_SIG_RSDP))) {
+			cp = (uint8_t *)rsdp;
+			sum = 0;
+			for (idx = 0; idx < RSDP_CHECKSUM_LENGTH; idx++)
+				sum += *(cp + idx);
+			if (sum != 0)
+				continue;
+			return(rsdp);
+		}
+	}
+	return(NULL);
+}
+#endif
+
+static ACPI_TABLE_RSDP *
+kboot_rsdp_from_ebda(void)
+{
+	ACPI_TABLE_RSDP *rsdp = NULL;
+#if defined(__i386__) || defined(__amd64__)
+	uint16_t	seg;
+	/* EBDA is the 1 KB addressed by the 16 bit pointer at 0x40E. */
+	seg = *(uint16_t *)PTOV(0x040e);
+	if (seg == 0 || (rsdp = biosacpi_search_rsdp((uint32_t)seg << 4, 0x400)) == 0) {
+		/* Check the upper memory BIOS space, 0xe0000 - 0xfffff. */
+		rsdp = biosacpi_search_rsdp(0xe0000, 0x20000);
+	}
+#endif
+	return (rsdp);
+}
+#endif
 
 /*
  * There is an ELF kernel and one or more ELF modules loaded.
@@ -120,15 +220,26 @@ extern uint32_t amd64_tramp_size;
 static int
 elf64_exec(struct preloaded_file *fp)
 {
-#ifdef EFI
 	struct file_metadata	*md;
+	ACPI_TABLE_RSDP		*rsdp = NULL;
 	Elf_Ehdr 		*ehdr;
-	vm_offset_t		modulep, kernend, trampcode, trampstack;
+	vm_offset_t		modulep, kernend;
 	int			err, i;
-	ACPI_TABLE_RSDP		*rsdp;
 	char			buf[24];
 	int			revision;
-	bool			copy_auto;
+#ifdef EFI
+	int			copy_auto;
+	vm_offset_t		trampstack, trampcode;
+#else
+	void			*trampcode;
+	int			nseg;
+	void			*kseg;
+	vm_offset_t		trampolinebase;
+	uint64_t		*trampoline;
+	struct trampoline_data	*trampoline_data;
+	vm_offset_t		staging;
+	int			error;
+#endif
 
 #ifdef EFI
 	copy_auto = copy_staging == COPY_STAGING_AUTO;
@@ -136,66 +247,94 @@ elf64_exec(struct preloaded_file *fp)
 		copy_staging = fp->f_kernphys_relocatable ?
 		    COPY_STAGING_DISABLE : COPY_STAGING_ENABLE;
 #else
-	copy_auto = COPY_STAGING_DISABLE; /* XXX */
+	/*
+	 * Figure out where to put it.
+	 *
+	 * Linux does not allow to do kexec_load into any part of memory. Ask
+	 * arch_loadaddr to resolve the first available chunk of physical memory
+	 * where loading is possible (load_addr).
+	 *
+	 * The kernel is loaded at the 'base' address in continguous physical
+	 * pages (using 2MB super pages). The first such page is unused by the
+	 * kernel and serves as a good place to put not only the trampoline, but
+	 * the page table pages that the trampoline needs to setup the proper
+	 * kernel starting environment.
+	 */
+	staging = trampolinebase = archsw.arch_loadaddr(LOAD_RAW, NULL, 0);
+	trampolinebase += 1ULL << 20;
+	printf("Load address at %#jx\n", (uintmax_t)trampolinebase);
+	printf("Relocation offset is %#jx\n", (uintmax_t)elf64_relocation_offset);
 #endif
 
 	/*
 	 * Report the RSDP to the kernel. While this can be found with
 	 * a BIOS boot, the RSDP may be elsewhere when booted from UEFI.
-	 * The old code used the 'hints' method to communite this to
-	 * the kernel. However, while convenient, the 'hints' method
-	 * is fragile and does not work when static hints are compiled
-	 * into the kernel. Instead, move to setting different tunables
-	 * that start with acpi. The old 'hints' can be removed before
-	 * we branch for FreeBSD 12.
 	 */
-
 #ifdef EFI
 	rsdp = efi_get_table(&acpi20_guid);
 	if (rsdp == NULL) {
 		rsdp = efi_get_table(&acpi_guid);
 	}
 #else
-	rsdp = NULL;
-#warning "write me"
+	/*
+	 * For LinxuBoot, this can be done from a system that's booted either
+	 * from CMS BIOS or from EFI. So we have to search both places (though
+	 * only on amd64 since it's an x86 specific thing).
+	 */
+	int		fd;
+
+	fd = host_open("/dev/mem", O_RDONLY, 0);
+	if (fd >= 0) {
+		base_addr = host_mmap(NULL, 1 << 20, HOST_PROT_READ, 0,fd, 0);
+		if ((intptr_t)base_addr < 0 && (intptr_t)base_addr >= -4095) {
+			printf("Can't map EBDA: error %ld\n", -(intptr_t)base_addr);
+			goto oops;
+		}
+		rsdp = kboot_rsdp_from_efi();
+		if (rsdp == 0) {
+			rsdp = kboot_rsdp_from_ebda();
+		}
+	} else {
+		printf("Can't map in memory to get rsdp\n");
+	}
 #endif
 	if (rsdp != NULL) {
 		sprintf(buf, "0x%016llx", (unsigned long long)rsdp);
-		setenv("hint.acpi.0.rsdp", buf, 1);
 		setenv("acpi.rsdp", buf, 1);
 		revision = rsdp->Revision;
 		if (revision == 0)
 			revision = 1;
 		sprintf(buf, "%d", revision);
-		setenv("hint.acpi.0.revision", buf, 1);
 		setenv("acpi.revision", buf, 1);
 		strncpy(buf, rsdp->OemId, sizeof(rsdp->OemId));
 		buf[sizeof(rsdp->OemId)] = '\0';
-		setenv("hint.acpi.0.oem", buf, 1);
 		setenv("acpi.oem", buf, 1);
 		sprintf(buf, "0x%016x", rsdp->RsdtPhysicalAddress);
-		setenv("hint.acpi.0.rsdt", buf, 1);
 		setenv("acpi.rsdt", buf, 1);
 		if (revision >= 2) {
 			/* XXX extended checksum? */
 			sprintf(buf, "0x%016llx",
 			    (unsigned long long)rsdp->XsdtPhysicalAddress);
-			setenv("hint.acpi.0.xsdt", buf, 1);
 			setenv("acpi.xsdt", buf, 1);
 			sprintf(buf, "%d", rsdp->Length);
-			setenv("hint.acpi.0.xsdt_length", buf, 1);
 			setenv("acpi.xsdt_length", buf, 1);
 		}
 	}
-
+#ifndef EFI
+oops:
+	if (fd >= 0) {
+		host_munmap(base_addr, 1 << 20);
+		host_close(fd);
+	}
+#endif
 	if ((md = file_findmetadata(fp, MODINFOMD_ELFHDR)) == NULL)
 		return (EFTYPE);
 	ehdr = (Elf_Ehdr *)&(md->md_data);
 
+#ifdef EFI
 	trampcode = copy_staging == COPY_STAGING_ENABLE ?
 	    (vm_offset_t)0x0000000040000000 /* 1G */ :
 	    (vm_offset_t)0x0000000100000000; /* 4G */;
-#ifdef EFI
 	err = BS->AllocatePages(AllocateMaxAddress, EfiLoaderData, 1,
 	    (EFI_PHYSICAL_ADDRESS *)&trampcode);
 	if (EFI_ERROR(err)) {
@@ -204,17 +343,22 @@ elf64_exec(struct preloaded_file *fp)
 			copy_staging = COPY_STAGING_AUTO;
 		return (ENOMEM);
 	}
+	trampstack = trampcode + LOADER_PAGE_SIZE - 8;
 #else
-#warning "Write me"
+	// XXX Question: why not just use malloc?
+	trampcode = host_getmem(LOADER_PAGE_SIZE);
+	if (trampcode == NULL) {
+		printf("Unable to allocate trampoline\n");
+		return (ENOMEM);
+	}
 #endif
 	bzero((void *)trampcode, LOADER_PAGE_SIZE);
-	trampstack = trampcode + LOADER_PAGE_SIZE - 8;
 	bcopy((void *)&amd64_tramp, (void *)trampcode, amd64_tramp_size);
 	trampoline = (void *)trampcode;
 
+#ifdef EFI
 	if (copy_staging == COPY_STAGING_ENABLE) {
 		PT4 = (pml4_entry_t *)0x0000000040000000;
-#ifdef EFI
 		err = BS->AllocatePages(AllocateMaxAddress, EfiLoaderData, 3,
 		    (EFI_PHYSICAL_ADDRESS *)&PT4);
 		if (EFI_ERROR(err)) {
@@ -224,9 +368,6 @@ elf64_exec(struct preloaded_file *fp)
 				copy_staging = COPY_STAGING_AUTO;
 			return (ENOMEM);
 		}
-#else
-#warning "Write me"
-#endif
 		bzero(PT4, 3 * LOADER_PAGE_SIZE);
 		PT3 = &PT4[512];
 		PT2 = &PT3[512];
@@ -258,8 +399,9 @@ elf64_exec(struct preloaded_file *fp)
 			PT2[i] |= PG_V | PG_RW | PG_PS;
 		}
 	} else {
-		PT4 = (pml4_entry_t *)0x0000000100000000; /* 4G */
+#endif
 #ifdef EFI
+		PT4 = (pml4_entry_t *)0x0000000100000000; /* 4G */
 		err = BS->AllocatePages(AllocateMaxAddress, EfiLoaderData, 9,
 		    (EFI_PHYSICAL_ADDRESS *)&PT4);
 		if (EFI_ERROR(err)) {
@@ -270,9 +412,9 @@ elf64_exec(struct preloaded_file *fp)
 			return (ENOMEM);
 		}
 #else
-#warning "Write me"
+		/* We'll find a place for these later */
+		PT4 = (pml4_entry_t *)host_getmem(9 * LOADER_PAGE_SIZE);
 #endif
-
 		bzero(PT4, 9 * LOADER_PAGE_SIZE);
 
 		PT3_l = &PT4[NPML4EPG * 1];
@@ -307,11 +449,18 @@ elf64_exec(struct preloaded_file *fp)
 			    ((pd_entry_t)i - 1) * NBPDR) |
 			    PG_V | PG_RW | PG_PS;
 		}
+#ifdef EFI
 	}
+#endif
 
+#ifdef EFI
 	printf("staging %#lx (%scopying) tramp %p PT4 %p\n",
 	    staging, copy_staging == COPY_STAGING_ENABLE ? "" : "not ",
 	    trampoline, PT4);
+#else
+	printf("staging %#lx tramp %p PT4 %p\n", staging, (void *)trampolinebase,
+	    (void *)trampolinebase + LOADER_PAGE_SIZE);
+#endif
 	printf("Start @ 0x%lx ...\n", ehdr->e_entry);
 
 #ifdef EFI
@@ -321,17 +470,36 @@ elf64_exec(struct preloaded_file *fp)
 	if (err != 0) {
 #ifdef EFI
 		efi_time_init();
-#endif
 		if (copy_auto)
 			copy_staging = COPY_STAGING_AUTO;
+#endif
 		return (err);
 	}
 
 	dev_cleanup();
 
+#ifdef EFI
 	trampoline(trampstack, copy_staging == COPY_STAGING_ENABLE ?
 	    efi_copy_finish : efi_copy_finish_nop, kernend, modulep,
 	    PT4, ehdr->e_entry);
+#else
+	trampoline_data = (void *)trampoline + amd64_tramp_data_offset;
+	trampoline_data->entry = ehdr->e_entry;
+	trampoline_data->pt4 = trampolinebase + LOADER_PAGE_SIZE;
+	trampoline_data->modulep = modulep;
+	trampoline_data->kernend = kernend;
+	/* Copy the trampoline to the ksegs */
+	archsw.arch_copyin((void *)trampcode, trampolinebase, amd64_tramp_size);
+	/* Copy the page table to the ksegs */
+	archsw.arch_copyin(PT4, trampoline_data->pt4, 9 * LOADER_PAGE_SIZE);
+
+	if (archsw.arch_kexec_kseg_get == NULL)
+		panic("architecture did not provide kexec segment mapping");
+	archsw.arch_kexec_kseg_get(&nseg, &kseg);
+	error = host_kexec_load(trampolinebase, nseg, kseg, HOST_KEXEC_ARCH_X86_64);
+	if (error != 0)
+		panic("kexec_load returned error: %d", error);
+	host_reboot(HOST_REBOOT_MAGIC1, HOST_REBOOT_MAGIC2, HOST_REBOOT_CMD_KEXEC, 0);
 #endif
 
 	panic("exec returned");

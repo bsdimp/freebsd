@@ -19,6 +19,7 @@ INSTALLFLAGS=	-b
 
 # Architecture-specific loader code
 SRCS=	\
+		bootinfo.c \
 		conf.c \
 		crt1.c \
 		gfx_fb_stub.c \
@@ -30,7 +31,7 @@ SRCS=	\
 		kbootfdt.c \
 		main.c \
 		termios.c \
-		vers.c \
+		vers.c
 
 CFLAGS.gfx_fb_stub.c += -I${SRCTOP}/contrib/pnglite -I${SRCTOP}/sys/teken
 
