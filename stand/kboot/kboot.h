@@ -9,6 +9,8 @@
 
 void do_init(void);
 
+extern const char *hostfs_root;
+
 /* Per-platform fdt fixup */
 void fdt_arch_fixups(void *fdtp);
 
