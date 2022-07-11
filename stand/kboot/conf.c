@@ -78,7 +78,9 @@ struct fs_ops *file_system[] = {
 #if defined(LOADER_BZIP2_SUPPORT)
     &bzipfs_fsops,
 #endif
+#if defined(LOADER_MSDOS_SUPPORT)
     &dosfs_fsops,
+#endif
     NULL
 };
 
