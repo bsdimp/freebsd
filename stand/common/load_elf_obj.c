@@ -170,6 +170,7 @@ __elfN(obj_loadfile)(char *filename, uint64_t dest,
 		dest = archsw.arch_loadaddr(LOAD_ELF, hdr, dest);
 	else
 		dest = roundup(dest, PAGE_SIZE);
+	printf("Loading elf obj file %s at %#jx\n", filename, (uintmax_t)dest);
 
 	/*
 	 * Ok, we think we should handle this.

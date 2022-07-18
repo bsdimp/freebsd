@@ -187,6 +187,7 @@ find_ram(struct memory_segments *segs, int nr_seg, uint64_t minpa, uint64_t alig
 uint64_t
 kboot_get_phys_load_segment(void)
 {
+#if 0
 	static uint64_t base_seg = BAD_SEG;
 	struct memory_segments segs[32];
 	int nr_seg;
@@ -204,4 +205,7 @@ kboot_get_phys_load_segment(void)
 		base_seg = 42ULL * (1 << 20); /* Jam it in at the odd-ball address of 42MB so it stands out */
 	}
 	return (base_seg);
+#else
+	return 42ULL * (1 << 20);
+#endif
 }
