@@ -801,6 +801,7 @@ file_loadraw(const char *fname, char *type, int insert)
 	if (module_verbose > MODULE_VERBOSE_SILENT)
 		printf("%s ", name);
 
+	printf("%s loading at %#jx\n", name, (uintmax_t)loadaddr);
 	laddr = loadaddr;
 	for (;;) {
 		/* read in 4k chunks; size is not really important */
@@ -1100,6 +1101,7 @@ file_addbuf(const char *name, const char *type, size_t len, void *buf)
 	dest = loadaddr;
 	if (archsw.arch_loadaddr != NULL)
 		dest = archsw.arch_loadaddr(LOAD_RAW, (void *)name, dest);
+	printf("Adding buffer %s at %#jx\n", name, (uintmax_t)dest);
 
 	/* Create & populate control structure */
 	fp = file_alloc();
