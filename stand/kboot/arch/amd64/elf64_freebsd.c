@@ -66,6 +66,8 @@ static EFI_GUID acpi20_guid = ACPI_20_TABLE_GUID;
 #define LOADER_PAGE_SIZE PAGE_SIZE
 #endif
 
+extern vm_offset_t kboot_get_phys_load_segment(void);
+
 extern int bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp,
     bool exit_bs);
 
@@ -260,8 +262,8 @@ elf64_exec(struct preloaded_file *fp)
 	 * the page table pages that the trampoline needs to setup the proper
 	 * kernel starting environment.
 	 */
-	staging = trampolinebase = archsw.arch_loadaddr(LOAD_RAW, NULL, 0);
-	trampolinebase += 1ULL << 20;
+	staging = trampolinebase = kboot_get_phys_load_segment();
+	trampolinebase += 1ULL << 20;	/* Copy trampoline to base + 1MB, kernel will wind up at 2MB */
 	printf("Load address at %#jx\n", (uintmax_t)trampolinebase);
 	printf("Relocation offset is %#jx\n", (uintmax_t)elf64_relocation_offset);
 #endif

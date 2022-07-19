@@ -206,6 +206,6 @@ kboot_get_phys_load_segment(void)
 	}
 	return (base_seg);
 #else
-	return 42ULL * (1 << 20);
+	return 20ULL * (1 << 20);
 #endif
 }
