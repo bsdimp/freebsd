@@ -1241,6 +1241,7 @@ __elfN(lookup_symbol)(elf_file_t ef, const char* name, Elf_Sym *symp,
 	unsigned long hash;
 
 	if (ef->nbuckets == 0) {
+		printf("Buckets\n");
 		printf(__elfN(bad_symtable));
 		return ENOENT;
 	}
@@ -1250,12 +1251,14 @@ __elfN(lookup_symbol)(elf_file_t ef, const char* name, Elf_Sym *symp,
 
 	while (symnum != STN_UNDEF) {
 		if (symnum >= ef->nchains) {
+			printf("chains\n");
 			printf(__elfN(bad_symtable));
 			return ENOENT;
 		}
 
 		COPYOUT(ef->symtab + symnum, &sym, sizeof(sym));
 		if (sym.st_name == 0) {
+			printf("name\n");
 			printf(__elfN(bad_symtable));
 			return ENOENT;
 		}
