@@ -24,7 +24,6 @@
  */
 
 #include <sys/param.h>
-#include <sys/endian.h>
 
 #include "stand.h"
 #include "host_syscall.h"
