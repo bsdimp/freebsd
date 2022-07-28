@@ -62,13 +62,8 @@ static EFI_GUID acpi20_guid = ACPI_20_TABLE_GUID;
 static int elf64_exec(struct preloaded_file *amp);
 static int elf64_obj_exec(struct preloaded_file *amp);
 
-/* Stub out temporarily */
-static int
-bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp,
-    bool exit_bs)
-{
-	return EINVAL;
-}
+int bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp,
+    bool exit_bs);
 
 static struct file_format arm64_elf = {
 	elf64_loadfile,
