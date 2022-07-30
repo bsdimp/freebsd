@@ -191,7 +191,7 @@ time(time_t *tloc)
 struct host_kexec_segment loaded_segments[HOST_KEXEC_SEGMENT_MAX];
 int nkexec_segments = 0;
 
-#define SEGALIGN (8ul<<20)
+#define SEGALIGN (1ul<<20)
 	
 static ssize_t
 get_phys_buffer(vm_offset_t dest, const size_t len, void **buf)
@@ -234,6 +234,7 @@ kboot_copyin(const void *src, vm_offset_t dest, const size_t len)
 	if (pa_start == PA_INVAL) {
 		pa_start = kboot_get_phys_load_segment();
 		printf("PA_START set to %#jx dst %#jx\n", (uintmax_t)pa_start, (uintmax_t)dest);
+		get_phys_buffer(pa_start, len, &destbuf);
 	}
 
 //	printf("COPYIN dest %#jx pa_dst %#jx\n", (uintmax_t)dest, 
