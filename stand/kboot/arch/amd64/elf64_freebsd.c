@@ -490,10 +490,11 @@ oops:
 	trampoline_data->pt4 = trampolinebase + LOADER_PAGE_SIZE;
 	trampoline_data->modulep = modulep;
 	trampoline_data->kernend = kernend;
+	/* NOTE: when copyting in, it's relative to the start of our 'area' not an abs addr */
 	/* Copy the trampoline to the ksegs */
-	archsw.arch_copyin((void *)trampcode, trampolinebase, amd64_tramp_size);
+	archsw.arch_copyin((void *)trampcode, trampolinebase - staging, amd64_tramp_size);
 	/* Copy the page table to the ksegs */
-	archsw.arch_copyin(PT4, trampoline_data->pt4, 9 * LOADER_PAGE_SIZE);
+	archsw.arch_copyin(PT4, trampoline_data->pt4 - staging, 9 * LOADER_PAGE_SIZE);
 
 	if (archsw.arch_kexec_kseg_get == NULL)
 		panic("architecture did not provide kexec segment mapping");
