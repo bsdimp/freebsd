@@ -488,8 +488,8 @@ oops:
 	trampoline_data = (void *)trampoline + amd64_tramp_data_offset;
 	trampoline_data->entry = ehdr->e_entry;
 	trampoline_data->pt4 = trampolinebase + LOADER_PAGE_SIZE;
-	trampoline_data->modulep = modulep;
-	trampoline_data->kernend = kernend;
+	trampoline_data->modulep = modulep + staging;
+	trampoline_data->kernend = kernend + staging;
 	/* NOTE: when copyting in, it's relative to the start of our 'area' not an abs addr */
 	/* Copy the trampoline to the ksegs */
 	archsw.arch_copyin((void *)trampcode, trampolinebase - staging, amd64_tramp_size);
