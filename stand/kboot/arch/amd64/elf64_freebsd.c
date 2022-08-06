@@ -100,9 +100,9 @@ struct file_format *file_formats[] = {
 
 #ifndef	EFI
 /*
- * See comments in amd64_tramp.S. These are the parameters to that amd64_tramp needs
- * but can't pass on the stack due to limitations in Linux's kexec interface. They
- * live in bytes 8-39 of the trampoline area.
+ * See comments in amd64_tramp.S. These are the parameters to that tramp needs
+ * but can't pass on the stack due to limitations in Linux's kexec
+ * interface. They live in bytes 8-39 of the trampoline area.
  */
 struct trampoline_data {
 	uint64_t	entry;			//  0 (VA > KERNBASE)
@@ -126,10 +126,10 @@ static void (*trampoline)(uint64_t stack, void *copy_finish, uint64_t kernend,
     uint64_t modulep, pml4_entry_t *pagetable, uint64_t entry);
 #endif
 
-extern uintptr_t amd64_tramp;
-extern uint32_t amd64_tramp_size;
+extern uintptr_t tramp;
+extern uint32_t tramp_size;
 #ifndef EFI
-extern uint32_t amd64_tramp_data_offset;
+extern uint32_t tramp_data_offset;
 #endif
 
 #ifndef EFI
@@ -355,7 +355,7 @@ oops:
 	}
 #endif
 	bzero((void *)trampcode, LOADER_PAGE_SIZE);
-	bcopy((void *)&amd64_tramp, (void *)trampcode, amd64_tramp_size);
+	bcopy((void *)&tramp, (void *)trampcode, tramp_size);
 	trampoline = (void *)trampcode;
 
 #ifdef EFI
@@ -401,8 +401,6 @@ oops:
 			PT2[i] |= PG_V | PG_RW | PG_PS;
 		}
 	} else {
-#endif
-#ifdef EFI
 		PT4 = (pml4_entry_t *)0x0000000100000000; /* 4G */
 		err = BS->AllocatePages(AllocateMaxAddress, EfiLoaderData, 9,
 		    (EFI_PHYSICAL_ADDRESS *)&PT4);
@@ -413,10 +411,6 @@ oops:
 				copy_staging = COPY_STAGING_AUTO;
 			return (ENOMEM);
 		}
-#else
-		/* We'll find a place for these later */
-		PT4 = (pml4_entry_t *)host_getmem(9 * LOADER_PAGE_SIZE);
-#endif
 		bzero(PT4, 9 * LOADER_PAGE_SIZE);
 
 		PT3_l = &PT4[NPML4EPG * 1];
@@ -451,7 +445,74 @@ oops:
 			    ((pd_entry_t)i - 1) * NBPDR) |
 			    PG_V | PG_RW | PG_PS;
 		}
-#ifdef EFI
+	}
+#else
+	{
+		vm_offset_t pabase, pa_pt3_l, pa_pt3_u, pa_pt2_l0, pa_pt2_l1, pa_pt2_l2, pa_pt2_l3, pa_pt2_u0, pa_pt2_u1;
+
+		/* We'll find a place for these later */
+		PT4 = (pml4_entry_t *)host_getmem(9 * LOADER_PAGE_SIZE);
+		bzero(PT4, 9 * LOADER_PAGE_SIZE);
+
+		PT3_l = &PT4[NPML4EPG * 1];
+		PT3_u = &PT4[NPML4EPG * 2];
+		PT2_l0 = &PT4[NPML4EPG * 3];
+		PT2_l1 = &PT4[NPML4EPG * 4];
+		PT2_l2 = &PT4[NPML4EPG * 5];
+		PT2_l3 = &PT4[NPML4EPG * 6];
+		PT2_u0 = &PT4[NPML4EPG * 7];
+		PT2_u1 = &PT4[NPML4EPG * 8];
+
+		pabase = trampolinebase + LOADER_PAGE_SIZE;
+		pa_pt3_l = pabase + LOADER_PAGE_SIZE * 1;
+		pa_pt3_u = pabase + LOADER_PAGE_SIZE * 2;
+		pa_pt2_l0 = pabase + LOADER_PAGE_SIZE * 3;
+		pa_pt2_l1 = pabase + LOADER_PAGE_SIZE * 4;
+		pa_pt2_l2 = pabase + LOADER_PAGE_SIZE * 5;
+		pa_pt2_l3 = pabase + LOADER_PAGE_SIZE * 6;
+		pa_pt2_u0 = pabase + LOADER_PAGE_SIZE * 7;
+		pa_pt2_u1 = pabase + LOADER_PAGE_SIZE * 8;
+
+		/* 1:1 mapping of lower 4G */
+		PT4[0] = (pml4_entry_t)pa_pt3_l | PG_V | PG_RW;
+		PT3_l[0] = (pdp_entry_t)pa_pt2_l0 | PG_V | PG_RW;
+		PT3_l[1] = (pdp_entry_t)pa_pt2_l1 | PG_V | PG_RW;
+		PT3_l[2] = (pdp_entry_t)pa_pt2_l2 | PG_V | PG_RW;
+		PT3_l[3] = (pdp_entry_t)pa_pt2_l3 | PG_V | PG_RW;
+		for (i = 0; i < 4 * NPDEPG; i++) {	/* we overflow PT2_l0 into _l1, etc */
+			PT2_l0[i] = ((pd_entry_t)i << PDRSHIFT) | PG_V |
+			    PG_RW | PG_PS;
+		}
+
+		/* mapping of kernel 2G below top */
+		PT4[NPML4EPG - 1] = (pml4_entry_t)pa_pt3_u | PG_V | PG_RW;
+		PT3_u[NPDPEPG - 2] = (pdp_entry_t)pa_pt2_u0 | PG_V | PG_RW;
+		PT3_u[NPDPEPG - 1] = (pdp_entry_t)pa_pt2_u1 | PG_V | PG_RW;
+		/* compat mapping of phys @0 */
+		PT2_u0[0] = PG_PS | PG_V | PG_RW;
+		/* this maps past staging area */
+		/*
+		 * Kernel uses the KERNSTART (== KERNBASE + 2MB) entry to figure
+		 * out where we loaded the kernel. This is PT2_u0[1] (since
+		 * these map 2MB pages. So the PA that this maps has to be
+		 * kboot's staging + 2MB.  For UEFI we do 'i - 1' since we load
+		 * the kernel right at staging (and assume the first address we
+		 * load is 2MB in efi_copyin). However for kboot, staging + 1 *
+		 * NBPDR == staging + 2MB which is where the kernel starts. Our
+		 * trampoline need not be mapped into the kernel space since we
+		 * execute PA==VA for that, and the trampoline can just go away
+		 * once the kernel is called.
+		 *
+		 * Staging should likely be as low as possible, though, because
+		 * all the 'early' allocations are at kernend (which the kernel
+		 * calls physfree).
+		 */
+		for (i = 1; i < 2 * NPDEPG; i++) {	/* we overflow PT2_u0 into _u1 */
+			PT2_u0[i] = ((pd_entry_t)staging +
+			    ((pd_entry_t)i) * NBPDR) |
+			    PG_V | PG_RW | PG_PS;
+			if (i < 10) printf("Mapping %d to %#lx staging %#lx\n", i, PT2_u0[i], staging);
+		}
 	}
 #endif
 
@@ -485,14 +546,21 @@ oops:
 	    efi_copy_finish : efi_copy_finish_nop, kernend, modulep,
 	    PT4, ehdr->e_entry);
 #else
-	trampoline_data = (void *)trampoline + amd64_tramp_data_offset;
+	trampoline_data = (void *)trampoline + tramp_data_offset;
 	trampoline_data->entry = ehdr->e_entry;
 	trampoline_data->pt4 = trampolinebase + LOADER_PAGE_SIZE;
-	trampoline_data->modulep = modulep + staging;
-	trampoline_data->kernend = kernend + staging;
+	/*
+	 * So we compute the VA of the module data by modulep + KERNBASE....
+	 * need to make sure that that address is mapped right. We calculate
+	 * the start of available memory to allocate via kernend (which is
+	 * calculated with a phyaddr of "kernend + PA(PT_u0[1])"), so we better
+	 * make sure we're not overwriting the last 2MB of the kernel :).
+	 */
+	trampoline_data->modulep = modulep;	/* Offset from KERNBASE */
+	trampoline_data->kernend = kernend;	/* Offset from the load address */
 	/* NOTE: when copyting in, it's relative to the start of our 'area' not an abs addr */
 	/* Copy the trampoline to the ksegs */
-	archsw.arch_copyin((void *)trampcode, trampolinebase - staging, amd64_tramp_size);
+	archsw.arch_copyin((void *)trampcode, trampolinebase - staging, tramp_size);
 	/* Copy the page table to the ksegs */
 	archsw.arch_copyin(PT4, trampoline_data->pt4 - staging, 9 * LOADER_PAGE_SIZE);
 

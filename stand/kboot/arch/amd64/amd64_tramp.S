@@ -36,7 +36,7 @@
 #include <machine/asmacros.h>
 
 /*
- * Keep in sync with elf64_freebsd.c. Kexec starts amd64_tramp w/o any
+ * Keep in sync with elf64_freebsd.c. Kexec starts tramp w/o any
  * parameters, so store them here.
  *
  * struct trampoline_data {
@@ -80,8 +80,11 @@
  * memory that we need to do to make the handoff to the FreeBSD kernel.
  */
 	.text
-	.globl	amd64_tramp
-amd64_tramp:
+	.globl	tramp
+tramp:
+	/*
+	 * Linux kexec reboot starts us in long mode V=P, or the jmp here would fail.
+	 */
 	jmp	1f		/* skip over our saved args */
 	.p2align	3
 trampoline_data:
@@ -94,7 +97,7 @@ trampoline_data:
 #define TMPSTACKSIZE	48	/* 16 bytes for args +8 for pushq/popfq + 24 spare */
 1:
 	cli				/* Make sure we don't get interrupted. */
-	lea	amd64_tramp_end(%rip), %rsp
+	leaq	tramp_end(%rip), %rsp
 	lea	trampoline_data(%rip), %r9
 	movq	TRAMP_ENTRY(%r9), %r15	/* Kernel entry point */
 	movq	TRAMP_PT4(%r9), %r14	/* Page tables */
@@ -106,20 +109,20 @@ trampoline_data:
 	pushq	%r15			/* Push the entry address. */
 	movq	%r14, %cr3		/* Switch page tables. */
 	ret				/* "Return" to kernel entry (btext). */
-	ALIGN_TEXT
+	ALIGN_TEXT			/* 16 byte alignment, needed for gdt */
 	.space	TMPSTACKSIZE
-amd64_tramp_end:			/* padding doubles as stack */
+tramp_end:			/* padding doubles as stack */
 
 	.data
 
-	.type   amd64_tramp_size,@object
-	.globl	amd64_tramp_size
-amd64_tramp_size:
-	.long	amd64_tramp_end-amd64_tramp
-	.size	amd64_tramp_size, 4
+	.type   tramp_size,@object
+	.globl	tramp_size
+tramp_size:
+	.long	tramp_end-tramp
+	.size	tramp_size, 4
 
-	.type   amd64_tramp_data_offset,@object
-	.globl	amd64_tramp_data_offset
-amd64_tramp_data_offset:
-	.long	trampoline_data-amd64_tramp
-	.size	amd64_tramp_data_offset, 4
+	.type   tramp_data_offset,@object
+	.globl	tramp_data_offset
+tramp_data_offset:
+	.long	trampoline_data-tramp
+	.size	tramp_data_offset, 4
