@@ -63,7 +63,7 @@
  * - The kernel, modules and metadata is in first 4GB which is unity mapped
  * - There's additional memory after loader provided data for early allocations
  *
- * Unlike EFI, we don't support copying the staging area. We tell Linunx to land
+ * Unlike EFI, we don't support copying the staging area. We tell Linux to land
  * the kernel in its final location with the needed alignment, etc. We copy the
  * trampoline code to 1MB offset above KERNBASE since that memory is otherwise free
  * and safely above the lower 1MB swamp we inherited from IBM PC, though this code
@@ -82,36 +82,26 @@
 	.text
 	.globl	tramp
 tramp:
-	/*
-	 * Linux kexec reboot starts us in long mode V=P, or the jmp here would fail.
-	 */
-	jmp	1f		/* skip over our saved args */
-	.p2align	3
-trampoline_data:
-#define	TRAMP_ENTRY	0
-#define TRAMP_PT4	8
-#define TRAMP_MODULEP	16
-#define TRAMP_KERNEND	24
-#define TRAMP_TOTAL	32
-	.space	 TRAMP_TOTAL
-#define TMPSTACKSIZE	48	/* 16 bytes for args +8 for pushq/popfq + 24 spare */
-1:
 	cli				/* Make sure we don't get interrupted. */
 	leaq	tramp_end(%rip), %rsp
-	lea	trampoline_data(%rip), %r9
-	movq	TRAMP_ENTRY(%r9), %r15	/* Kernel entry point */
-	movq	TRAMP_PT4(%r9), %r14	/* Page tables */
-	movq	TRAMP_MODULEP(%r9), %r13 /* Modulep */
-	movq	TRAMP_KERNEND(%r9), %r12 /* Kernel end pointer */
+	movq	tramp_entry(%rip), %r15	/* Kernel entry point */
+	movq	tramp_pt4(%rip), %r14	/* Page tables */
+	movq	tramp_modulep(%rip), %r13 /* Modulep */
+	movq	tramp_kernend(%rip), %r12 /* Kernel end pointer */
 	pushq	%r12			/* Push kernend offset. (upper 32bits ignored) */
 	salq	$32, %r13		/* 32bit lsb modulep, 32bits 0 (retaddr) */
 	pushq	%r13			/* Push modulep offset and 0 dword */
 	pushq	%r15			/* Push the entry address. */
 	movq	%r14, %cr3		/* Switch page tables. */
 	ret				/* "Return" to kernel entry (btext). */
-	ALIGN_TEXT			/* 16 byte alignment, needed for gdt */
-	.space	TMPSTACKSIZE
-tramp_end:			/* padding doubles as stack */
+	.p2align	3
+trampoline_data:
+tramp_entry:	.quad	0
+tramp_pt4:	.quad	0
+tramp_modulep:	.quad	0
+tramp_kernend:	.quad	0
+	.space		0xa8	/* min 16 bytes for args +8 for pushq/popfq */
+tramp_end:
 
 	.data
 
