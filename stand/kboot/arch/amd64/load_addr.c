@@ -24,10 +24,13 @@
  */
 
 #include <sys/param.h>
+#include <machine/pc/bios.h>
+#include <machine/metadata.h>
 
 #include "stand.h"
 #include "host_syscall.h"
 #include "kboot.h"
+#include "bootstrap.h"
 
 /* Refactor when we do arm64 */
 
@@ -66,6 +69,28 @@ struct kv
 };
 
 #define MEMMAP "/sys/firmware/memmap"
+
+static struct memory_segments segs[32];
+static int nr_seg;
+
+void
+bi_loadsmap(struct preloaded_file *kfp)
+{
+	struct bios_smap smap[32], *sm;
+	struct memory_segments *s;
+	int smapnum, len;
+
+	for (smapnum = 0; smapnum < min(32, nr_seg); smapnum++) {
+		sm = &smap[smapnum];
+		s = &segs[smapnum];
+		sm->base = s->start;
+		sm->length = s->end - s->start + 1;
+		sm->type = SMAP_TYPE_MEMORY;
+	}
+
+        len = smapnum * sizeof(struct bios_smap);
+        file_addmetadata(kfp, MODINFOMD_SMAP, len, &smap[0]);
+}
 
 static bool
 file2str(const char *fn, char *buffer, size_t buflen)
@@ -188,8 +213,6 @@ kboot_get_phys_load_segment(void)
 {
 #if 0
 	static uint64_t base_seg = BAD_SEG;
-	struct memory_segments segs[32];
-	int nr_seg;
 
 	if (base_seg != BAD_SEG)
 		return (base_seg);
@@ -201,10 +224,11 @@ kboot_get_phys_load_segment(void)
 	if (base_seg == BAD_SEG) {
 		/* XXX Should fall back to using /proc/iomem maybe? */
 		/* XXX PUNT UNTIL I NEED SOMETHING BETTER */
-		base_seg = 42ULL * (1 << 20); /* Jam it in at the odd-ball address of 42MB so it stands out */
+		base_seg = 300ULL * (1 << 20);
 	}
 	return (base_seg);
 #else
+	nr_seg = read_memmap(segs, nitems(segs));
 	return 300ULL * (1 << 20);
 #endif
 }

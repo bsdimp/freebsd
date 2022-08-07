@@ -66,6 +66,8 @@ __FBSDID("$FreeBSD$");
 
 int bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp,
     bool exit_bs);
+void bi_loadsmap(struct preloaded_file *kfp);
+
 
 static int
 bi_getboothowto(char *kargs)
@@ -421,10 +423,8 @@ bi_load_efi_data(struct preloaded_file *kfp, bool exit_bs)
 	 * map entries.
 	 */
 
-#ifdef EFI
 	if (do_vmap)
 		efi_do_vmap(mm, sz, dsz, mmver);
-#endif
 	efihdr->memory_size = sz;
 	efihdr->descriptor_size = dsz;
 	efihdr->descriptor_version = mmver;
@@ -557,6 +557,8 @@ bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp, bool exit_bs)
 #endif
 #ifdef EFI
 	bi_load_efi_data(kfp, exit_bs);
+#else
+	bi_loadsmap(kfp);
 #endif
 
 	size = bi_copymodules(0);	/* Find the size of the modules */
