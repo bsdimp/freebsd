@@ -100,16 +100,21 @@ struct file_format *file_formats[] = {
 
 #ifndef	EFI
 /*
- * See comments in amd64_tramp.S. These are the parameters to that tramp needs
- * but can't pass on the stack due to limitations in Linux's kexec
- * interface. They live in bytes 8-39 of the trampoline area.
+ * We create the stack that we want. We have the address of the page tables
+ * we make on top (so we pop that off and set %cr3). We have the entry point
+ * to the kernel (which retq pops off) This leaves the stack that the btext
+ * wants: offset 4 is modulep and offset8 is kernend, with the filler bytes
+ * to keep this aligned. This makes the trampoline very simple.
  */
 struct trampoline_data {
-	uint64_t	entry;			//  0 (VA > KERNBASE)
-	uint64_t	pt4;			//  8 PA of page tables
-	uint64_t	modulep;		// 16 module metadata
-	uint64_t	kernend;		// 24 kernel end
+	uint64_t	pt4;			// Page table address to pop
+	uint64_t	entry;			// return address to jump to kernel
+	uint32_t	fill1;			// 0
+	uint32_t	modulep;		// 4 module metadata
+	uint32_t	kernend;		// 8 kernel end
+	uint32_t	fill2;			// 12
 };
+_Static_assert(sizeof(struct trampoline_data) == 32, "Bad size for trampoline data");
 #endif
 
 static pml4_entry_t *PT4;
@@ -558,6 +563,7 @@ oops:
 	 */
 	trampoline_data->modulep = modulep;	/* Offset from KERNBASE */
 	trampoline_data->kernend = kernend;	/* Offset from the load address */
+	trampoline_data->fill1 = trampoline_data->fill2 = 0;
 	printf("Modulep = %lx kernend %lx\n", modulep, kernend);
 	/* NOTE: when copyting in, it's relative to the start of our 'area' not an abs addr */
 	/* Copy the trampoline to the ksegs */
