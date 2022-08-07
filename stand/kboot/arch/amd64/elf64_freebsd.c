@@ -558,6 +558,7 @@ oops:
 	 */
 	trampoline_data->modulep = modulep;	/* Offset from KERNBASE */
 	trampoline_data->kernend = kernend;	/* Offset from the load address */
+	printf("Modulep = %lx kernend %lx\n", modulep, kernend);
 	/* NOTE: when copyting in, it's relative to the start of our 'area' not an abs addr */
 	/* Copy the trampoline to the ksegs */
 	archsw.arch_copyin((void *)trampcode, trampolinebase - staging, tramp_size);
