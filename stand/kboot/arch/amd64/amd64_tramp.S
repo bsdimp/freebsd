@@ -25,35 +25,29 @@
 
 /*
  * This is the trampoline that starts the FreeBSD kernel. Since the Linux kernel
- * calls this routine with no args, and has a different environment than the boot
- * loader provides and that the kernel expects, this code is responsible for setting
- * all that up and calling the normal kernel entry point. It's analogous ot the
- * "purgatory" code in the linux kernel. Details about these operations are
- * contained in comments below. On amd64, the kernel will start all the APs so
- * we don't have to worry about them here.
+ * calls this routine with no args, and has a different environment than the
+ * boot loader provides and that the kernel expects, this code is responsible
+ * for setting all that up and calling the normal kernel entry point. It's
+ * analogous ot the "purgatory" code in the linux kernel. Details about these
+ * operations are contained in comments below. On amd64, the kernel starts all
+ * the APs so we don't have to worry about them here.
  */
 
-#include <machine/asmacros.h>
-
 /*
- * Keep in sync with elf64_freebsd.c. Kexec starts tramp w/o any
- * parameters, so store them here.
+ * Keep in sync with elf64_freebsd.c. Kexec starts tramp w/o any parameters, so
+ * store them here. This is constructed to be a useful stack:
  *
  * struct trampoline_data {
- *	uint64_t	entry;			//  0 (VA > KERNBASE)
- *	uint64_t	pt4;			//  8 PA of page tables
- *	uint64_t	modulep;		// 16 module metadata
- *	uint64_t	kernend;		// 24 kernel end
+ *	uint64_t	pt4;			// Page table address to pop
+ *	uint64_t	entry;			// return address to jump to kernel
+ *	uint32_t	fill1;			// 0
+ *	uint32_t	modulep;		// 4 module metadata
+ *	uint32_t	kernend;		// 8 kernel end
+ *	uint32_t	fill2;			// 12
  * };
  *
- * Construct a world that btext expects, which is arguments on the stack, not in
- * registers, and these args are 32-bit not 64. We rely on being little endian
- * and some shift magic to achieve this layour in the code below:
- *
- * 0(%rsp) = 32 bit return address (cannot be used -- will be 0) ignored by btext
- * 4(%rsp) = 32 bit modulep
- * 8(%rsp) = 32 bit kernend
- * 12(%rsp) = upper 32 bit of kernend: ignored by code at btext, need room for it
+ * loader.kboot will construct a stack that btext expects, which is arguments on
+ * the stack, not in registers, and these args are 32-bit not 64
  *
  * Processor is already in long mode when we're called, paging is enabled and
  * boot loader loads things such that:
@@ -65,46 +59,41 @@
  *
  * Unlike EFI, we don't support copying the staging area. We tell Linux to land
  * the kernel in its final location with the needed alignment, etc. We copy the
- * trampoline code to 1MB offset above KERNBASE since that memory is otherwise free
- * and safely above the lower 1MB swamp we inherited from IBM PC, though this code
- * makes no assumptions about where that might be because we pass in the PA of
- * where this code will land as a result of the kexec (and we assume unity mapping
- * in calculating that address, so it has to be in the low 4GB).
+ * trampoline code to 1MB offset above KERNBASE since that memory is otherwise
+ * free and safely above the lower 1MB swamp we inherited from IBM PC, though
+ * this code makes no assumptions about where that might.
  *
- * This trampoline installs sets up the arguments the kernel expects, installs
- * the page tables and returns to the entry point of the kernel (btext) (to ensure
- * the new page tables are active). The Linux purgatory loader starts out running
- * in 64-bit mode, but then winds the CPU back to 16-bit mode to jump into Linux's
- * startup code. Since this replaces that boot loader, we start in 64-bit mode.
- * We assume that the gdt/idt that Linux provides us with is adequate to access
- * memory that we need to do to make the handoff to the FreeBSD kernel.
+ * Thus, the trampoline just needs to set %rsp to that stack pop the %cr3 value,
+ * set it and then retq to jump to the kernel with its stack args filled in.
+ * Since the handoff to this code used to be from 32-bit code, it uses the i386
+ * calling conventions which put the arguments on the stack. The kernel's btext
+ * routine expects this setup.
  */
 	.text
 	.globl	tramp
 tramp:
 	cli				/* Make sure we don't get interrupted. */
-	leaq	tramp_end(%rip), %rsp
-	movq	tramp_entry(%rip), %r15	/* Kernel entry point */
-	movq	tramp_pt4(%rip), %r14	/* Page tables */
-	movq	tramp_modulep(%rip), %r13 /* Modulep */
-	movq	tramp_kernend(%rip), %r12 /* Kernel end pointer */
-	pushq	%r12			/* Push kernend offset. (upper 32bits ignored) */
-	salq	$32, %r13		/* 32bit lsb modulep, 32bits 0 (retaddr) */
-	pushq	%r13			/* Push modulep offset and 0 dword */
-	pushq	%r15			/* Push the entry address. */
-	movq	%r14, %cr3		/* Switch page tables. */
-	ret				/* "Return" to kernel entry (btext). */
-	.p2align	3
+	leaq	tramp_pt4(%rip), %rsp	/* Setup our pre-filled-in stack */
+	popq	%rax			/* Pop off the PT4 ptr for %cr3 */
+	movq	%rax, %cr3		/* set the page table */
+	retq				/* Return addr and args already on stack */
+/*
+ * The following is the stack for the above code. The stack will increase in
+ * address as things are popped off of it, so we start with the stack pointing
+ * to tramp_pt4.
+ */
+	.p2align	3		/* Stack has to be 8 byte aligned */
 trampoline_data:
-tramp_entry:	.quad	0
-tramp_pt4:	.quad	0
-tramp_modulep:	.quad	0
-tramp_kernend:	.quad	0
-	.space		0xa8	/* min 16 bytes for args +8 for pushq/popfq */
+tramp_pt4:	.quad	0		/* New %cr3 value */
+tramp_entry:	.quad	0		/* Entry to kernel (btext) */
+	/* %rsp points here on entry to amd64 kernel's btext */
+		.long	0		/* 0 filler, ignored (current loaders set to 0) */
+tramp_modulep:	.long	0		/* 4 moudlep */
+tramp_kernend:	.long	0		/* 8 kernend */
+		.long	0		/* 12 alignment filler (also 0) */
 tramp_end:
 
 	.data
-
 	.type   tramp_size,@object
 	.globl	tramp_size
 tramp_size:
