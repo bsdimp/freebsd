@@ -122,7 +122,7 @@ main(int argc, const char **argv)
 	if (argc > 1)
 		bootdev = argv[1];
 	else
-		bootdev = "";
+		bootdev = "host:";
 	if (argc > 2)
 		hostfs_root = argv[2];
 
