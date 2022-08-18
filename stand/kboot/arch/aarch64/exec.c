@@ -159,15 +159,19 @@ elf64_exec(struct preloaded_file *fp)
 #ifdef EFI
 	clean_addr = (vm_offset_t)efi_translate(fp->f_addr);
 	clean_size = (vm_offset_t)efi_translate(kernendp) - clean_addr;
-#else
-	clean_addr = (vm_offset_t)fp->f_addr;
-	clean_size = (vm_offset_t)kernendp - clean_addr;
-#endif
 
 	cpu_flush_dcache((void *)clean_addr, clean_size);
 	cpu_inval_icache();
 
 	(*entry)(modulep);
+
+#else
+	clean_addr = (vm_offset_t)fp->f_addr;
+	clean_size = (vm_offset_t)kernendp - clean_addr;
+	/* XXX need to inval iccache in tramp */
+
+	/* XXX need to do kexec / reboot dance */
+#endif
 
 	panic("exec returned");
 }
