@@ -37,7 +37,11 @@ long host_syscall(int number, ...);
  */
 typedef uint64_t host_dev_t;
 typedef uint64_t host_ino_t;
+#ifdef __aarch64__
+typedef int host_nlink_t;
+#else
 typedef int64_t host_nlink_t;
+#endif
 typedef unsigned int host_mode_t;
 typedef unsigned int host_uid_t;
 typedef unsigned int host_gid_t;
