@@ -50,8 +50,8 @@
 #define TRAMP_TOTAL	16
 
 	.text
-	.globl	aarch64_tramp
-aarch64_tramp:
+	.globl	tramp
+tramp:
 	adr	x2, trampoline_data
 	ldr	x1, [x2, #TRAMP_ENTRY]
 	ldr	x0, [x2, #TRAMP_MODULEP]
@@ -62,12 +62,12 @@ trampoline_data:
 	.space TRAMP_TOTAL
 #define TMPSTACKSIZE	48	/* 16 bytes for args +8 for pushq/popfq + 24 spare */
 	.space	TMPSTACKSIZE
-aarch64_tramp_end:			/* padding doubles as stack */
+tramp_end:			/* padding doubles as stack */
 
 	.data
-	.globl	aarch64_tramp_size
-aarch64_tramp_size:
-	.long	aarch64_tramp_end-aarch64_tramp
-	.globl	aarch64_tramp_data_offset
-aarch64_tramp_data_offset:
-	.long	trampoline_data-aarch64_tramp
+	.globl	tramp_size
+tramp_size:
+	.long	tramp_end-tramp
+	.globl	tramp_data_offset
+tramp_data_offset:
+	.long	trampoline_data-tramp

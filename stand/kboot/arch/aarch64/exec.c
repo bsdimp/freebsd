@@ -39,9 +39,9 @@ __FBSDID("$FreeBSD$");
 #ifdef EFI
 #include <efi.h>
 #include <efilib.h>
-
 #include "loader_efi.h"
-
+#else
+#include "host_syscall.h"
 #endif
 
 #include "bootstrap.h"
@@ -53,6 +53,10 @@ __FBSDID("$FreeBSD$");
 #include "actbl.h"
 
 #include "cache.h"
+
+#ifndef EFI
+#define LOADER_PAGE_SIZE PAGE_SIZE
+#endif
 
 #ifdef EFI
 static EFI_GUID acpi_guid = ACPI_TABLE_GUID;
@@ -75,21 +79,44 @@ struct file_format *file_formats[] = {
 	NULL
 };
 
+#ifndef EFI
+extern uintptr_t tramp;
+extern uint32_t tramp_size;
+extern uint32_t tramp_data_offset;
+
+struct trampoline_data {
+	uint64_t	entry;			//  0 (PA where kernel loaded)
+	uint64_t	modulep;		//  8 module metadata
+};
+#endif
+
+extern vm_offset_t kboot_get_phys_load_segment(void);
+
 static int
 elf64_exec(struct preloaded_file *fp)
 {
 	vm_offset_t modulep, kernendp;
-	vm_offset_t clean_addr;
-	size_t clean_size;
-	struct file_metadata *md;
-	Elf_Ehdr *ehdr;
+#ifdef EFI
+	vm_offset_t		clean_addr;
+	size_t			clean_size;
 	void (*entry)(vm_offset_t);
-	int err;
+#else
+	vm_offset_t		trampolinebase;
+	vm_offset_t		staging;
+	void			*trampcode;
+	uint64_t		*trampoline;
+	struct trampoline_data	*trampoline_data;
+	int			nseg;
+	void			*kseg;
+#endif
+	struct file_metadata	*md;
+	Elf_Ehdr		*ehdr;
+	int			error;
 #ifdef EFI
 	ACPI_TABLE_RSDP *rsdp;
 	char buf[24];
 	int revision;
-#endif
+
 	/*
 	 * Report the RSDP to the kernel. The old code used the 'hints' method
 	 * to communite this to the kernel. However, while convenient, the
@@ -98,7 +125,6 @@ elf64_exec(struct preloaded_file *fp)
 	 * that start with acpi. The old 'hints' can be removed before we branch
 	 * for FreeBSD 15.
 	 */
-#ifdef EFI
 	rsdp = efi_get_table(&acpi20_guid);
 	if (rsdp == NULL) {
 		rsdp = efi_get_table(&acpi_guid);
@@ -132,6 +158,33 @@ elf64_exec(struct preloaded_file *fp)
 		}
 	}
 #else
+	// XXX Question: why not just use malloc?
+	trampcode = host_getmem(LOADER_PAGE_SIZE);
+	if (trampcode == NULL) {
+		printf("Unable to allocate trampoline\n");
+		return (ENOMEM);
+	}
+	bzero((void *)trampcode, LOADER_PAGE_SIZE);
+	bcopy((void *)&tramp, (void *)trampcode, tramp_size);
+	trampoline = (void *)trampcode;
+
+	/*
+	 * Figure out where to put it.
+	 *
+	 * Linux does not allow to do kexec_load into any part of memory. Ask
+	 * arch_loadaddr to resolve the first available chunk of physical memory
+	 * where loading is possible (load_addr).
+	 *
+	 * The kernel is loaded at the 'base' address in continguous physical
+	 * memory. We use the 2MB in front of the kernel as a place to put our
+	 * trampoline, but that's really overkill since we only need ~100 bytes.
+	 * The arm64 kernel's entry requirements are only 'load the kernel at a
+	 * 2MB alignment' and it figures out the rest, creates the right page
+	 * tables, etc.
+	 */
+	staging = trampolinebase = kboot_get_phys_load_segment();
+	printf("Load address at %#jx\n", (uintmax_t)trampolinebase);
+	printf("Relocation offset is %#jx\n", (uintmax_t)elf64_relocation_offset);
 #endif
 
 	if ((md = file_findmetadata(fp, MODINFOMD_ELFHDR)) == NULL)
@@ -142,21 +195,19 @@ elf64_exec(struct preloaded_file *fp)
 	entry = efi_translate(ehdr->e_entry);
 
 	efi_time_fini();
-#else
-	entry = (void *)ehdr->e_entry;
 #endif
-	err = bi_load(fp->f_args, &modulep, &kernendp, true);
-	if (err != 0) {
+	error = bi_load(fp->f_args, &modulep, &kernendp, true);
+	if (error != 0) {
 #ifdef EFI
 		efi_time_init();
 #endif
-		return (err);
+		return (error);
 	}
 
 	dev_cleanup();
 
-	/* Clean D-cache under kernel area and invalidate whole I-cache */
 #ifdef EFI
+	/* Clean D-cache under kernel area and invalidate whole I-cache */
 	clean_addr = (vm_offset_t)efi_translate(fp->f_addr);
 	clean_size = (vm_offset_t)efi_translate(kernendp) - clean_addr;
 
@@ -166,11 +217,22 @@ elf64_exec(struct preloaded_file *fp)
 	(*entry)(modulep);
 
 #else
-	clean_addr = (vm_offset_t)fp->f_addr;
-	clean_size = (vm_offset_t)kernendp - clean_addr;
-	/* XXX need to inval iccache in tramp */
+	/* Linux will flush the caches, just pass this data into our trampoline and go */
+	trampoline_data = (void *)trampoline + tramp_data_offset;
+	trampoline_data->entry = ehdr->e_entry;
+	trampoline_data->modulep = modulep;
+	printf("Modulep = %jx\n", (uintmax_t)modulep);
+	/* NOTE: when copyting in, it's relative to the start of our 'area' not an abs addr */
+	/* Copy the trampoline to the ksegs */
+	archsw.arch_copyin((void *)trampcode, trampolinebase - staging, tramp_size);
 
-	/* XXX need to do kexec / reboot dance */
+	if (archsw.arch_kexec_kseg_get == NULL)
+		panic("architecture did not provide kexec segment mapping");
+	archsw.arch_kexec_kseg_get(&nseg, &kseg);
+	error = host_kexec_load(trampolinebase, nseg, kseg, HOST_KEXEC_ARCH_AARCH64);
+	if (error != 0)
+		panic("kexec_load returned error: %d", error);
+	host_reboot(HOST_REBOOT_MAGIC1, HOST_REBOOT_MAGIC2, HOST_REBOOT_CMD_KEXEC, 0);
 #endif
 
 	panic("exec returned");
