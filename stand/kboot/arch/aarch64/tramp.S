@@ -23,7 +23,7 @@
  *	uint64_t	modulep;		//  8 module metadata
  * };
  *
- * The aarch64 _start routine assumes:
+ * FreeBSD's arm64 entry point is _start which assumes:
  *  MMU      on with an identity map, or off
  *  D-Cache: off
  *  I-Cache: on or off
@@ -33,28 +33,34 @@
  * Unlike EFI, we don't support copying the staging area. We tell Linunx to land
  * the kernel in its final location with the needed alignment, etc.
  *
- * This trampoline installs sets up the arguments the kernel expects, flushes
- * the cache lines and jumps to the kernel _start address. We pass the modulep
- * pointer in x0, as _start expects.
+ * The linux kernel will helpfully turn off the MMU, flush the caches, disable
+ * them, etc. It calls the tramp with two args: dtb addresss in x0 and the EL2
+ * vectors in x1. Currently, we make use of neither of these parameters: we pass
+ * whatever dtb we think we need as part of the module data and we're a bit weak
+ * on hypervisor support at the moment. _start's requirements are all satisifed.
+ *
+ * This trampoline installs sets up the arguments the kernel expects and jumps
+ * to the kernel _start address. We pass the modulep pointer in x0, as _start
+ * expects. We assume that the various cache flushing, invalidation, etc that linux
+ * did during or after copying the data down is sufficient.
  */
-	.text
-	.globl	aarch64_tramp
-aarch64_tramp:
-	b	1f		/* skip over our saved args */
-	.p2align	3
-trampoline_data:
+
 #define TRAMP_ENTRY	0
 #define TRAMP_MODULEP	8
 #define TRAMP_TOTAL	16
-	.space TRAMP_TOTAL
-#define TMPSTACKSIZE	48	/* 16 bytes for args +8 for pushq/popfq + 24 spare */
-1:
+
+	.text
+	.globl	aarch64_tramp
+aarch64_tramp:
 	adr	x2, trampoline_data
 	ldr	x1, [x2, #TRAMP_ENTRY]
 	ldr	x0, [x2, #TRAMP_MODULEP]
 	br	x1
 
 	.p2align 4
+trampoline_data:
+	.space TRAMP_TOTAL
+#define TMPSTACKSIZE	48	/* 16 bytes for args +8 for pushq/popfq + 24 spare */
 	.space	TMPSTACKSIZE
 aarch64_tramp_end:			/* padding doubles as stack */
 
