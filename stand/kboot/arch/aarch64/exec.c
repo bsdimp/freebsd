@@ -171,7 +171,7 @@ elf64_exec(struct preloaded_file *fp)
 	/*
 	 * Figure out where to put it.
 	 *
-	 * Linux does not allow to do kexec_load into any part of memory. Ask
+	 * Linux does not allow us to kexec_load into any part of memory. Ask
 	 * arch_loadaddr to resolve the first available chunk of physical memory
 	 * where loading is possible (load_addr).
 	 *
@@ -182,8 +182,8 @@ elf64_exec(struct preloaded_file *fp)
 	 * 2MB alignment' and it figures out the rest, creates the right page
 	 * tables, etc.
 	 */
-	staging = trampolinebase = kboot_get_phys_load_segment();
-	printf("Load address at %#jx\n", (uintmax_t)trampolinebase);
+	staging = kboot_get_phys_load_segment();
+	printf("Load address at %#jx\n", (uintmax_t)staging);
 	printf("Relocation offset is %#jx\n", (uintmax_t)elf64_relocation_offset);
 #endif
 
@@ -219,12 +219,19 @@ elf64_exec(struct preloaded_file *fp)
 #else
 	/* Linux will flush the caches, just pass this data into our trampoline and go */
 	trampoline_data = (void *)trampoline + tramp_data_offset;
-	trampoline_data->entry = ehdr->e_entry;
+	trampoline_data->entry = ehdr->e_entry - fp->f_addr + staging;
 	trampoline_data->modulep = modulep;
 	printf("Modulep = %jx\n", (uintmax_t)modulep);
-	/* NOTE: when copyting in, it's relative to the start of our 'area' not an abs addr */
-	/* Copy the trampoline to the ksegs */
-	archsw.arch_copyin((void *)trampcode, trampolinebase - staging, tramp_size);
+	/*
+	 * Copy the trampoline to the ksegs. Since we're just bouncing off of this into the kernel,
+	 * no need to preserve the pages. On arm64, the kernel sets up the initial page table, so we
+	 * don't have to preserve the memory used for the trampoline past when it calls the kernel.
+	 */
+	printf("kernendp = %#llx\n", (long long)kernendp);
+	trampolinebase = staging + (kernendp - fp->f_addr);
+	printf("trampolinebase = %#llx\n", (long long)trampolinebase);
+	archsw.arch_copyin((void *)trampcode, kernendp, tramp_size);
+	printf("Trampoline bouncing to %#llx\n", (long long)trampoline_data->entry);
 
 	if (archsw.arch_kexec_kseg_get == NULL)
 		panic("architecture did not provide kexec segment mapping");
