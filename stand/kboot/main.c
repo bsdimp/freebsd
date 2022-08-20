@@ -51,6 +51,8 @@ extern int command_fdt_internal(int argc, char *argv[]);
 
 #define PA_INVAL (vm_offset_t)-1
 static vm_offset_t pa_start = PA_INVAL;
+static vm_offset_t padding;
+static vm_offset_t offset;
 
 int
 kboot_getdev(void **vdev, const char *devspec, const char **path)
@@ -233,6 +235,9 @@ kboot_copyin(const void *src, vm_offset_t dest, const size_t len)
 
 	if (pa_start == PA_INVAL) {
 		pa_start = kboot_get_phys_load_segment();
+//		padding = 2 << 20;
+		padding = 0;
+		offset = dest;
 		printf("PA_START set to %#jx dst %#jx\n", (uintmax_t)pa_start, (uintmax_t)dest);
 		get_phys_buffer(pa_start, len, &destbuf);
 	}
@@ -241,7 +246,7 @@ kboot_copyin(const void *src, vm_offset_t dest, const size_t len)
 //	     (uintmax_t)pa_start + dest);
 	remainder = len;
 	do {
-		segsize = get_phys_buffer(dest + pa_start, remainder, &destbuf);
+		segsize = get_phys_buffer(dest + pa_start + padding - offset, remainder, &destbuf);
 		bcopy(src, destbuf, segsize);
 		remainder -= segsize;
 		src += segsize;
@@ -259,7 +264,7 @@ kboot_copyout(vm_offset_t src, void *dest, const size_t len)
 
 	remainder = len;
 	do {
-		segsize = get_phys_buffer(src + pa_start, remainder, &srcbuf);
+		segsize = get_phys_buffer(src + pa_start + padding - offset, remainder, &srcbuf);
 		bcopy(srcbuf, dest, segsize);
 		remainder -= segsize;
 		src += segsize;
