@@ -12,7 +12,7 @@
 uint64_t
 kboot_get_phys_load_segment(void)
 {
-	return 0x4200000;
+	return 0x40000000 | 0x4200000;
 }
 
 void
