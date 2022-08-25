@@ -157,4 +157,3 @@ elf64_obj_exec(struct preloaded_file *fp)
 	    fp->f_name);
 	return (ENOSYS);
 }
-
