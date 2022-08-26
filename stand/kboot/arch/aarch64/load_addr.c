@@ -76,7 +76,6 @@ need_avail(int n)
 static void
 add_avail(uint64_t start, uint64_t end, enum types type)
 {
-	printf("   add avail %#lx-%lx type %d\n", start, end, type);
 	/*
 	 * This range is contiguous with the previous range, and is
 	 * the same type: we can collapse the two.
@@ -109,7 +108,6 @@ remove_avail(uint64_t start, uint64_t end, enum types type)
 {
 	struct memory_segments *s;
 
-	printf("   remove avail %#lx-%lx type %d\n", start, end, type);
 	/*
 	 * simple case: we are extending a previously removed item.
 	 */
@@ -260,7 +258,6 @@ read_memmap(void)
 	init_avail();
 	chop(buf);
 	while (true) {
-		printf("MEMMAP: %s\n", buf);
 		/*
 		 * Look for top level items we understand.  Skip anything that's
 		 * a continuation, since we don't care here. If we care, we'll
@@ -279,11 +276,9 @@ read_memmap(void)
 		add_avail(start, end, system_ram);
 		while (fgetstr(buf, sizeof(buf), fd) >= 0 && buf[0] == ' ') {
 			chop(buf);
-			printf("MEMMAP--: %s\n", buf);
 			str = parse_line(buf, &start, &end);
 			if (str == NULL)
 				break;
-			printf("   str is %s\n", str);
 			kv = kvlookup(str, str2type_kv, nitems(str2type_kv));
 			if (kv == NULL) /* failsafe for new types: igonre */
 				remove_avail(start, end, unknown);
@@ -309,10 +304,12 @@ next_line:
 out:
 	close(fd);
 
+#if 0
 	printf("Found %d RAM segments:\n", nr_seg);
 	for (int i = 0; i < nr_seg; i++) {
 		printf("%#lx-%#lx type %lu\n", segs[i].start, segs[i].end, segs[i].type);
 	}
+#endif
 
 	return true;
 }
@@ -365,6 +362,6 @@ bi_loadsmap(struct preloaded_file *kfp)
 	efihdr->memory_size = sz;
 	efihdr->descriptor_size = sizeof(*md);
 	efihdr->descriptor_version = EFI_MEMORY_DESCRIPTOR_VERSION;
-	file_addmetadata(kfp, MODINFOMD_EFI_MAP, efisz + sz, buffer);
+//	file_addmetadata(kfp, MODINFOMD_EFI_MAP, efisz + sz, buffer);
 	free(buffer);	// XXX bad?
 }
