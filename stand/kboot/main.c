@@ -210,7 +210,7 @@ get_phys_buffer(vm_offset_t dest, const size_t len, void **buf)
 			goto out;
 	}
 
-	printf("GETSEG: Adding segment at %p size %zd\n", (void *)rounddown2(dest,SEGALIGN), segsize);
+//	printf("GETSEG: Adding segment at %p size %zd\n", (void *)rounddown2(dest,SEGALIGN), segsize);
 	
 	loaded_segments[nkexec_segments].buf = host_getmem(segsize);
 	loaded_segments[nkexec_segments].bufsz = segsize;
@@ -238,7 +238,7 @@ kboot_copyin(const void *src, vm_offset_t dest, const size_t len)
 //		padding = 2 << 20;
 		padding = 0;
 		offset = dest;
-		printf("PA_START set to %#jx dst %#jx\n", (uintmax_t)pa_start, (uintmax_t)dest);
+//		printf("PA_START set to %#jx dst %#jx\n", (uintmax_t)pa_start, (uintmax_t)dest);
 		get_phys_buffer(pa_start, len, &destbuf);
 	}
 
@@ -282,7 +282,7 @@ kboot_readin(readin_handle_t fd, vm_offset_t dest, const size_t len)
 	ssize_t         got;
 	vm_offset_t     p;
 
-	printf("Reading in %zd bytes at %#jx\n", len, (uintmax_t)dest);
+//	printf("Reading in %zd bytes at %#jx\n", len, (uintmax_t)dest);
 	p = dest;
 
 	chunk = min(PAGE_SIZE, len);
@@ -319,11 +319,11 @@ uint64_t
 kboot_loadaddr(u_int type, void *data, uint64_t addr)
 {
 
-	printf("LOADADDR: want addr %#jx ", (uintmax_t)addr);
+//	printf("LOADADDR: want addr %#jx ", (uintmax_t)addr);
 	if (addr != 0)
 		addr = roundup(addr, PAGE_SIZE);
-	else
-	printf("got addr %#jx\n", (uintmax_t)addr);
+//	else
+//		printf("got addr %#jx\n", (uintmax_t)addr);
 	return (addr);
 }
 
