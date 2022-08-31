@@ -362,6 +362,6 @@ bi_loadsmap(struct preloaded_file *kfp)
 	efihdr->memory_size = sz;
 	efihdr->descriptor_size = sizeof(*md);
 	efihdr->descriptor_version = EFI_MEMORY_DESCRIPTOR_VERSION;
-//	file_addmetadata(kfp, MODINFOMD_EFI_MAP, efisz + sz, buffer);
+	file_addmetadata(kfp, MODINFOMD_EFI_MAP, efisz + sz, buffer);
 	free(buffer);	// XXX bad?
 }

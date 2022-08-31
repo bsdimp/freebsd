@@ -121,9 +121,9 @@ main(int argc, const char **argv)
 	cons_probe();
 
 	/* Choose bootdev if provided */
-	if (argc > 1)
-		bootdev = argv[1];
-	else
+//	if (argc > 1)
+//		bootdev = argv[1];
+//	else
 		bootdev = "host:";
 	if (argc > 2)
 		hostfs_root = argv[2];
