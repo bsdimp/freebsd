@@ -29,6 +29,7 @@
 #include "stand.h"
 #include "host_syscall.h"
 #include "kboot.h"
+#include "bootstrap.h"
 
 struct region_desc {
 	uint64_t start;
@@ -208,3 +209,9 @@ kboot_get_kernel_machine_bits(void)
 	return (bits);
 }
 #endif
+
+void
+bi_loadsmap(struct preloaded_file *kfp)
+{
+	/* passed in via the DTB */
+}
