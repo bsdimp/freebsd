@@ -34,8 +34,6 @@ __FBSDID("$FreeBSD$");
 #include <sys/linker.h>
 #include <machine/elf.h>
 
-#include <bootstrap.h>
-
 #ifdef EFI
 #include <efi.h>
 #include <efilib.h>
@@ -45,6 +43,7 @@ __FBSDID("$FreeBSD$");
 #endif
 
 #include "bootstrap.h"
+#include "kboot.h"
 
 #include "platform/acfreebsd.h"
 #include "acconfig.h"
@@ -93,34 +92,6 @@ struct trampoline_data {
 #endif
 
 extern vm_offset_t kboot_get_phys_load_segment(void);
-
-static void *
-kboot_rsdp_from_efi(void)
-{
-	int fd;
-	char buffer[512 + 1];
-	char *walker, *ep;
-	ssize_t len;
-
-	fd = host_open("/sys/firmware/efi/systab", O_RDONLY, 0);
-	if (fd == -1)	/* Not an EFI system */
-		return 0;
-	len = host_read(fd, buffer, sizeof(buffer) - 1);
-	close(fd);
-	if (len <= 0)
-		return (NULL);
-	buffer[len] = '\0';
-	ep = buffer + len;
-	walker = buffer;
-	while (walker < ep) {
-		if (strncmp("ACPI20=", walker, 7) == 0)
-			return((void *)strtoul(walker + 7, NULL, 0));
-		if (strncmp("ACPI=", walker, 5) == 0)
-			return((void *)strtoul(walker + 5, NULL, 0));
-		walker += strcspn(walker, "\n");
-	}
-	return (NULL);
-}
 
 static int
 elf64_exec(struct preloaded_file *fp)
@@ -188,15 +159,14 @@ elf64_exec(struct preloaded_file *fp)
 		}
 	}
 #else
-	ACPI_TABLE_RSDP *rsdp;
-	rsdp = kboot_rsdp_from_efi();
-	if (rsdp != NULL) {
+	vm_offset_t rsdp;
+	rsdp = acpi_rsdp();
+	if (rsdp != 0) {
 		char buf[24];
 
 		sprintf(buf, "0x%016llx", (unsigned long long)rsdp);
 		setenv("hint.acpi.0.rsdp", buf, 1);
 		setenv("acpi.rsdp", buf, 1);
-		printf("Found ACPI RSDP %s\n", buf);
 	}
 
 

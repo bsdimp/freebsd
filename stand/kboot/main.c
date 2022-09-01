@@ -99,6 +99,58 @@ found:
 	return (0);
 }
 
+static vm_offset_t rsdp;
+
+static vm_offset_t
+kboot_rsdp_from_efi(void)
+{
+	int fd;
+	char buffer[512 + 1];
+	char *walker, *ep;
+	ssize_t len;
+
+	fd = host_open("/sys/firmware/efi/systab", O_RDONLY, 0);
+	if (fd == -1)	/* Not an EFI system */
+		return (0);
+	len = host_read(fd, buffer, sizeof(buffer) - 1);
+	close(fd);
+	if (len <= 0)
+		return (0);
+	buffer[len] = '\0';
+	ep = buffer + len;
+	walker = buffer;
+	while (walker < ep) {
+		if (strncmp("ACPI20=", walker, 7) == 0)
+			return((vm_offset_t)strtoull(walker + 7, NULL, 0));
+		if (strncmp("ACPI=", walker, 5) == 0)
+			return((vm_offset_t)strtoull(walker + 5, NULL, 0));
+		walker += strcspn(walker, "\n");
+	}
+	return (0);
+}
+
+static void
+find_acpi()
+{
+	rsdp = kboot_rsdp_from_efi();
+#if 0	/* maybe for amd64 */
+	if (rsdp == NULL)
+		rsdp = find_rsdp_arch();
+#endif
+}
+
+vm_offset_t
+acpi_rsdp()
+{
+	return (rsdp);
+}
+
+bool
+has_acpi()
+{
+	return rsdp != 0;
+}
+
 int
 main(int argc, const char **argv)
 {
@@ -114,6 +166,11 @@ main(int argc, const char **argv)
 	 */
 	heapbase = host_getmem(heapsize);
 	setheap(heapbase, heapbase + heapsize);
+
+	/*
+	 * Find acpi, if it exists
+	 */
+	find_acpi();
 
 	/*
 	 * Set up console.
