@@ -346,7 +346,7 @@ bi_loadsmap(struct preloaded_file *kfp)
 			break;
 		case firmware_reserved:
 		case unknown:
-			type = EFI_MD_TYPE_DATA;
+			type = EFI_MD_TYPE_RT_DATA;
 			attr = 0;
 			break;
 		}

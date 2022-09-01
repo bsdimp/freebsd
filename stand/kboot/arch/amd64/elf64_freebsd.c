@@ -46,6 +46,7 @@ __FBSDID("$FreeBSD$");
 #endif
 
 #include "bootstrap.h"
+#include "kboot.h"
 
 #include "platform/acfreebsd.h"
 #include "acconfig.h"
@@ -137,88 +138,6 @@ extern uint32_t tramp_size;
 extern uint32_t tramp_data_offset;
 #endif
 
-#ifndef EFI
-static uint8_t *base_addr;
-#define PTOV(x) (base_addr + (x))
-
-static ACPI_TABLE_RSDP *
-kboot_rsdp_from_efi()
-{
-	int fd;
-	char buffer[512 + 1];
-	char *walker, *ep;
-	ssize_t len;
-
-	fd = host_open("/sys/firmware/efi/systab", O_RDONLY, 0);
-	if (fd == -1)	/* Not an EFI system */
-		return 0;
-	len = host_read(fd, buffer, sizeof(buffer) - 1);
-	close(fd);
-	if (len <= 0)
-		return (NULL);
-	buffer[len] = '\0';
-	ep = buffer + len;
-	walker = buffer;
-	while (walker < ep) {
-		if (strncmp("ACPI20=", walker, 7) == 0)
-			return((ACPI_TABLE_RSDP *)PTOV(strtoul(walker + 7, NULL, 0)));
-		if (strncmp("ACPI=", walker, 5) == 0)
-			return((ACPI_TABLE_RSDP *)PTOV(strtoul(walker + 5, NULL, 0)));
-		walker += strcspn(walker, "\n");
-	}
-	return (NULL);
-}
-
-/*
- * Find the RSDP in low memory.  See section 5.2.2 of the ACPI spec.  This is
- * only valid on x86, however, and only if we're booted not via EFI. Otherwise,
- * in a Linux environment, we get it via kboot_rsdp_from_efi().
- */
-#if defined(__i386__) || defined(__amd64__)
-#define RSDP_CHECKSUM_LENGTH 20
-static ACPI_TABLE_RSDP *
-biosacpi_search_rsdp(uint64_t addr, int len)
-{
-	ACPI_TABLE_RSDP	*rsdp;
-	uint8_t		*cp, sum;
-	int		ofs, idx;
-
-	/* search on 16-byte boundaries */
-	for (ofs = 0; ofs < len; ofs += 16) {
-		rsdp = (ACPI_TABLE_RSDP *)PTOV(addr + ofs);
-
-		/* compare signature, validate checksum */
-		if (!strncmp(rsdp->Signature, ACPI_SIG_RSDP, strlen(ACPI_SIG_RSDP))) {
-			cp = (uint8_t *)rsdp;
-			sum = 0;
-			for (idx = 0; idx < RSDP_CHECKSUM_LENGTH; idx++)
-				sum += *(cp + idx);
-			if (sum != 0)
-				continue;
-			return(rsdp);
-		}
-	}
-	return(NULL);
-}
-#endif
-
-static ACPI_TABLE_RSDP *
-kboot_rsdp_from_ebda(void)
-{
-	ACPI_TABLE_RSDP *rsdp = NULL;
-#if defined(__i386__) || defined(__amd64__)
-	uint16_t	seg;
-	/* EBDA is the 1 KB addressed by the 16 bit pointer at 0x40E. */
-	seg = *(uint16_t *)PTOV(0x040e);
-	if (seg == 0 || (rsdp = biosacpi_search_rsdp((uint32_t)seg << 4, 0x400)) == 0) {
-		/* Check the upper memory BIOS space, 0xe0000 - 0xfffff. */
-		rsdp = biosacpi_search_rsdp(0xe0000, 0x20000);
-	}
-#endif
-	return (rsdp);
-}
-#endif
-
 /*
  * There is an ELF kernel and one or more ELF modules loaded.
  * We wish to start executing the kernel image, so make such
@@ -228,16 +147,17 @@ static int
 elf64_exec(struct preloaded_file *fp)
 {
 	struct file_metadata	*md;
-	ACPI_TABLE_RSDP		*rsdp = NULL;
 	Elf_Ehdr 		*ehdr;
 	vm_offset_t		modulep, kernend;
 	int			err, i;
 	char			buf[24];
-	int			revision;
 #ifdef EFI
+	ACPI_TABLE_RSDP		*rsdp = NULL;
+	int			revision;
 	int			copy_auto;
 	vm_offset_t		trampstack, trampcode;
 #else
+	vm_offset_t		rsdp = 0;
 	void			*trampcode;
 	int			nseg;
 	void			*kseg;
@@ -283,57 +203,12 @@ elf64_exec(struct preloaded_file *fp)
 		rsdp = efi_get_table(&acpi_guid);
 	}
 #else
-	/*
-	 * For LinxuBoot, this can be done from a system that's booted either
-	 * from CMS BIOS or from EFI. So we have to search both places (though
-	 * only on amd64 since it's an x86 specific thing).
-	 */
-	int		fd;
-
-	fd = host_open("/dev/mem", O_RDONLY, 0);
-	if (fd >= 0) {
-		base_addr = host_mmap(NULL, 1 << 20, HOST_PROT_READ, 0,fd, 0);
-		if ((intptr_t)base_addr < 0 && (intptr_t)base_addr >= -4095) {
-			printf("Can't map EBDA: error %ld\n", -(intptr_t)base_addr);
-			goto oops;
-		}
-		rsdp = kboot_rsdp_from_efi();
-		if (rsdp == 0) {
-			rsdp = kboot_rsdp_from_ebda();
-		}
-	} else {
-		printf("Can't map in memory to get rsdp\n");
-	}
+	rsdp = acpi_rsdp();
 #endif
-	if (rsdp != NULL) {
+	if (rsdp != 0) {
 		sprintf(buf, "0x%016llx", (unsigned long long)rsdp);
 		setenv("acpi.rsdp", buf, 1);
-		revision = rsdp->Revision;
-		if (revision == 0)
-			revision = 1;
-		sprintf(buf, "%d", revision);
-		setenv("acpi.revision", buf, 1);
-		strncpy(buf, rsdp->OemId, sizeof(rsdp->OemId));
-		buf[sizeof(rsdp->OemId)] = '\0';
-		setenv("acpi.oem", buf, 1);
-		sprintf(buf, "0x%016x", rsdp->RsdtPhysicalAddress);
-		setenv("acpi.rsdt", buf, 1);
-		if (revision >= 2) {
-			/* XXX extended checksum? */
-			sprintf(buf, "0x%016llx",
-			    (unsigned long long)rsdp->XsdtPhysicalAddress);
-			setenv("acpi.xsdt", buf, 1);
-			sprintf(buf, "%d", rsdp->Length);
-			setenv("acpi.xsdt_length", buf, 1);
-		}
 	}
-#ifndef EFI
-oops:
-	if (fd >= 0) {
-		host_munmap(base_addr, 1 << 20);
-		host_close(fd);
-	}
-#endif
 	if ((md = file_findmetadata(fp, MODINFOMD_ELFHDR)) == NULL)
 		return (EFTYPE);
 	ehdr = (Elf_Ehdr *)&(md->md_data);
