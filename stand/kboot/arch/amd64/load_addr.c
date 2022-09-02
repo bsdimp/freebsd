@@ -31,6 +31,7 @@
 #include "host_syscall.h"
 #include "kboot.h"
 #include "bootstrap.h"
+#include "mem.h"
 
 /* Refactor when we do arm64 */
 
@@ -143,8 +144,8 @@ str2type(struct kv *kv, const char *buf, uint64_t *value)
 	return false;
 }
 
-static int
-read_memmap(struct memory_segments *segs, int maxseg)
+bool
+enumerate_memory_arch(void)
 {
 	int n;
 	char name[MAXPATHLEN];
@@ -167,9 +168,11 @@ read_memmap(struct memory_segments *segs, int maxseg)
 		if (!str2type(str2type_kv, buf, &segs[n].type))
 			break;
 		n++;
-	} while (n < maxseg);
+	} while (n < 16);
 
-	return n;
+	nr_seg = n;
+
+	return true;
 }
 
 #define BAD_SEG ~0ULL
@@ -217,7 +220,6 @@ kboot_get_phys_load_segment(void)
 	if (base_seg != BAD_SEG)
 		return (base_seg);
 
-	nr_seg = read_memmap(segs, nitems(segs));
 	if (nr_seg > 0)
 		base_seg = find_ram(segs, nr_seg, 2ULL << 20, 2ULL << 20,
 		    64ULL << 20, 4ULL << 30);
@@ -228,7 +230,6 @@ kboot_get_phys_load_segment(void)
 	}
 	return (base_seg);
 #else
-	nr_seg = read_memmap(segs, nitems(segs));
 	return 300ULL * (1 << 20);
 #endif
 }
