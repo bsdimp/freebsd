@@ -10,6 +10,7 @@
 
 #include "kboot.h"
 #include "bootstrap.h"
+#include "mem.h"
 
 static struct memory_segments *segs;
 static int nr_seg = 0;
@@ -237,9 +238,10 @@ chop(char *line)
 }
 
 #define SYSTEM_RAM "System RAM"
+#define RESERVED "reserved"
 
-static bool
-read_memmap(void)
+bool
+enumerate_memory_arch(void)
 {
 	int fd;
 	char buf[128];
@@ -247,7 +249,9 @@ read_memmap(void)
 	uint64_t start, end;
 	struct kv *kv;
 
+	printf("Reading iomem\n");
 	fd = open("/proc/iomem", O_RDONLY);
+	printf("Open worked\n");
 	if (fd == -1) {
 		printf("Can't get memory map\n");
 		return false;
@@ -265,15 +269,19 @@ read_memmap(void)
 		 */
 		if (buf[0] == ' ')	/* Continuation lines? Ignore */
 			goto next_line;
+		printf("%s\n", buf);
 		str = parse_line(buf, &start, &end);
 		if (str == NULL)	/* Malformed -> ignore */
 			goto next_line;
 		/*
 		 * All we care about is System RAM
 		 */
-		if (strncmp(str, SYSTEM_RAM, sizeof(SYSTEM_RAM) - 1) != 0)
+		if (strncmp(str, SYSTEM_RAM, sizeof(SYSTEM_RAM) - 1) == 0)
+			add_avail(start, end, system_ram);
+		else if (strncmp(str, RESERVED, sizeof(RESERVED) - 1) == 0)
+			add_avail(start, end, firmware_reserved);
+		else
 			goto next_line;	/* Ignore hardware */
-		add_avail(start, end, system_ram);
 		while (fgetstr(buf, sizeof(buf), fd) >= 0 && buf[0] == ' ') {
 			chop(buf);
 			str = parse_line(buf, &start, &end);
@@ -304,12 +312,10 @@ next_line:
 out:
 	close(fd);
 
-#if 0
 	printf("Found %d RAM segments:\n", nr_seg);
 	for (int i = 0; i < nr_seg; i++) {
 		printf("%#lx-%#lx type %lu\n", segs[i].start, segs[i].end, segs[i].type);
 	}
-#endif
 
 	return true;
 }
@@ -317,8 +323,11 @@ out:
 uint64_t
 kboot_get_phys_load_segment(void)
 {
-	read_memmap();
-
+#define HOLE_SIZE	(64 << 20)
+	for (int i = 0; i < nr_seg; i++) {
+		if (segs[i].end - segs[i].start + 1 >= HOLE_SIZE)
+			return roundup(segs[i].start, 2 << 20);
+	}
 	return 0x40000000 | 0x4200000;
 }
 
@@ -347,7 +356,7 @@ bi_loadsmap(struct preloaded_file *kfp)
 		case firmware_reserved:
 		case unknown:
 			type = EFI_MD_TYPE_RT_DATA;
-			attr = 0;
+			attr = EFI_MD_ATTR_WB;
 			break;
 		}
 

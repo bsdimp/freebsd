@@ -30,6 +30,7 @@
 #include "host_syscall.h"
 #include "kboot.h"
 #include "bootstrap.h"
+#include "mem.h"
 
 struct region_desc {
 	uint64_t start;
@@ -214,4 +215,10 @@ void
 bi_loadsmap(struct preloaded_file *kfp)
 {
 	/* passed in via the DTB */
+}
+
+/* need to fill in something real */
+bool enumerate_memory_arch(void) 
+{
+	return false;
 }
