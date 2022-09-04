@@ -7,6 +7,8 @@
 #include <sys/param.h>
 #include <sys/efi.h>
 #include <machine/metadata.h>
+#include <fdt_platform.h>
+#include <libfdt.h>
 
 #include "kboot.h"
 #include "bootstrap.h"
@@ -15,6 +17,13 @@
 static struct memory_segments *segs;
 static int nr_seg = 0;
 static int segalloc = 0;
+
+/*
+ * Info from dtb about the EFI system
+ */
+vm_paddr_t efi_systbl_phys;
+struct efi_map_header *efi_map_hdr;
+uint32_t efi_map_size;
 
 struct memory_segments
 {
@@ -240,18 +249,112 @@ chop(char *line)
 #define SYSTEM_RAM "System RAM"
 #define RESERVED "reserved"
 
+static bool
+do_memory_from_fdt(int fd)
+{
+	struct stat sb;
+	char *buf = NULL;
+	int len, offset, fd2 = -1;
+	uint32_t sz, ver, esz;
+	uint64_t mmap_pa;
+	const uint32_t *u32p;
+	const uint64_t *u64p;
+	struct efi_map_header *efihdr;
+
+	if (fstat(fd, &sb) < 0)
+		return false;
+	buf = malloc(sb.st_size);
+	if (buf == NULL)
+		return false;
+	len = read(fd, buf, sb.st_size);
+	/* NB: we're reading this from sysfs, so mismatch OK */
+	if (len <= 0)
+		goto errout;
+
+	/*
+	 * Look for /chosen to find these values:
+	 * linux,uefi-system-table	PA of the UEFI System Table.
+	 * linux,uefi-mmap-start	PA of the UEFI memory map
+	 * linux,uefi-mmap-size		Size of mmap
+	 * linux,uefi-mmap-desc-size	Size of each entry of mmap
+	 * linux,uefi-mmap-desc-ver	Format version, should be 1
+	 */
+	offset = fdt_path_offset(buf, "/chosen");
+	if (offset <= 0)
+		goto errout;
+	u64p = fdt_getprop(buf, offset, "linux,uefi-system-table", &len);
+	if (u64p == NULL)
+		goto errout;
+	efi_systbl_phys = fdt64_to_cpu(*u64p);
+	u32p = fdt_getprop(buf, offset, "linux,uefi-mmap-desc-ver", &len);
+	if (u32p == NULL)
+		goto errout;
+	ver = fdt32_to_cpu(*u32p);
+	u32p = fdt_getprop(buf, offset, "linux,uefi-mmap-desc-size", &len);
+	if (u32p == NULL)
+		goto errout;
+	esz = fdt32_to_cpu(*u32p);
+	u32p = fdt_getprop(buf, offset, "linux,uefi-mmap-size", &len);
+	if (u32p == NULL)
+		goto errout;
+	sz = fdt32_to_cpu(*u32p);
+	u64p = fdt_getprop(buf, offset, "linux,uefi-mmap-start", &len);
+	if (u64p == NULL)
+		goto errout;
+	mmap_pa = fdt64_to_cpu(*u64p);
+	free(buf);
+
+	printf("UEFI MMAP: Ver %d Ent Size %d Tot Size %d PA %#lx\n",
+	    ver, esz, sz, mmap_pa);
+
+	/*
+	 * Now retrieve the memory map. FreeBSD doesn't (yet?) know how to just
+	 * accept the location and size for this in PA, so we'll copy it out
+	 * and include it in a section.
+	 */
+	buf = malloc(sz);
+	if (buf == NULL)
+		return false;
+	efihdr = (struct efi_map_header *)buf;
+	fd2 = open("/dev/mem", O_RDONLY);
+	if (fd2 == -1)
+		goto errout;
+	if (lseek(fd2, mmap_pa, SEEK_SET) < 0)
+		goto errout;
+	if (read(fd2, buf, sz) != sz)
+		goto errout;
+	close(fd2);
+	efi_map_hdr = efihdr;
+	efi_map_size = sz;
+
+	return true;
+errout:
+	close(fd2);
+	free(buf);
+	return false;
+}
+
 bool
 enumerate_memory_arch(void)
 {
-	int fd;
+	int fd = -1;
 	char buf[128];
 	const char *str;
 	uint64_t start, end;
 	struct kv *kv;
+	bool rv;
 
-	printf("Reading iomem\n");
+	fd = open("/sys/firmware/fdt", O_RDONLY);
+	if (fd != -1) {
+		printf("Doing trying to get UEFI from FDT\n");
+		rv = do_memory_from_fdt(fd);
+		close(fd);
+		if (!rv)
+			return (rv);
+	}
+
+	printf("Falling back to iomem\n");
 	fd = open("/proc/iomem", O_RDONLY);
-	printf("Open worked\n");
 	if (fd == -1) {
 		printf("Can't get memory map\n");
 		return false;
@@ -269,7 +372,6 @@ enumerate_memory_arch(void)
 		 */
 		if (buf[0] == ' ')	/* Continuation lines? Ignore */
 			goto next_line;
-		printf("%s\n", buf);
 		str = parse_line(buf, &start, &end);
 		if (str == NULL)	/* Malformed -> ignore */
 			goto next_line;
@@ -339,6 +441,11 @@ bi_loadsmap(struct preloaded_file *kfp)
 	struct efi_md *md;
 	uint64_t sz, efisz, attr;
 	uint32_t type;
+
+	if (efi_map_hdr != NULL) {
+		file_addmetadata(kfp, MODINFOMD_EFI_MAP, efi_map_size, efi_map_hdr);
+		return;
+	}
 
 	efisz = (sizeof(*efihdr) + 0xf) & ~0xf;
 	sz = nr_seg * sizeof(*md);
