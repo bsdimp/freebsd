@@ -21,6 +21,9 @@
  * struct trampoline_data {
  *	uint64_t	entry;			//  0 (PA where kernel loaded)
  *	uint64_t	modulep;		//  8 module metadata
+ *	uint64_t	memmap_src;		// 16 Linux-provided memory map PA
+ *	uint64_t	memmap_dst;		// 24 Module data copy PA
+ *	uint64_t	memmap_len;		// 32 Length to copy
  * };
  *
  * FreeBSD's arm64 entry point is _start which assumes:
@@ -30,32 +33,61 @@
  *  We are loaded at a 2MiB aligned address
  *  Module data (modulep) pointer in x0
  *
- * Unlike EFI, we don't support copying the staging area. We tell Linunx to land
- * the kernel in its final location with the needed alignment, etc.
+ * We tell Linunx to land the kernel in its final location with the needed
+ * alignment, etc. We take over.
  *
- * The linux kernel will helpfully turn off the MMU, flush the caches, disable
- * them, etc. It calls the tramp with two args: dtb addresss in x0 and the EL2
- * vectors in x1. Currently, we make use of neither of these parameters: we pass
- * whatever dtb we think we need as part of the module data and we're a bit weak
- * on hypervisor support at the moment. _start's requirements are all satisifed.
+ * The linux kernel will helpfully turn off the MMU, flush the caches, disables
+ * them, etc. It calls the tramp with two args: FDT blob addresss in x0 and the
+ * EL2 vectors in x1. Currently, we make use of neither of these parameters: we
+ * pass whatever dtb we think we need as part of the module data and we're a bit
+ * weak on hypervisor support at the moment. _start's requirements are all
+ * satisifed.
  *
  * This trampoline installs sets up the arguments the kernel expects and jumps
  * to the kernel _start address. We pass the modulep pointer in x0, as _start
  * expects. We assume that the various cache flushing, invalidation, etc that linux
- * did during or after copying the data down is sufficient.
+ * did during or after copying the data down is sufficient, though we may need to
+ * be mindful of cache flushing if we run in EL2 (TBD).
+ *
+ * Note, if TRAMP_MEMMAP_SRC is non-zero, then we have to copy the Linux
+ * provided UEFI memory map. It's easier to do that here. In kboot we can't
+ * access the physical memory. It's a chicken and egg problem later in the
+ * kernel.
  */
 
-#define TRAMP_ENTRY	0
-#define TRAMP_MODULEP	8
-#define TRAMP_TOTAL	16
+#define TRAMP_ENTRY		0
+#define TRAMP_MODULEP		8
+#define TRAMP_MEMMAP_SRC	16
+#define TRAMP_MEMMAP_DST	24
+#define TRAMP_MEMMAP_LEN	32
+#define TRAMP_TOTAL		40
 
 	.text
 	.globl	tramp
 tramp:
-	adr	x2, trampoline_data
-	ldr	x1, [x2, #TRAMP_ENTRY]
-	ldr	x0, [x2, #TRAMP_MODULEP]
-	br	x1
+	adr	x8, trampoline_data
+	ldr	x10, [x8, #TRAMP_MEMMAP_SRC]
+	cmp	x10, xzr
+	b.eq	9f
+
+	/*
+	 * Copy over the memory map into area we have reserved for it. Assume
+	 * the copy is a multiple of 8, since we know table entries are made up
+	 * of several 64-bit quantities.
+	 */
+1:
+	ldr	x11, [x8, #TRAMP_MEMMAP_DST]
+	ldr	x12, [x8, #TRAMP_MEMMAP_LEN]
+	ldr	x13, [x10]
+	str	x13, [x11]
+	add	x10, x10, #8
+	add	x11, x11, #8
+	subs	x12, x12, #8
+	b.hi	1b
+9:
+	ldr	x9, [x8, #TRAMP_ENTRY]
+	ldr	x0, [x8, #TRAMP_MODULEP]
+	br	x9
 
 	.p2align 4
 trampoline_data:

@@ -24,6 +24,8 @@ static int segalloc = 0;
 vm_paddr_t efi_systbl_phys;
 struct efi_map_header *efi_map_hdr;
 uint32_t efi_map_size;
+vm_paddr_t efi_map_phys_src;	/* From DTB */
+vm_paddr_t efi_map_phys_dst;	/* From our memory map metadata module */
 
 struct memory_segments
 {
@@ -255,11 +257,12 @@ do_memory_from_fdt(int fd)
 	struct stat sb;
 	char *buf = NULL;
 	int len, offset, fd2 = -1;
-	uint32_t sz, ver, esz;
+	uint32_t sz, ver, esz, efisz;
 	uint64_t mmap_pa;
 	const uint32_t *u32p;
 	const uint64_t *u64p;
 	struct efi_map_header *efihdr;
+	struct efi_md *map;
 
 	if (fstat(fd, &sb) < 0)
 		return false;
@@ -308,24 +311,21 @@ do_memory_from_fdt(int fd)
 	    ver, esz, sz, mmap_pa);
 
 	/*
-	 * Now retrieve the memory map. FreeBSD doesn't (yet?) know how to just
-	 * accept the location and size for this in PA, so we'll copy it out
-	 * and include it in a section.
+	 * We have no ability to read the PA that this map is in, so
+	 * pass the address to FreeBSD via a rather odd flag entry as
+	 * the first map so early boot can copy the memory map into
+	 * this space and have the rest of the code cope.
 	 */
-	buf = malloc(sz);
+	efisz = (sizeof(*efihdr) + 0xf) & ~0xf;
+	buf = malloc(sz + efisz);
 	if (buf == NULL)
 		return false;
 	efihdr = (struct efi_map_header *)buf;
-	fd2 = open("/dev/mem", O_RDONLY);
-	if (fd2 == -1)
-		goto errout;
-	if (lseek(fd2, mmap_pa, SEEK_SET) < 0)
-		goto errout;
-	if (read(fd2, buf, sz) != sz)
-		goto errout;
-	close(fd2);
+	map = (struct efi_md *)((uint8_t *)efihdr + efisz);
+	bzero(map, sz);
+	efi_map_phys_src = mmap_pa;
 	efi_map_hdr = efihdr;
-	efi_map_size = sz;
+	efi_map_size = sz + efisz;
 
 	return true;
 errout:
@@ -479,5 +479,5 @@ bi_loadsmap(struct preloaded_file *kfp)
 	efihdr->descriptor_size = sizeof(*md);
 	efihdr->descriptor_version = EFI_MEMORY_DESCRIPTOR_VERSION;
 	file_addmetadata(kfp, MODINFOMD_EFI_MAP, efisz + sz, buffer);
-	free(buffer);	// XXX bad?
+	free(buffer);
 }

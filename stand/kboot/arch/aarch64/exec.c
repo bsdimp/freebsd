@@ -41,9 +41,11 @@ __FBSDID("$FreeBSD$");
 #else
 #include "host_syscall.h"
 #endif
+#include <machine/metadata.h>
 
 #include "bootstrap.h"
 #include "kboot.h"
+#include "bootstrap.h"
 
 #include "platform/acfreebsd.h"
 #include "acconfig.h"
@@ -67,6 +69,10 @@ static int elf64_obj_exec(struct preloaded_file *amp);
 
 bool do_mem_map = false;
 
+extern uint32_t efi_map_size;
+extern vm_paddr_t efi_map_phys_src;	/* From DTB */
+extern vm_paddr_t efi_map_phys_dst;	/* From our memory map metadata module */
+
 int bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp,
     bool exit_bs);
 
@@ -88,6 +94,9 @@ extern uint32_t tramp_data_offset;
 struct trampoline_data {
 	uint64_t	entry;			//  0 (PA where kernel loaded)
 	uint64_t	modulep;		//  8 module metadata
+	uint64_t	memmap_src;		// 16 Linux-provided memory map PA
+	uint64_t	memmap_dst;		// 24 Module data copy PA
+	uint64_t	memmap_len;		// 32 Length to copy
 };
 #endif
 
@@ -165,8 +174,9 @@ elf64_exec(struct preloaded_file *fp)
 		char buf[24];
 
 		sprintf(buf, "0x%016llx", (unsigned long long)rsdp);
-		setenv("hint.acpi.0.rsdp", buf, 1);
+		setenv("hint.acpi.0.rsdp", buf, 1); /* For 13.1R bootability */
 		setenv("acpi.rsdp", buf, 1);
+		/* Nobody uses the rest of that stuff */
 	}
 
 
@@ -231,13 +241,28 @@ elf64_exec(struct preloaded_file *fp)
 #else
 	/* Linux will flush the caches, just pass this data into our trampoline and go */
 	trampoline_data = (void *)trampoline + tramp_data_offset;
+	memset(trampoline_data, 0, sizeof(*trampoline_data));
 	trampoline_data->entry = ehdr->e_entry - fp->f_addr + staging;
 	trampoline_data->modulep = modulep;
 	printf("Modulep = %jx\n", (uintmax_t)modulep);
+	if (efi_map_phys_src != 0) {
+		md = file_findmetadata(fp, MODINFOMD_EFI_MAP);
+		if (md == NULL || md->md_addr == 0) {
+			printf("Need to copy EFI MAP, but EFI MAP not found.\n");
+		} else {
+			efi_map_phys_dst = md->md_addr + staging + roundup2(sizeof(struct efi_map_header), 16);
+			trampoline_data->memmap_src = efi_map_phys_src;
+			trampoline_data->memmap_dst = efi_map_phys_dst;
+			trampoline_data->memmap_len = efi_map_size;
+			printf("Copying memory map data from %#lx to %#lx %d bytes\n",
+			    efi_map_phys_src, efi_map_phys_dst, efi_map_size);
+		}
+	}
 	/*
-	 * Copy the trampoline to the ksegs. Since we're just bouncing off of this into the kernel,
-	 * no need to preserve the pages. On arm64, the kernel sets up the initial page table, so we
-	 * don't have to preserve the memory used for the trampoline past when it calls the kernel.
+	 * Copy the trampoline to the ksegs. Since we're just bouncing off of
+	 * this into the kernel, no need to preserve the pages. On arm64, the
+	 * kernel sets up the initial page table, so we don't have to preserve
+	 * the memory used for the trampoline past when it calls the kernel.
 	 */
 	printf("kernendp = %#llx\n", (long long)kernendp);
 	trampolinebase = staging + (kernendp - fp->f_addr);
