@@ -75,9 +75,9 @@ tramp:
 	 * the copy is a multiple of 8, since we know table entries are made up
 	 * of several 64-bit quantities.
 	 */
-1:
 	ldr	x11, [x8, #TRAMP_MEMMAP_DST]
 	ldr	x12, [x8, #TRAMP_MEMMAP_LEN]
+1:
 	ldr	x13, [x10]
 	str	x13, [x11]
 	add	x10, x10, #8

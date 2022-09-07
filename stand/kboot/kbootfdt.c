@@ -100,8 +100,10 @@ fdt_platform_load_dtb(void)
 	 * If we have ACPI, then there's no DTB to load. FreeBSD does either/or,
 	 * not both.
 	 */
+#if 0
 	if (has_acpi())
 		return 1;
+#endif
 
 	/*
 	 * Should load /sys/firmware/fdt if it exists, otherwise we walk the

@@ -323,6 +323,9 @@ do_memory_from_fdt(int fd)
 	efihdr = (struct efi_map_header *)buf;
 	map = (struct efi_md *)((uint8_t *)efihdr + efisz);
 	bzero(map, sz);
+	efihdr->memory_size = sz;
+	efihdr->descriptor_size = esz;
+	efihdr->descriptor_version = ver;
 	efi_map_phys_src = mmap_pa;
 	efi_map_hdr = efihdr;
 	efi_map_size = sz + efisz;
@@ -346,11 +349,13 @@ enumerate_memory_arch(void)
 
 	fd = open("/sys/firmware/fdt", O_RDONLY);
 	if (fd != -1) {
-		printf("Doing trying to get UEFI from FDT\n");
+		printf("Doing trying to get UEFI from FDT -- fake\n");
 		rv = do_memory_from_fdt(fd);
 		close(fd);
-		if (!rv)
+		if (rv) {
+			printf("Got it from /sys/firmware/fdt\n");
 			return (rv);
+		}
 	}
 
 	printf("Falling back to iomem\n");
