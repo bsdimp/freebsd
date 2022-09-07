@@ -193,8 +193,8 @@ efi_create_1t1_map(struct efi_md *map, int ndesc, int descsz)
 			continue;
 		if (p->md_virt != 0 && p->md_virt != p->md_phys) {
 			if (bootverbose)
-				printf("EFI Runtime entry %d is mapped\n", i);
-			goto fail;
+				printf("EFI Runtime entry %d is mapped PA %#lx VA %#lx\n", i, p->md_phys, p->md_virt);
+//			goto fail;
 		}
 		if ((p->md_phys & EFI_PAGE_MASK) != 0) {
 			if (bootverbose)
