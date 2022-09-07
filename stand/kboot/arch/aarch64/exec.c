@@ -173,6 +173,7 @@ elf64_exec(struct preloaded_file *fp)
 	if (rsdp != 0) {
 		char buf[24];
 
+		printf("Found ACPI 2.0 at %#016lx\n", rsdp);
 		sprintf(buf, "0x%016llx", (unsigned long long)rsdp);
 		setenv("hint.acpi.0.rsdp", buf, 1); /* For 13.1R bootability */
 		setenv("acpi.rsdp", buf, 1);
@@ -250,12 +251,16 @@ elf64_exec(struct preloaded_file *fp)
 		if (md == NULL || md->md_addr == 0) {
 			printf("Need to copy EFI MAP, but EFI MAP not found.\n");
 		} else {
-			efi_map_phys_dst = md->md_addr + staging + roundup2(sizeof(struct efi_map_header), 16);
+			printf("Metadata EFI map loaded at VA %lx\n", md->md_addr);
+			efi_map_phys_dst = md->md_addr + staging +
+			    roundup2(sizeof(struct efi_map_header), 16) - fp->f_addr;
 			trampoline_data->memmap_src = efi_map_phys_src;
 			trampoline_data->memmap_dst = efi_map_phys_dst;
-			trampoline_data->memmap_len = efi_map_size;
-			printf("Copying memory map data from %#lx to %#lx %d bytes\n",
-			    efi_map_phys_src, efi_map_phys_dst, efi_map_size);
+			trampoline_data->memmap_len = efi_map_size - roundup2(sizeof(struct efi_map_header), 16);
+			printf("Copying UEFI Memory Map data from %#lx to %#lx %ld bytes\n",
+			    efi_map_phys_src,
+			    trampoline_data->memmap_dst,
+			    trampoline_data->memmap_len);
 		}
 	}
 	/*
