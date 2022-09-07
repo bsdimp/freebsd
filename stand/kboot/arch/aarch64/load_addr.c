@@ -7,6 +7,7 @@
 #include <sys/param.h>
 #include <sys/efi.h>
 #include <machine/metadata.h>
+#include <sys/linker.h>
 #include <fdt_platform.h>
 #include <libfdt.h>
 
@@ -446,6 +447,9 @@ bi_loadsmap(struct preloaded_file *kfp)
 	struct efi_md *md;
 	uint64_t sz, efisz, attr;
 	uint32_t type;
+
+	if (efi_systbl_phys)
+		file_addmetadata(kfp, MODINFOMD_FW_HANDLE, sizeof(efi_systbl_phys), &efi_systbl_phys);
 
 	if (efi_map_hdr != NULL) {
 		file_addmetadata(kfp, MODINFOMD_EFI_MAP, efi_map_size, efi_map_hdr);
