@@ -628,11 +628,19 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 
 	/* Disable LPIs */
 	ctlr = gic_r_read_4(gicv3, GICR_CTLR);
-	ctlr &= ~GICR_CTLR_LPI_ENABLE;
-	gic_r_write_4(gicv3, GICR_CTLR, ctlr);
+	if (ctlr & GICR_CTLR_LPI_ENABLE) {
+		sc->sc_its_flags |= ITS_FLAGS_LPI_PREALLOC;
+		ctlr &= ~GICR_CTLR_LPI_ENABLE;
+		gic_r_write_4(gicv3, GICR_CTLR, ctlr);
 
-	/* Make sure changes are observable my the GIC */
-	dsb(sy);
+		/* Make sure changes are observable my the GIC */
+		dsb(sy);
+
+		/* Linux has code here to make sure it disabled */
+	}
+
+	/* XXX need to rework below and maybe free sc_conf_base, or maybe
+	 * we need to check the LPI_ENABLE bit earlier? */
 
 	/*
 	 * Set the redistributor base
