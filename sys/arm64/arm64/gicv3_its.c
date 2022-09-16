@@ -59,6 +59,7 @@ __FBSDID("$FreeBSD$");
 
 #include <vm/vm.h>
 #include <vm/pmap.h>
+#include <vm/vm_map.h>
 #include <vm/vm_page.h>
 
 #include <machine/bus.h>
@@ -277,6 +278,7 @@ struct gicv3_its_softc {
 #define	ITS_FLAGS_CMDQ_FLUSH		0x00000001
 #define	ITS_FLAGS_LPI_CONF_FLUSH	0x00000002
 #define	ITS_FLAGS_ERRATA_CAVIUM_22375	0x00000004
+#define ITS_FLAGS_LPI_PREALLOC		0x00000008
 	u_int sc_its_flags;
 	bool	trace_enable;
 	vm_page_t ma; /* fake msi page */
@@ -573,6 +575,10 @@ static void
 gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 {
 	void *conf_table;
+	vm_paddr_t conf_pa;
+	vm_offset_t conf_va;
+	device_t gicv3;
+	uint32_t ctlr;
 
 	conf_table = atomic_load_ptr(&conf_base);
 	if (conf_table == NULL) {
@@ -584,6 +590,31 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 		    (uintptr_t)NULL, (uintptr_t)conf_table) == 0) {
 			contigfree(conf_table, LPI_CONFTAB_SIZE, M_GICV3_ITS);
 			conf_table = atomic_load_ptr(&conf_base);
+		} else {
+			/* Feels racy not sure why we're using that atomic ops */
+			gicv3 = device_get_parent(sc->dev);
+			ctlr = gic_r_read_4(gicv3, GICR_CTLR);
+			if (ctlr & GICR_CTLR_LPI_ENABLE) {
+				/* OK, we're starting up enabled... cope as best we can */
+				conf_pa = gic_r_read_8(gicv3, GICR_PROPBASER);
+				conf_pa &= ~GICR_PROPBASER_SHARE_MASK;
+				/* need to create a VA mapping here -- XXX and uncomment 'ok to use' check */
+				if (conf_pa != 0 /* && is_reserved_memory(conf_pa, LPI_CONFTAB_SIZE) */) {
+					conf_va = PHYS_TO_DMAP(conf_pa);
+					if (pmap_klookup(conf_va, NULL)) {
+						contigfree(conf_table, LPI_CONFTAB_SIZE, M_GICV3_ITS);
+						conf_table = (void *)conf_va;
+						device_printf(sc->dev, "LPI enabled, using pa %#lx va %lx\n",
+						    conf_pa, conf_va);
+						sc->sc_its_flags |= ITS_FLAGS_LPI_PREALLOC;
+						sc->sc_its_flags |= ITS_FLAGS_LPI_CONF_FLUSH;
+					} else {
+						panic("Can't mapped prior LPI mapping into VA\n");
+					}
+				} else {
+					panic("LPI_ENABLED, but PROPBASER == 0");
+				}
+			}
 		}
 	}
 	sc->sc_conf_base = conf_table;
@@ -629,7 +660,6 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 	/* Disable LPIs */
 	ctlr = gic_r_read_4(gicv3, GICR_CTLR);
 	if (ctlr & GICR_CTLR_LPI_ENABLE) {
-		sc->sc_its_flags |= ITS_FLAGS_LPI_PREALLOC;
 		ctlr &= ~GICR_CTLR_LPI_ENABLE;
 		gic_r_write_4(gicv3, GICR_CTLR, ctlr);
 
@@ -638,9 +668,6 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 
 		/* Linux has code here to make sure it disabled */
 	}
-
-	/* XXX need to rework below and maybe free sc_conf_base, or maybe
-	 * we need to check the LPI_ENABLE bit earlier? */
 
 	/*
 	 * Set the redistributor base
