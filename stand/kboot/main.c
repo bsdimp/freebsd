@@ -181,6 +181,12 @@ main(int argc, const char **argv)
 	 */
 	cons_probe();
 
+	for (int i = 0; devsw[i] != NULL; i++) {
+		if (devsw[i]->dv_init != NULL) {
+			(devsw[i]->dv_init)();
+		}
+	}
+
 	/* Choose bootdev if provided */
 //	if (argc > 1)
 //		bootdev = argv[1];
