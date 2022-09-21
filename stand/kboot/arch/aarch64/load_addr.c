@@ -355,11 +355,10 @@ enumerate_memory_arch(void)
 		close(fd);
 		if (rv) {
 			printf("Got it from /sys/firmware/fdt\n");
-			return (rv);
 		}
 	}
 
-	printf("Falling back to iomem\n");
+	printf("Falling back to iomem to find where to load\n");
 	fd = open("/proc/iomem", O_RDONLY);
 	if (fd == -1) {
 		printf("Can't get memory map\n");
@@ -431,12 +430,27 @@ out:
 uint64_t
 kboot_get_phys_load_segment(void)
 {
-#define HOLE_SIZE	(64 << 20)
+#define HOLE_SIZE	(64ul << 20)
+#define KERN_ALIGN	(2ul << 20)
+	uint64_t	s;
+	uint64_t	len;
+
 	for (int i = 0; i < nr_seg; i++) {
-		if (segs[i].end - segs[i].start + 1 >= HOLE_SIZE)
-			return roundup(segs[i].start, 2 << 20);
+		if (segs[i].type != system_ram)	/* Not candiate */
+			continue;
+		s = roundup(segs[i].start, KERN_ALIGN);
+		if (s >= segs[i].end)		/* roundup past end */
+			continue;
+		len = segs[i].end - s + 1;
+		if (len >= HOLE_SIZE) {
+			printf("Found a big enough hole at in seg %d at %#lx (%#lx-%#lx)\n",
+			    i, s, segs[i].start, segs[i].end);
+			return (s);
+		}
 	}
-	return 0x40000000 | 0x4200000;
+	s = 0x40000000 | 0x4200000;	/* should never get here */
+	printf("Falling back to crazy address %#lx\n", s);
+	return (s);
 }
 
 void
