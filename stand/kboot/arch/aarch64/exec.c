@@ -249,7 +249,7 @@ elf64_exec(struct preloaded_file *fp)
 	if (efi_map_phys_src != 0) {
 		md = file_findmetadata(fp, MODINFOMD_EFI_MAP);
 		if (md == NULL || md->md_addr == 0) {
-			printf("Need to copy EFI MAP, but EFI MAP not found.\n");
+			printf("Need to copy EFI MAP, but EFI MAP not found. %p\n", md);
 		} else {
 			printf("Metadata EFI map loaded at VA %lx\n", md->md_addr);
 			efi_map_phys_dst = md->md_addr + staging +
