@@ -597,14 +597,14 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 			if (ctlr & GICR_CTLR_LPI_ENABLE) {
 				/* OK, we're starting up enabled... cope as best we can */
 				conf_pa = gic_r_read_8(gicv3, GICR_PROPBASER);
-				conf_pa &= ~GICR_PROPBASER_SHARE_MASK;
+				conf_pa &= ~((1 << 12) - 1); /* mask off */
 				/* need to create a VA mapping here -- XXX and uncomment 'ok to use' check */
 				if (conf_pa != 0 /* && is_reserved_memory(conf_pa, LPI_CONFTAB_SIZE) */) {
 					conf_va = PHYS_TO_DMAP(conf_pa);
 					if (pmap_klookup(conf_va, NULL)) {
 						contigfree(conf_table, LPI_CONFTAB_SIZE, M_GICV3_ITS);
 						conf_table = (void *)conf_va;
-						device_printf(sc->dev, "LPI enabled, using pa %#lx va %lx\n",
+						device_printf(sc->dev, "LPI enabled, conf table using pa %#lx va %lx\n",
 						    conf_pa, conf_va);
 						sc->sc_its_flags |= ITS_FLAGS_LPI_PREALLOC;
 						sc->sc_its_flags |= ITS_FLAGS_LPI_CONF_FLUSH;
@@ -698,6 +698,8 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 		}
 		sc->sc_its_flags |= ITS_FLAGS_LPI_CONF_FLUSH;
 	}
+
+	/* XXX also need to do PENDBASER with PROPBASER above XXX */
 
 	/*
 	 * Set the LPI pending table base
