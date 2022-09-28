@@ -597,7 +597,7 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 			if (ctlr & GICR_CTLR_LPI_ENABLE) {
 				/* OK, we're starting up enabled... cope as best we can */
 				conf_pa = gic_r_read_8(gicv3, GICR_PROPBASER);
-				conf_pa &= ~((1 << 12) - 1); /* mask off */
+				conf_pa &= ~(PAGE_SIZE_4K - 1); /* mask off */
 				/* need to create a VA mapping here -- XXX and uncomment 'ok to use' check */
 				if (conf_pa != 0 /* && is_reserved_memory(conf_pa, LPI_CONFTAB_SIZE) */) {
 					conf_va = PHYS_TO_DMAP(conf_pa);
@@ -632,17 +632,18 @@ gicv3_its_pendtables_init(struct gicv3_its_softc *sc)
 {
 	int i;
 
-	for (i = 0; i <= mp_maxid; i++) {
-		if (CPU_ISSET(i, &sc->sc_cpus) == 0)
-			continue;
+	if ((sc->sc_its_flags & ITS_FLAGS_LPI_PREALLOC) == 0) {
+		for (i = 0; i <= mp_maxid; i++) {
+			if (CPU_ISSET(i, &sc->sc_cpus) == 0)
+				continue;
+			sc->sc_pend_base[i] = (vm_offset_t)contigmalloc(
+			    LPI_PENDTAB_SIZE, M_GICV3_ITS, M_WAITOK | M_ZERO,
+			    0, LPI_PENDTAB_MAX_ADDR, LPI_PENDTAB_ALIGN, 0);
 
-		sc->sc_pend_base[i] = (vm_offset_t)contigmalloc(
-		    LPI_PENDTAB_SIZE, M_GICV3_ITS, M_WAITOK | M_ZERO,
-		    0, LPI_PENDTAB_MAX_ADDR, LPI_PENDTAB_ALIGN, 0);
-
-		/* Flush so the ITS can see the memory */
-		cpu_dcache_wb_range((vm_offset_t)sc->sc_pend_base[i],
-		    LPI_PENDTAB_SIZE);
+			/* Flush so the ITS can see the memory */
+			cpu_dcache_wb_range((vm_offset_t)sc->sc_pend_base[i],
+			    LPI_PENDTAB_SIZE);
+		}
 	}
 }
 
@@ -676,6 +677,7 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 	    (GICR_PROPBASER_SHARE_IS << GICR_PROPBASER_SHARE_SHIFT) |
 	    (GICR_PROPBASER_CACHE_NIWAWB << GICR_PROPBASER_CACHE_SHIFT) |
 	    (flsl(LPI_CONFTAB_SIZE | GIC_FIRST_LPI) - 1);
+
 	gic_r_write_8(gicv3, GICR_PROPBASER, xbaser);
 
 	/* Check the cache attributes we set */
@@ -699,11 +701,18 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 		sc->sc_its_flags |= ITS_FLAGS_LPI_CONF_FLUSH;
 	}
 
-	/* XXX also need to do PENDBASER with PROPBASER above XXX */
-
 	/*
 	 * Set the LPI pending table base
 	 */
+	if (sc->sc_pend_base[cpuid] == 0) {
+		tmp = gic_r_read_8(gicv3, GICR_PENDBASER);
+		tmp &= ~(PAGE_SIZE_4K -1);
+		sc->sc_pend_base[cpuid] = PHYS_TO_DMAP(tmp);
+	}
+	device_printf(gicv3, "using %sPENDBASE of %#lx on cpu %d\n",
+	    (sc->sc_its_flags & ITS_FLAGS_LPI_PREALLOC) ? "pre-existing " : "",
+	    vtophys(sc->sc_pend_base[cpuid]), cpuid);
+
 	xbaser = vtophys(sc->sc_pend_base[cpuid]) |
 	    (GICR_PENDBASER_CACHE_NIWAWB << GICR_PENDBASER_CACHE_SHIFT) |
 	    (GICR_PENDBASER_SHARE_IS << GICR_PENDBASER_SHARE_SHIFT);
