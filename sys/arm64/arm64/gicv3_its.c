@@ -597,7 +597,7 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 			if (ctlr & GICR_CTLR_LPI_ENABLE) {
 				/* OK, we're starting up enabled... cope as best we can */
 				conf_pa = gic_r_read_8(gicv3, GICR_PROPBASER);
-				conf_pa &= ~(PAGE_SIZE_4K - 1); /* mask off */
+				conf_pa &= ~((PAGE_SIZE_4K - 1) | GICR_PROPBASER_OUTER_CACHE_MASK); /* mask off */
 				/* need to create a VA mapping here -- XXX and uncomment 'ok to use' check */
 				if (conf_pa != 0 /* && is_reserved_memory(conf_pa, LPI_CONFTAB_SIZE) */) {
 					conf_va = PHYS_TO_DMAP(conf_pa);
@@ -651,7 +651,7 @@ static void
 its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 {
 	device_t gicv3;
-	uint64_t xbaser, tmp;
+	uint64_t xbaser, tmp, size;
 	uint32_t ctlr;
 	u_int cpuid;
 
@@ -673,10 +673,19 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 	/*
 	 * Set the redistributor base
 	 */
+	if ((sc->sc_its_flags & ITS_FLAGS_LPI_PREALLOC) == 0) {
+		size = (flsl(LPI_CONFTAB_SIZE | GIC_FIRST_LPI) - 1);
+	} else {
+		tmp = gic_r_read_8(gicv3, GICR_PROPBASER);
+		size = tmp & GICR_PROPBASER_IDBITS_MASK;
+		device_printf(gicv3, "Size of pre-existing table is %#x\n",
+		    1u << ((tmp & GICR_PROPBASER_IDBITS_MASK) + 1));
+	}
+
 	xbaser = vtophys(sc->sc_conf_base) |
 	    (GICR_PROPBASER_SHARE_IS << GICR_PROPBASER_SHARE_SHIFT) |
 	    (GICR_PROPBASER_CACHE_NIWAWB << GICR_PROPBASER_CACHE_SHIFT) |
-	    (flsl(LPI_CONFTAB_SIZE | GIC_FIRST_LPI) - 1);
+	    size;
 
 	gic_r_write_8(gicv3, GICR_PROPBASER, xbaser);
 
@@ -706,7 +715,7 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 	 */
 	if (sc->sc_pend_base[cpuid] == 0) {
 		tmp = gic_r_read_8(gicv3, GICR_PENDBASER);
-		tmp &= ~(PAGE_SIZE_4K -1);
+		tmp &= ~((PAGE_SIZE_4K - 1) | GICR_PENDBASER_OUTER_CACHE_MASK);
 		sc->sc_pend_base[cpuid] = PHYS_TO_DMAP(tmp);
 	}
 	device_printf(gicv3, "using %sPENDBASE of %#lx on cpu %d\n",
