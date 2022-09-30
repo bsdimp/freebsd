@@ -30,6 +30,7 @@
  */
 
 #include "opt_acpi.h"
+#include "opt_ddb.h"
 #include "opt_platform.h"
 
 #include <sys/cdefs.h>
@@ -77,6 +78,11 @@ __FBSDID("$FreeBSD$");
 #include "gic_v3_reg.h"
 #include "gic_v3_var.h"
 
+#ifdef DDB
+#include <ddb/ddb.h>
+#include <ddb/db_lex.h>
+#endif
+
 static bus_print_child_t gic_v3_print_child;
 static bus_get_domain_t gic_v3_get_domain;
 static bus_read_ivar_t gic_v3_read_ivar;
@@ -109,6 +115,9 @@ static msi_release_msi_t gic_v3_release_msi;
 static msi_alloc_msix_t gic_v3_alloc_msix;
 static msi_release_msix_t gic_v3_release_msix;
 static msi_map_msi_t gic_v3_map_msi;
+#ifdef DDB
+static void gic_v3_gic_db_show(device_t dev);
+#endif
 
 static u_int gic_irq_cpu;
 #ifdef SMP
@@ -157,6 +166,9 @@ static device_method_t gic_v3_methods[] = {
 	DEVMETHOD(gic_release_msi,	gic_v3_gic_release_msi),
 	DEVMETHOD(gic_alloc_msix,	gic_v3_gic_alloc_msix),
 	DEVMETHOD(gic_release_msix,	gic_v3_gic_release_msix),
+#ifdef DDB
+	DEVMETHOD(gic_db_show,		gic_v3_gic_db_show),
+#endif
 
 	/* End */
 	DEVMETHOD_END
@@ -1644,3 +1656,48 @@ gic_v3_map_msi(device_t dev, device_t child, struct intr_irqsrc *isrc,
 
 	return (0);
 }
+
+#ifdef DDB
+static void
+gic_v3_gic_db_show(device_t dev)
+{
+	struct gic_v3_softc *sc = device_get_softc(dev);
+	uint32_t val;
+	u_int i;
+
+	db_printf("%s Distributor registers:\n", device_get_nameunit(dev));
+	db_printf(" CTLR: %08x TYPER: %08x  IIDR: %08x\n",
+	    gic_d_read(sc, 4, GICD_CTLR), gic_d_read(sc, 4, GICD_TYPER),
+	    gic_d_read(sc, 4, GICD_IIDR));
+	for (i = 0; i < sc->gic_nirqs; i++) {
+		if (i <= GIC_LAST_SGI)
+			db_printf("SGI %2u ", i);
+		else if (i <= GIC_LAST_PPI)
+			db_printf("PPI %2u ", i - GIC_FIRST_PPI);
+		else
+			db_printf("SPI %2u ", i - GIC_FIRST_SPI);
+		db_printf(" grp:%u",
+		    !!(gic_d_read(sc, 4, GICD_IGROUPR(i)) & GICD_I_MASK(i)));
+		db_printf(" enable:%u pend:%u active:%u",
+		    !!(gic_d_read(sc, 4, GICD_ISENABLER(i)) & GICD_I_MASK(i)),
+		    !!(gic_d_read(sc, 4, GICD_ISPENDR(i)) & GICD_I_MASK(i)),
+		    !!(gic_d_read(sc, 4, GICD_ISACTIVER(i)) & GICD_I_MASK(i)));
+		db_printf(" pri:%u",
+		    (gic_d_read(sc, 4, GICD_IPRIORITYR(i)) >> 8 * (i & 0x3)) &
+		    0xff);
+		db_printf(" trg:%u",
+		    (gic_d_read(sc, 4, GICD_ITARGETSR(i)) >> 8 * (i & 0x3)) &
+		    0xff);
+		val = gic_d_read(sc, 4, GICD_ICFGR(i)) >> 2 * (i & 0xf);
+		if ((val & GICD_ICFGR_POL_MASK) == GICD_ICFGR_POL_LOW)
+			db_printf(" LO");
+		else
+			db_printf(" HI");
+		if ((val & GICD_ICFGR_TRIG_MASK) == GICD_ICFGR_TRIG_LVL)
+			db_printf(" LV");
+		else
+			db_printf(" ED");
+		db_printf("\n");
+	}
+}
+#endif
