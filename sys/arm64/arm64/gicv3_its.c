@@ -47,6 +47,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/mutex.h>
+#include <sys/physmem.h>
 #include <sys/proc.h>
 #include <sys/taskqueue.h>
 #include <sys/tree.h>
@@ -598,8 +599,11 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 				/* OK, we're starting up enabled... cope as best we can */
 				conf_pa = gic_r_read_8(gicv3, GICR_PROPBASER);
 				conf_pa &= ~((PAGE_SIZE_4K - 1) | GICR_PROPBASER_OUTER_CACHE_MASK); /* mask off */
-				/* need to create a VA mapping here -- XXX and uncomment 'ok to use' check */
-				if (conf_pa != 0 /* && is_reserved_memory(conf_pa, LPI_CONFTAB_SIZE) */) {
+				/* need to create a VA mapping here */
+				if (conf_pa != 0) {
+					if (!physmem_excluded(conf_pa, LPI_CONFTAB_SIZE))
+						panic("gicv3 memory needs to reuse %#lx, but not reserved\n",
+						    conf_pa);
 					conf_va = PHYS_TO_DMAP(conf_pa);
 					if (pmap_klookup(conf_va, NULL)) {
 						contigfree(conf_table, LPI_CONFTAB_SIZE, M_GICV3_ITS);
@@ -716,6 +720,9 @@ its_init_cpu_lpi(device_t dev, struct gicv3_its_softc *sc)
 	if (sc->sc_pend_base[cpuid] == 0) {
 		tmp = gic_r_read_8(gicv3, GICR_PENDBASER);
 		tmp &= ~((PAGE_SIZE_4K - 1) | GICR_PENDBASER_OUTER_CACHE_MASK);
+		if (!physmem_excluded(tmp, LPI_PENDTAB_SIZE))
+			panic("gicv3: Forced to reuse %#lx, but not reserved\n",
+			    tmp);
 		sc->sc_pend_base[cpuid] = PHYS_TO_DMAP(tmp);
 	}
 	device_printf(gicv3, "using %sPENDBASE of %#lx on cpu %d\n",
