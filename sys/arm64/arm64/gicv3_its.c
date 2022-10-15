@@ -580,7 +580,13 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 	vm_offset_t conf_va;
 	device_t gicv3;
 	uint32_t ctlr;
+	static int common_flags;
 
+	/*
+	 * Not sure about the atomic here, we may need to have an actual
+	 * lock if we want to support a parallel bringup of all the ITS
+	 * in the system.
+	 */
 	conf_table = atomic_load_ptr(&conf_base);
 	if (conf_table == NULL) {
 		conf_table = contigmalloc(LPI_CONFTAB_SIZE,
@@ -610,8 +616,7 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 						conf_table = (void *)conf_va;
 						device_printf(sc->dev, "LPI enabled, conf table using pa %#lx va %lx\n",
 						    conf_pa, conf_va);
-						sc->sc_its_flags |= ITS_FLAGS_LPI_PREALLOC;
-						sc->sc_its_flags |= ITS_FLAGS_LPI_CONF_FLUSH;
+						common_flags = ITS_FLAGS_LPI_PREALLOC | ITS_FLAGS_LPI_CONF_FLUSH;
 					} else {
 						panic("Can't mapped prior LPI mapping into VA\n");
 					}
@@ -621,6 +626,7 @@ gicv3_its_conftable_init(struct gicv3_its_softc *sc)
 			}
 		}
 	}
+	sc->sc_its_flags |= common_flags;
 	sc->sc_conf_base = conf_table;
 
 	/* Set the default configuration */
