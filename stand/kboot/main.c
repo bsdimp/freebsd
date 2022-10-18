@@ -265,7 +265,7 @@ static ssize_t
 get_phys_buffer(vm_offset_t dest, const size_t len, void **buf)
 {
 	int i = 0;
-	const size_t segsize = 8*1024*1024;
+	const size_t segsize = 64*1024*1024;
 
 	if (nkexec_segments == HOST_KEXEC_SEGMENT_MAX)
 		panic("Tried to load too many kexec segments");
