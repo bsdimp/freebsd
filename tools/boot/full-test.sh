@@ -293,11 +293,6 @@ make_linuxboot_images()
 	cp ${linux} ${img}.kernel
 	cp ${initrd} ${img}.initrd
     done
-    for a in arm64:aarch64; do
-	img=${IMAGES}/${ma_combo}/nvme-test-empty.raw
-	sz=$(( 16 * 1024 * 1024 * 1024 )) # 16GB
-	dd if=/dev/zero of=${img} oseek=${sz} bs=1 count=1
-    done
 }
 
 make_linuxboot_scripts()
@@ -352,15 +347,16 @@ EOF
 		;;
 	    aarch64)
 		# ESP version
-		raw=${IMAGES}/${ma_combo}/nvme-test-empty.raw
+		raw=${IMAGES}/${ma_combo}/freebsd-arm64-aarch64.img
 		cat > ${out} <<EOF
-${qemu_bin}/qemu-system-aarch64 -nographic -machine virt,gic-version=3 -m 512M \\
-        -cpu cortex-a57 -drive file=${img},if=none,id=drive0,cache=writeback -smp 4 \\
-        -device virtio-blk,drive=drive0,bootindex=0 \\
+${qemu_bin}/qemu-system-aarch64 -nographic -machine virt,gic-version=3 -m 512M -smp 4 \\
+        -cpu cortex-a57 \\
+	-drive file=${img},if=none,id=drive0,cache=writeback \\
+	-device virtio-blk,drive=drive0,bootindex=0 \\
+        -drive file=${raw},if=none,id=drive1,cache=writeback \\
+	-device nvme,serial=fboot,drive=drive1,bootindex=1 \\
         -drive file=${bios_code},format=raw,if=pflash \\
         -drive file=${bios_vars},format=raw,if=pflash \\
-        -drive file=${raw},if=none,id=drive1,cache=writeback,format=raw \\
-	-device nvme,serial=deadbeef,drive=drive1 \\
         -monitor telnet::4444,server,nowait \\
         -serial stdio \$*
 EOF
@@ -418,6 +414,7 @@ make_freebsd_images()
 	ufs=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.ufs
 	img=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.img
 	mkdir -p ${IMAGES}/${ma_combo}
+# XXX 4096 sector?
 	makefs -t msdos -o fat_type=32 -o sectors_per_cluster=1 \
 	       -o volume_label=EFISYS -s100m ${esp} ${src}
 	makefs -t ffs -B little -s 200m -o label=root ${ufs} ${dir} ${dir2} 
