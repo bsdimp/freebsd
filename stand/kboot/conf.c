@@ -29,7 +29,6 @@ __FBSDID("$FreeBSD$");
 
 #include <stand.h>
 #include "bootstrap.h"
-
 #if defined(LOADER_NET_SUPPORT)
 #include "dev_net.h"
 #endif
@@ -45,6 +44,10 @@ extern struct devsw host_dev;
  *
  * XXX rename these arrays to be consistent and less namespace-hostile
  */
+
+#if defined(LOADER_ZFS_SUPPORT)
+#include "libzfs.h"
+#endif
 
 /* Exported for libsa */
 struct devsw *devsw[] = {
@@ -63,6 +66,9 @@ extern struct fs_ops hostfs_fsops;
 struct fs_ops *file_system[] = {
 #if defined(LOADER_UFS_SUPPORT)
     &ufs_fsops,
+#endif
+#if defined(LOADER_ZFS_SUPPORT)
+    &zfs_fsops,
 #endif
 #if defined(LOADER_CD9660_SUPPORT)
     &cd9660_fsops,
