@@ -36,6 +36,10 @@ __FBSDID("$FreeBSD$");
 #include "host_syscall.h"
 #include "kboot.h"
 #include "mem.h"
+#include "stand.h"
+#ifdef LOADER_ZFS_SUPPORT
+#include "libzfs.h"
+#endif
 
 struct arch_switch	archsw;
 extern void *_end;
@@ -55,49 +59,141 @@ static vm_offset_t pa_start = PA_INVAL;
 static vm_offset_t padding;
 static vm_offset_t offset;
 
+/*
+ * Point (dev) at an allocated device specifier matching the string version
+ * at the beginning of (devspec).  Return a pointer to the remaining
+ * text in (path).
+ *
+ * In all cases, the beginning of (devspec) is compared to the names
+ * of known devices in the device switch, and then any following text
+ * is parsed according to the rules applied to the device type.
+ */
+static int
+kboot_parsedev(struct devdesc **dev, const char *devspec, const char **path)
+{
+	struct devdesc		*idev;
+	struct devsw		*dv;
+	int			i, unit, err;
+	char			*cp;
+	const char		*np;
+
+	/* minimum length check */
+	if (strlen(devspec) < 2)
+		return(EINVAL);
+
+	/* look for a device that matches */
+	for (i = 0, dv = NULL; devsw[i] != NULL; i++) {
+		if (!strncmp(devspec, devsw[i]->dv_name, strlen(devsw[i]->dv_name))) {
+			dv = devsw[i];
+			break;
+		}
+	}
+	if (dv == NULL)
+		return(ENOENT);
+
+	np = (devspec + strlen(dv->dv_name));
+	idev = NULL;
+	err = 0;
+
+	switch(dv->dv_type) {
+	case DEVT_NONE:
+		break;
+
+	case DEVT_HOSTDISK:
+		/*
+		 * Allocate space for the devspec string after the idev device
+		 * so it gets freed automatically. This string is passed to open
+		 * and specifies the Linux device to open (eg /dev/sda1 or
+		 * /dev/nvme0n1p2).
+		 */
+		idev = malloc(sizeof(*idev) + strlen(devspec) + 1);
+		if (idev == NULL)
+			return (ENOMEM);
+		idev->d_opendata = (char *)(idev + 1);
+		strcpy(idev->d_opendata, devspec);
+		cp = strchr(idev->d_opendata, ':');
+		if (cp != NULL) {
+			*cp++ = '\0';
+			if (*cp != '\0')
+				*path = cp;
+		}
+		break;
+#ifdef LOADER_ZFS_SUPPORT
+	case DEVT_ZFS:
+		idev = malloc(sizeof (struct zfs_devdesc));
+		if (idev == NULL)
+			return (ENOMEM);
+
+		err = zfs_parsedev((struct zfs_devdesc *)idev, np, path);
+		if (err != 0)
+			goto fail;
+		break;
+#endif
+	default:
+		idev = malloc(sizeof (struct devdesc));
+		if (idev == NULL)
+			return (ENOMEM);
+
+		unit = 0;
+		cp = (char *)np;
+
+		if (*np && (*np != ':')) {
+			unit = strtol(np, &cp, 0);	/* get unit number if present */
+			if (cp == np) {
+				err = EUNIT;
+				goto fail;
+			}
+		}
+
+		if (*cp && (*cp != ':')) {
+			err = EINVAL;
+			goto fail;
+		}
+
+		idev->d_unit = unit;
+		if (path != NULL)
+			*path = (*cp == 0) ? cp : cp + 1;
+		break;
+	}
+	idev->d_dev = dv;
+	if (dev != NULL)
+		*dev = idev;
+	else
+		free(idev);
+
+	return(0);
+
+fail:
+	free(idev);
+	return(err);
+}
+
+/*
+ * NB: getdev should likely be identical to this most places, except maybe
+ * we should move to storing the length of the platform devdesc.
+ */
 int
 kboot_getdev(void **vdev, const char *devspec, const char **path)
 {
-	int i, rv;
-	const char *devpath, *filepath;
-	struct devsw *dv;
-	struct devdesc *desc;
+	struct devdesc **dev = (struct devdesc **)vdev;
+	int				rv;
 
-	if (devspec == NULL) {
-		rv = kboot_getdev(vdev, getenv("currdev"), NULL);
-		if (rv == 0 && path != NULL)
+	/*
+	 * If it looks like this is just a path and no
+	 * device, go with the current device.
+	 */
+	if ((devspec == NULL) ||
+	    (strchr(devspec, ':') == NULL)) {
+		if (((rv = kboot_parsedev(dev, getenv("currdev"), NULL)) == 0) &&
+		    (path != NULL))
 			*path = devspec;
-		return (rv);
-	}
-	if (strchr(devspec, ':') != NULL) {
-		devpath = devspec;
-		filepath = strchr(devspec, ':') + 1;
-	} else {
-		devpath = getenv("currdev");
-		filepath = devspec;
+		return(rv);
 	}
 
-	for (i = 0; (dv = devsw[i]) != NULL; i++) {
-		if (strncmp(dv->dv_name, devpath, strlen(dv->dv_name)) == 0)
-			goto found;
-	}
-	return (ENOENT);
-
-found:
-	if (path != NULL && filepath != NULL)
-		*path = filepath;
-	else if (path != NULL)
-		*path = strchr(devspec, ':') + 1;
-
-	if (vdev != NULL) {
-		desc = malloc(sizeof(*desc));
-		desc->d_dev = dv;
-		desc->d_unit = 0;
-		desc->d_opendata = strdup(devpath);
-		*vdev = desc;
-	}
-
-	return (0);
+	/*
+	 * Try to parse the device name off the beginning of the devspec
+	 */
+	return(kboot_parsedev(dev, devspec, path));
 }
 
 static vm_offset_t rsdp;
