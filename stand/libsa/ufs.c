@@ -523,6 +523,7 @@ ufs_open(const char *upath, struct open_file *f)
 	f->f_fsdata = (void *)fp;
 
 	dev = devformat((struct devdesc *)f->f_devdata);
+	printf("Opening %s\n", dev);
 	/* Is this device mounted? */
 	STAILQ_FOREACH(mnt, &mnt_list, um_link) {
 		if (strcmp(dev, mnt->um_dev) == 0)
