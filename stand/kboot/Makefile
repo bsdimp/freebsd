@@ -5,6 +5,7 @@ LOADER_CD9660_SUPPORT?=	yes
 LOADER_MSDOS_SUPPORT?=	no
 LOADER_EXT2FS_SUPPORT?=	yes
 LOADER_UFS_SUPPORT?=	yes
+LOADER_ZFS_SUPPORT?=	yes
 LOADER_NET_SUPPORT?=	no
 LOADER_NFS_SUPPORT?=	no
 LOADER_TFTP_SUPPORT?=	no
@@ -34,7 +35,11 @@ SRCS=	\
 		termios.c \
 		vers.c
 
+CWARNFLAGS.main.c += -Wno-implicit-function-declaration
 CFLAGS.gfx_fb_stub.c += -I${SRCTOP}/contrib/pnglite -I${SRCTOP}/sys/teken
+.if ${MK_LOADER_ZFS} != "no"
+HAVE_ZFS=yes
+.endif
 
 .include	"${BOOTSRC}/fdt.mk"
 
