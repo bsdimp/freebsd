@@ -300,7 +300,7 @@ geli_probe_and_attach(struct open_file *f)
 	int rc;
 
 	hdesc = (struct disk_devdesc *)(f->f_devdata);
-	if (hdesc->dd.d_type != DEVT_DISK)
+	if (hdesc->dd.d_dev->dv_type != DEVT_DISK)
 		return;
 	/* Get the last block number for the host provider. */
 	if (hdesc->dd.d_dev->dv_ioctl(f, DIOCGMEDIASIZE, &hmediasize) != 0)
