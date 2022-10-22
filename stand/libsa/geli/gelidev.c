@@ -300,9 +300,11 @@ geli_probe_and_attach(struct open_file *f)
 	int rc;
 
 	hdesc = (struct disk_devdesc *)(f->f_devdata);
-
+	if (hdesc->dd.d_type != DEVT_DISK)
+		return;
 	/* Get the last block number for the host provider. */
-	hdesc->dd.d_dev->dv_ioctl(f, DIOCGMEDIASIZE, &hmediasize);
+	if (hdesc->dd.d_dev->dv_ioctl(f, DIOCGMEDIASIZE, &hmediasize) != 0)
+		return;
 	hlastblk = (hmediasize / DEV_BSIZE) - 1;
 
 	/* Taste the host provider.  If it's not geli-encrypted just return. */
