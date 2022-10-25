@@ -10,7 +10,8 @@ SYM_MAPS+= ${LIBC_SRCTOP}/stdtime/Symbol.map
 
 CFLAGS+= -I${SRCTOP}/contrib/tzcode/stdtime -I${LIBC_SRCTOP}/stdtime
 
-CFLAGS.localtime.c= -fwrapv
+CFLAGS.asctime.c=	-Wno-error=deprecated-non-prototype
+CFLAGS.localtime.c= -fwrapv -Wno-error=deprecated-non-prototype
 
 .if ${MK_DETECT_TZ_CHANGES} != "no"
 CFLAGS+= -DDETECT_TZ_CHANGES
