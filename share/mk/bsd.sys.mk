@@ -221,8 +221,9 @@ CWARNFLAGS+=	-Wno-system-headers
 .endif
 .endif	# gcc
 
-# These are really annoying
-.if ${COMPILER_TYPE} == "clang" && ${COMPILER_VERSION} >= 140000
+# Clang 15 adds these two warning by default. There's a lot to fix before that
+# can be default though.
+.if ${COMPILER_TYPE} == "clang" && ${COMPILER_VERSION} >= 150000
 CWARNFLAGS.clang+=	-Wno-error=deprecated-non-prototype
 CWARNFLAGS.clang+=	-Wno-error=strict-prototypes
 .endif
