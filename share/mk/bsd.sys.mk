@@ -221,6 +221,12 @@ CWARNFLAGS+=	-Wno-system-headers
 .endif
 .endif	# gcc
 
+# These are really annoying
+.if ${COMPILER_TYPE} == "clang" && ${COMPILER_VERSION} >= 140000
+CWARNFLAGS.clang+=	-Wno-error=deprecated-non-prototype
+CWARNFLAGS.clang+=	-Wno-error=strict-prototypes
+.endif
+
 # How to handle FreeBSD custom printf format specifiers.
 .if ${COMPILER_TYPE} == "clang"
 FORMAT_EXTENSIONS=	-D__printf__=__freebsd_kprintf__
