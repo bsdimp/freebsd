@@ -272,7 +272,7 @@ local once_t made = ONCE_INIT;
   combinations of CRC register values and incoming bytes.
  */
 
-local void make_crc_table()
+local void make_crc_table(void)
 {
     unsigned i, j, n;
     z_crc_t p;
@@ -491,7 +491,7 @@ local void write_table64(out, table, k)
 }
 
 /* Actually do the deed. */
-int main()
+int main(void)
 {
     make_crc_table();
     return 0;
@@ -585,7 +585,7 @@ local z_crc_t x2nmodp(n, k)
  * This function can be used by asm versions of crc32(), and to force the
  * generation of the CRC tables in a threaded application.
  */
-const z_crc_t FAR * ZEXPORT get_crc_table()
+const z_crc_t FAR * ZEXPORT get_crc_table(void)
 {
 #ifdef DYNAMIC_CRC_TABLE
     once(&made, make_crc_table);
