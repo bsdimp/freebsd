@@ -78,10 +78,8 @@ tramp:
 	ldr	x11, [x8, #TRAMP_MEMMAP_DST]
 	ldr	x12, [x8, #TRAMP_MEMMAP_LEN]
 1:
-	ldr	x13, [x10]
-	str	x13, [x11]
-	add	x10, x10, #8
-	add	x11, x11, #8
+	ldr	x13, [x10], #8
+	str	x13, [x11], #8
 	subs	x12, x12, #8
 	b.hi	1b
 9:
