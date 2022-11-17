@@ -39,6 +39,9 @@ __FBSDID("$FreeBSD$");
 #include "stand.h"
 #ifdef LOADER_ZFS_SUPPORT
 #include "libzfs.h"
+static void kboot_zfs_probe(void);
+static uint64_t pool_guid;
+bool hostdisk_zfs_probe(uint64_t *);
 #endif
 
 struct arch_switch	archsw;
@@ -114,8 +117,15 @@ kboot_parsedev(struct devdesc **dev, const char *devspec, const char **path)
 		cp = strchr(idev->d_opendata, ':');
 		if (cp != NULL) {
 			*cp++ = '\0';
-			if (*cp != '\0')
+			if (*cp != '\0') {
 				*path = cp;
+				printf("hostdisk %s path %s\n", (char *)idev->d_opendata,
+				    *path);
+			} else {
+				printf("hostdisk %s\n", (char *)idev->d_opendata);
+			}
+		} else {
+			printf("hostdisk %s (no colon)\n", (char *)idev->d_opendata);
 		}
 		break;
 #ifdef LOADER_ZFS_SUPPORT
@@ -262,7 +272,10 @@ main(int argc, const char **argv)
 	archsw.arch_autoload = kboot_autoload;
 //	archsw.arch_loadaddr = kboot_loadaddr;
 	archsw.arch_kexec_kseg_get = kboot_kseg_get;
-
+#if defined(LOADER_ZFS_SUPPORT)
+	archsw.arch_zfs_probe = kboot_zfs_probe;
+#endif
+	
 	/* Give us a sane world if we're running as init */
 	do_init();
 
@@ -284,6 +297,7 @@ main(int argc, const char **argv)
 	}
 
 	/* Choose bootdev if provided */
+	/* XXX should just set these are command line args */
 //	if (argc > 1)
 //		bootdev = argv[1];
 //	else
@@ -508,6 +522,19 @@ kboot_kseg_get(int *nseg, void **ptr)
 	*nseg = nkexec_segments;
 	*ptr = &loaded_segments[0];
 }
+
+#if defined(LOADER_ZFS_SUPPORT)
+static void
+kboot_zfs_probe(void)
+{
+	/*
+	 * Open all the disks and partitions we can find to see if there are ZFS
+	 * pools on them.
+	 */
+	hostdisk_zfs_probe(&pool_guid);
+}
+#endif
+
 
 /*
  * Since proper fdt command handling function is defined in fdt_loader_cmd.c,
