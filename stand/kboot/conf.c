@@ -57,6 +57,9 @@ struct devsw *devsw[] = {
 #if defined(LOADER_NET_SUPPORT)
     &netdev,
 #endif
+#if defined(LOADER_ZFS_SUPPORT)
+    &zfs_dev,
+#endif
     &host_dev,
     NULL
 };
