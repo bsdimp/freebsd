@@ -171,7 +171,9 @@ EOF
 comconsole_speed=115200
 autoboot_delay=2
 # XXXX TEST with arm64 iso...
-vfs.root.mountfrom="cd9660:/dev/iso9660/13_1_RELEASE_AARCH64_BO"
+#vfs.root.mountfrom="cd9660:/dev/iso9660/13_1_RELEASE_AARCH64_BO"
+# XXX not so good for ZFS, what to do?
+vfs.root.mountfrom="ufs:/dev/ufs/root"
 boot_verbose=yes
 kern.cfg.order="acpi,fdt"
 EOF
@@ -270,12 +272,24 @@ make_linuxboot_images()
 	ma_combo="${m}"
 	[ "${m}" != "${ma}" ] && ma_combo="${m}-${ma}"
 	src=${TREES}/${ma_combo}/linuxboot-esp
+	dir=${TREES}/${ma_combo}/freebsd
+	dir2=${TREES}/${ma_combo}/test-stand
 	esp=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}.esp
+	ufs=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}.ufs
+	zfs=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}.zfs
 	img=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}.img
+	img2=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}-zfs.img
 	mkdir -p ${IMAGES}/${ma_combo}
 	makefs -t msdos -o fat_type=32 -o sectors_per_cluster=1 \
 	       -o volume_label=EFISYS -s100m ${esp} ${src}
-	mkimg -s gpt -p efi:=${esp} -o ${img}
+	makefs -t ffs -B little -s 200m -o label=root ${ufs} ${dir} ${dir2}
+	mkimg -s gpt -p efi:=${esp} -p freebsd-ufs:=${ufs} -o ${img}
+	makefs -t zfs -s 200m \
+	       -o poolname=${pool} -o bootfs=${pool} -o rootpath=/ \
+		${zfs} ${dir} ${dir2}
+	mkimg -s gpt \
+	      -p efi:=${esp} \
+	      -p freebsd-zfs:=${zfs} -o ${img2}
 	rm -f ${esp}	# Don't need to keep this around
     done
 
@@ -329,8 +343,10 @@ make_linuxboot_scripts()
 	# Now make me a script
 	img=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}.img
 	img2=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}-raw
+	img3=${IMAGES}/${ma_combo}/linuxboot-${ma_combo}-zfs.img
 	out=${SCRIPTS}/${ma_combo}/linuxboot-test.sh
 	out2=${SCRIPTS}/${ma_combo}/linuxboot-test-raw.sh
+	out3=${SCRIPTS}/${ma_combo}/linuxboot-test-zfs.sh
 	cd=${CACHE}/FreeBSD-13.1-RELEASE-arm64-aarch64-bootonly.iso
 	mkdir -p ${SCRIPTS}/${ma_combo}
 	case ${ma} in
@@ -372,11 +388,24 @@ ${qemu_bin}/qemu-system-aarch64 -m 1024 -cpu cortex-a57 -M virt \\
 	-nographic -monitor telnet::4444,server,nowait \\
 	-serial stdio \$*
 EOF
+		# ZFS version
+		# Note: We have to use cortex-a57 for raw mode because the
+		# kernel we use has issues with max.
+		cat > ${out3} <<EOF
+${qemu_bin}/qemu-system-aarch64 -nographic -machine virt,gic-version=3 -m 512M -smp 4 \\
+        -cpu cortex-a57 \\
+	-drive file=${img3},if=none,id=drive0,cache=writeback \\
+	-device virtio-blk,drive=drive0,bootindex=0 \\
+        -drive file=${bios_code},format=raw,if=pflash \\
+        -drive file=${bios_vars},format=raw,if=pflash \\
+        -monitor telnet::4444,server,nowait \\
+        -serial stdio \$*
+EOF
 		;;
 	esac
     done
 }
-    
+
 make_freebsd_esps()
 {
     # At the moment, we have just three (armv7 could also be here too, but we're not doing that)
@@ -417,15 +446,38 @@ make_freebsd_images()
 # XXX 4096 sector?
 	makefs -t msdos -o fat_type=32 -o sectors_per_cluster=1 \
 	       -o volume_label=EFISYS -s100m ${esp} ${src}
-	makefs -t ffs -B little -s 200m -o label=root ${ufs} ${dir} ${dir2} 
+	makefs -t ffs -B little -s 200m -o label=root ${ufs} ${dir} ${dir2}
 	mkimg -s gpt -p efi:=${esp} -p freebsd-ufs:=${ufs} -o ${img}
 	# rm -f ${esp} ${ufs}	# Don't need to keep this around
     done
+
+    set -x
+
+    # PowerPC for 32-bit mac
+    a=powerpc:powerpc
+    m=${a%%:*}
+    ma=${a##*:}
+    ma_combo="${m}"
+    [ "${m}" != "${ma}" ] && ma_combo="${m}-${ma}"
+    dir=${TREES}/${ma_combo}/freebsd
+    dir2=${TREES}/${ma_combo}/test-stand
+    ufs=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.ufs
+    img=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.img
+    mkdir -p ${IMAGES}/${ma_combo}
+    makefs -t ffs -B big -s 200m \
+	   -o label=root,version=2,bsize=32768,fsize=4096,density=16384 \
+	   ${ufs} ${dir} ${dir2}
+    mkimg -a 1 -s apm \
+        -p freebsd-boot:=${dir2}/boot/boot1.hfs \
+        -p freebsd-ufs:=${ufs} \
+        -o ${img}
+
+    set +x
 }
 
 make_freebsd_scripts()
 {
-    # At the moment, we have just two 
+    # At the moment, we have just two
     for a in amd64:amd64 arm64:aarch64; do
 	m=${a%%:*}
 	ma=${a##*:}
@@ -486,6 +538,24 @@ EOF
 		;;
 	esac
     done
+
+    set -x
+    a=powerpc:powerpc
+    m=${a%%:*}
+    ma=${a##*:}
+    ma_combo="${m}"
+    [ "${m}" != "${ma}" ] && ma_combo="${m}-${ma}"
+    img=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.img
+    out=${SCRIPTS}/${ma_combo}/freebsd-test.sh
+    mkdir -p ${SCRIPTS}/${ma_combo}
+    cat > ${out} <<EOF
+${qemu_bin}/qemu-system-ppc -m 1g -M mac99,via=pmu \\
+	-vga none -nographic \\
+	-drive file=${img},if=virtio \\
+	-prom-env "boot-device=/pci@f2000000/scsi/disk@0:,\\\\\\:tbxi" \\
+        -monitor telnet::4444,server,nowait \\
+        -serial stdio \$*
+EOF
 }
 
 # The smallest FAT32 filesystem is 33292 KB
