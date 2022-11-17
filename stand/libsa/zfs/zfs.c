@@ -1504,12 +1504,18 @@ zfs_probe_dev(const char *devname, uint64_t *pool_guid)
 	if (pool_guid)
 		*pool_guid = 0;
 	pa.fd = open(devname, O_RDWR);
-	if (pa.fd == -1)
+	if (pa.fd == -1) {
+		printf("zfs_probe_dev: Failed to open %s\n", devname);
 		return (ENXIO);
+	}
 	/* Probe the whole disk */
 	ret = zfs_probe(pa.fd, pool_guid);
-	if (ret == 0)
+	if (ret == 0) {
+		printf("found %s %llx\n", devname, (long long)*pool_guid);
+		/* close(pa.fd); */ /* XXX needed */
 		return (0);
+	}
+	printf("nothing on found %s\n", devname);
 
 	/* Probe each partition */
 	ret = ioctl(pa.fd, DIOCGMEDIASIZE, &mediasz);
@@ -1541,12 +1547,12 @@ zfs_dev_print(int verbose)
 	char line[80];
 	int ret = 0;
 
-	if (STAILQ_EMPTY(&zfs_pools))
-		return (0);
-
 	printf("%s devices:", zfs_dev.dv_name);
 	if ((ret = pager_output("\n")) != 0)
 		return (ret);
+
+	if (STAILQ_EMPTY(&zfs_pools))
+		return (0);
 
 	if (verbose) {
 		return (spa_all_status());
@@ -1645,12 +1651,16 @@ zfs_parsedev(struct zfs_devdesc *dev, const char *devspec, const char **path)
 	int		rv;
 
 	np = devspec;
-	if (*np != ':')
+	if (*np != ':') {
+		printf("Not :\n");
 		return (EINVAL);
+	}
 	np++;
 	end = strrchr(np, ':');
-	if (end == NULL)
+	if (end == NULL) {
+		printf("No second :\n");
 		return (EINVAL);
+	}
 	sep = strchr(np, '/');
 	if (sep == NULL || sep >= end)
 		sep = end;
@@ -1665,8 +1675,10 @@ zfs_parsedev(struct zfs_devdesc *dev, const char *devspec, const char **path)
 		rootname[0] = '\0';
 
 	spa = spa_find_by_name(poolname);
-	if (!spa)
+	if (!spa) {
+		printf("Can't find root %s\n", poolname);
 		return (ENXIO);
+	}
 	dev->pool_guid = spa->spa_guid;
 	rv = zfs_lookup_dataset(spa, rootname, &dev->root_guid);
 	if (rv != 0)

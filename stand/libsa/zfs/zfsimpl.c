@@ -1944,25 +1944,33 @@ vdev_label_read_config(vdev_t *vd, uint64_t txg)
 	int error;
 
 	label = malloc(sizeof (vdev_phys_t));
-	if (label == NULL)
+	if (label == NULL) {
+		printf("can't malloc\n");
 		return (NULL);
+	}
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
+		printf("Looking at label %d\n", l);
 		if (vdev_label_read(vd, l, label,
 		    offsetof(vdev_label_t, vl_vdev_phys),
-		    sizeof (vdev_phys_t)))
+		    sizeof (vdev_phys_t))) {
+			printf("Can't read label\n");
 			continue;
+		}
 
 		tmp = nvlist_import(label->vp_nvlist,
 		    sizeof(label->vp_nvlist));
-		if (tmp == NULL)
+		if (tmp == NULL) {
+			printf("can't nvlist_import it\n");
 			continue;
+		}
 
 		error = nvlist_find(tmp, ZPOOL_CONFIG_POOL_TXG,
 		    DATA_TYPE_UINT64, NULL, &label_txg, NULL);
 		if (error != 0 || label_txg == 0) {
 			nvlist_destroy(nvl);
 			nvl = tmp;
+			printf("Found it, outta here\n");
 			goto done;
 		}
 
@@ -1983,7 +1991,7 @@ vdev_label_read_config(vdev_t *vd, uint64_t txg)
 		}
 		nvlist_destroy(tmp);
 	}
-
+	printf("best txg == %lld\n", (unsigned long long)best_txg);
 	if (best_txg == 0) {
 		nvlist_destroy(nvl);
 		nvl = NULL;
@@ -2044,16 +2052,21 @@ vdev_probe(vdev_phys_read_t *_read, vdev_phys_write_t *_write, void *priv,
 	    (uint64_t)sizeof (vdev_label_t));
 
 	/* Test for minimum device size. */
-	if (vtmp.v_psize < SPA_MINDEVSIZE)
+	if (vtmp.v_psize < SPA_MINDEVSIZE) {
+		printf("v_psize too small %lld\n", (long long)vtmp.v_psize);
 		return (EIO);
+	}
 
 	nvl = vdev_label_read_config(&vtmp, UINT64_MAX);
-	if (nvl == NULL)
+	if (nvl == NULL) {
+		printf("nvl is null\n");
 		return (EIO);
+	}
 
 	if (nvlist_find(nvl, ZPOOL_CONFIG_VERSION, DATA_TYPE_UINT64,
 	    NULL, &val, NULL) != 0) {
 		nvlist_destroy(nvl);
+		printf("ZPOOL_CONFIG_VERSION not found\n");
 		return (EIO);
 	}
 
@@ -2067,18 +2080,21 @@ vdev_probe(vdev_phys_read_t *_read, vdev_phys_write_t *_write, void *priv,
 	/* Check ZFS features for read */
 	rc = nvlist_check_features_for_read(nvl);
 	if (rc != 0) {
+		printf("Zfs: no feature read\n");
 		nvlist_destroy(nvl);
 		return (EIO);
 	}
 
 	if (nvlist_find(nvl, ZPOOL_CONFIG_POOL_STATE, DATA_TYPE_UINT64,
 	    NULL, &val, NULL) != 0) {
+		printf("Zfs: no pool state\n");
 		nvlist_destroy(nvl);
 		return (EIO);
 	}
 
 	if (val == POOL_STATE_DESTROYED) {
 		/* We don't boot only from destroyed pools. */
+		printf("Zfs: pool destroyed\n");
 		nvlist_destroy(nvl);
 		return (EIO);
 	}
@@ -2093,6 +2109,7 @@ vdev_probe(vdev_phys_read_t *_read, vdev_phys_write_t *_write, void *priv,
 		 * Cache and spare devices end up here - just ignore
 		 * them.
 		 */
+		printf("Zfs: ignoring cache sand space drive\n");
 		nvlist_destroy(nvl);
 		return (EIO);
 	}
@@ -2109,6 +2126,7 @@ vdev_probe(vdev_phys_read_t *_read, vdev_phys_write_t *_write, void *priv,
 		name = malloc(namelen + 1);
 		if (name == NULL) {
 			nvlist_destroy(nvl);
+			printf("Zfs: nomem 1\n");
 			return (ENOMEM);
 		}
 		bcopy(pool_name, name, namelen);
@@ -2117,6 +2135,7 @@ vdev_probe(vdev_phys_read_t *_read, vdev_phys_write_t *_write, void *priv,
 		free(name);
 		if (spa == NULL) {
 			nvlist_destroy(nvl);
+			printf("Zfs: nomem 2\n");
 			return (ENOMEM);
 		}
 		spa->spa_root_vdev->v_nchildren = vdev_children;
@@ -2133,19 +2152,23 @@ vdev_probe(vdev_phys_read_t *_read, vdev_phys_write_t *_write, void *priv,
 	if (nvlist_find(nvl, ZPOOL_CONFIG_GUID, DATA_TYPE_UINT64,
 	    NULL, &guid, NULL) != 0) {
 		nvlist_destroy(nvl);
+		printf("Zfs: no config_guid\n");
 		return (EIO);
 	}
 	vdev = vdev_find(guid);
 	/* Has this vdev already been inited? */
 	if (vdev && vdev->v_phys_read) {
 		nvlist_destroy(nvl);
+		printf("Zfs: already inited?\n");
 		return (EIO);
 	}
 
 	rc = vdev_init_from_label(spa, nvl);
 	nvlist_destroy(nvl);
-	if (rc != 0)
+	if (rc != 0) {
+		printf("Zfs: can't init from label\n");
 		return (rc);
+	}
 
 	/*
 	 * We should already have created an incomplete vdev for this

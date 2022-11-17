@@ -159,7 +159,8 @@ struct devsw {
     int		(*dv_ioctl)(struct open_file *f, u_long cmd, void *data);
     int		(*dv_print)(int verbose);	/* print device information */
     void	(*dv_cleanup)(void);
-    char *	(*dv_fmtdev)(struct devdesc *);
+    char *	(*dv_fmtdev)(struct devdesc *); /* Format device to a canonical string */
+    struct devdesc * (dv_parsedev)(const char *); /* Parse device name and return devdesc, caller must free */
 };
 
 /*
@@ -186,6 +187,7 @@ struct devdesc {
 };
 
 char *devformat(struct devdesc *d);
+int devparse(struct devdesc **, const char *buf, const char **path);
 
 struct open_file {
     int			f_flags;	/* see F_* below */
