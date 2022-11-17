@@ -1,6 +1,7 @@
 /*-
  * Copyright (C) 2014 Nathan Whitehorn
  * All rights reserved.
+ * Copyright 2022 Netflix, Inc
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,9 +28,13 @@
 __FBSDID("$FreeBSD$");
 
 #include <sys/types.h>
+#include <sys/disk.h>
 #include <stdarg.h>
 #include "host_syscall.h"
 #include "kboot.h"
+#ifdef LOADER_ZFS_SUPPORT
+#include "libzfs.h"
+#endif
 
 static int hostdisk_init(void);
 static int hostdisk_strategy(void *devdata, int flag, daddr_t dblk,
@@ -59,13 +64,13 @@ struct devsw hostdisk = {
  */
 #define SYSBLK "/sys/block"
 
+#define HOSTDISK_MIN_SIZE (16ul << 20)	/* 16MB */
+
 /*
- * XXX also need to look at /sys/block/$hd_name/${hd_name}... for partitions and
- * create a partition list. Look at what we do for efi where we have access to
- * the raw disk and the partitions. Need to hack getdev / setcurrdev ala i386,
- * but maybe with tweaks for our needs: /sys, /proc and
- * /dev/nvme0n1p3:/path/to/file. This means we won't use disk.h and/or part.h,
- * though we may be constrained to use disk_devdesc. Start here tomorrow.
+ * XXX May need to hack getdev / setcurrdev ala i386, but maybe with tweaks for
+ * our needs: /sys, /proc and /dev/nvme0n1p3:/path/to/file. This means we won't
+ * use disk.h and/or part.h, though we may be constrained to use
+ * disk_devdesc. Start here tomorrow.
  */
 
 typedef STAILQ_HEAD(, hdinfo) hdinfo_list_t;
@@ -207,6 +212,8 @@ hostdisk_add_drive(const char *drv, uint64_t secs)
 	if (!file2u64(fn, &hd->hd_sectorsize))
 		goto err;
 	hd->hd_size = hd->hd_sectors * hd->hd_sectorsize;
+	if (hd->hd_size < HOSTDISK_MIN_SIZE)
+		goto err;
 	hd->hd_flags = 0;
 	STAILQ_INIT(&hd->hd_children);
 	printf("/dev/%s: %ju %ju %ju\n",
@@ -280,6 +287,7 @@ hostdisk_strategy(void *devdata, int flag, daddr_t dblk, size_t size,
 		    desc->d_unit, (uintmax_t)pos, (uintmax_t)dblk, (intmax_t)off);
 		return (EIO);
 	}
+	printf("Read from %s at block %lld %lld bytes\n", (char *)(desc + 1), (long long)dblk, (long long)size);
 	n = host_read(desc->d_unit, buf, size);
 
 	if (n < 0)
@@ -305,6 +313,7 @@ hostdisk_open(struct open_file *f, ...)
 		    (char *)desc->d_opendata, desc->d_unit);
 		return (ENOENT);
 	}
+	printf("Opening %s as %d\n", (char *)desc->d_opendata, desc->d_unit);
 
 	return (0);
 }
@@ -321,8 +330,27 @@ hostdisk_close(struct open_file *f)
 static int
 hostdisk_ioctl(struct open_file *f, u_long cmd, void *data)
 {
+	struct devdesc *desc = f->f_devdata;
+	uint64_t sectorsize;
+	char fn[1024];
 
-	return (EINVAL);
+	switch (cmd) {
+	case DIOCGSECTORSIZE:
+		snprintf(fn, sizeof(fn), "%s/%s/queue/hw_sector_size",
+		    SYSBLK, (char *)(desc + 1));
+		if (file2u64(fn, &sectorsize))
+			return (EINVAL);
+		*(u_int *)data = sectorsize;
+		break;
+#ifdef notyet
+		/* ZFS assumes bad things if this succeeds */
+	case DIOCGMEDIASIZE:
+		break;
+#endif
+	default:
+		return (ENOTTY);
+	}
+	return (0);
 }
 
 static int
@@ -366,3 +394,43 @@ hostdisk_fmtdev(struct devdesc *vdev)
 {
 	return (vdev->d_opendata);
 }
+
+#ifdef LOADER_ZFS_SUPPORT
+bool hostdisk_zfs_probe(uint64_t *);
+bool
+hostdisk_zfs_probe(uint64_t *pool_uuid)
+{
+	char devname[DEV_DEVLEN];
+	hdinfo_t *hd, *md;
+	bool found = false;
+
+	STAILQ_FOREACH(hd, &hdinfo, hd_link) {
+		snprintf(devname, sizeof(devname),
+		    "/dev/%s:", hd->hd_name);
+		*pool_uuid = 0;
+		zfs_probe_dev(devname, pool_uuid);
+		if (*pool_uuid != 0) {
+			printf("Found ZFS pool on %s %llx\n",
+			    hd->hd_name, (unsigned long long)*pool_uuid);
+			found = true;
+			continue;
+		}
+		printf("There's no ZFS on %s, looking at its partitions\n",
+		    hd->hd_name);
+		STAILQ_FOREACH(md, &hd->hd_children, hd_link) {
+			snprintf(devname, sizeof(devname),
+			    "/dev/%s:", md->hd_name);
+			*pool_uuid = 0;
+			zfs_probe_dev(devname, pool_uuid);
+			if (*pool_uuid != 0) {
+				printf("Found ZFS pool on %s %llx\n",
+				    md->hd_name, (unsigned long long)*pool_uuid);
+				found = true;
+			} else {
+				printf("There's no ZFS on %s\n", md->hd_name);
+			}
+		}
+	}
+	return (found);
+}
+#endif
