@@ -120,6 +120,9 @@ NO_WARRAY_PARAMETER=	-Wno-array-parameter
 .if ${COMPILER_TYPE} == "gcc" && ${COMPILER_VERSION} >= 120100
 NO_WUSE_AFTER_FREE=	-Wno-use-after-free
 .endif
+.if ${COMPILER_TYPE} == "clang" && ${COMPILER_VERSION} >= 150000
+NO_WDEPRECATED_NON_PROTOTYPE=-Wno-deprecated-non-prototype
+.endif
 .endif # WARNS
 
 .if defined(FORMAT_AUDIT)
