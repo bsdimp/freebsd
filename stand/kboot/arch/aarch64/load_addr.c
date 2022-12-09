@@ -449,3 +449,60 @@ kboot_get_phys_load_segment(void)
 	printf("Falling back to crazy address %#lx\n", s);
 	return (s);
 }
+
+void
+bi_loadsmap(struct preloaded_file *kfp)
+{
+	char *buffer;
+	struct efi_map_header *efihdr;
+	struct efi_md *md;
+	uint64_t sz, efisz, attr;
+	uint32_t type;
+
+	if (efi_systbl_phys)
+		file_addmetadata(kfp, MODINFOMD_FW_HANDLE, sizeof(efi_systbl_phys), &efi_systbl_phys);
+
+	/*
+	 * If we have efi_map_hdr, then it's a pointer to the PA where this
+	 * memory map lives. The trampoline code will copy it over. If we don't
+	 * have it, we use whatever we found in /proc/iomap.
+	 */
+	if (efi_map_hdr != NULL) {
+		file_addmetadata(kfp, MODINFOMD_EFI_MAP, efi_map_size, efi_map_hdr);
+		return;
+	}
+
+	efisz = (sizeof(*efihdr) + 0xf) & ~0xf;
+	sz = nr_seg * sizeof(*md);
+	buffer = malloc(efisz + sz);
+	efihdr = (struct efi_map_header *)buffer;
+	md = (struct efi_md *)(buffer + efisz);
+	for (int i = 0; i < nr_seg; i++) {
+		switch (segs[i].type) {
+		case system_ram:
+		case linux_code:
+		case linux_data:
+			type = EFI_MD_TYPE_FREE;
+			attr = 0;
+			break;
+		case firmware_reserved:
+		case unknown:
+			type = EFI_MD_TYPE_RT_DATA;
+			attr = EFI_MD_ATTR_WB;
+			break;
+		}
+
+		md[i].md_type = type;
+		md[i].__pad = 0;
+		md[i].md_phys = segs[i].start;
+		md[i].md_virt = segs[i].start; /* VA == PA */
+		md[i].md_pages = howmany(segs[i].end - segs[i].start + 1,
+		    EFI_PAGE_SIZE);
+		md[i].md_attr = attr;
+	}
+	efihdr->memory_size = sz;
+	efihdr->descriptor_size = sizeof(*md);
+	efihdr->descriptor_version = EFI_MEMORY_DESCRIPTOR_VERSION;
+	file_addmetadata(kfp, MODINFOMD_EFI_MAP, efisz + sz, buffer);
+	free(buffer);
+}
