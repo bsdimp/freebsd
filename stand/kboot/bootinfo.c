@@ -43,6 +43,8 @@ __FBSDID("$FreeBSD$");
 #ifdef EFI
 #include <efi.h>
 #include <efilib.h>
+#else
+#include "kboot.h"
 #endif
 
 #include "bootstrap.h"
@@ -67,9 +69,6 @@ __FBSDID("$FreeBSD$");
 
 int bi_load(char *args, vm_offset_t *modulep, vm_offset_t *kernendp,
     bool exit_bs);
-#ifndef EFI
-void bi_loadsmap(struct preloaded_file *kfp);
-#endif
 
 static int
 bi_getboothowto(char *kargs)
