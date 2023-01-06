@@ -96,6 +96,7 @@ CFLAGS.clang+=	-Oz
 CFLAGS.gcc+=	-Os
 CFLAGS+=	-ffunction-sections -fdata-sections
 .endif
+CFLAGS+=	-g
 
 # GELI Support, with backward compat hooks (mostly)
 .if defined(LOADER_NO_GELI_SUPPORT)
