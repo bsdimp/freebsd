@@ -340,7 +340,7 @@ enumerate_memory_arch(void)
 	struct kv *kv;
 	bool rv;
 
-	fd = open("/sys/firmware/fdt", O_RDONLY);
+	fd = open("host:/sys/firmware/fdt", O_RDONLY);
 	if (fd != -1) {
 		printf("Doing trying to get UEFI from FDT -- fake\n");
 		rv = do_memory_from_fdt(fd);
@@ -356,7 +356,7 @@ enumerate_memory_arch(void)
 	}
 
 	printf("Falling back to iomem to find where to load\n");
-	fd = open("/proc/iomem", O_RDONLY);
+	fd = open("host:/proc/iomem", O_RDONLY);
 	if (fd == -1) {
 		printf("Can't get memory map\n");
 		return false;
