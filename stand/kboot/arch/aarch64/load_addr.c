@@ -14,10 +14,6 @@
 #include "kboot.h"
 #include "bootstrap.h"
 
-static struct memory_segments *segs;
-static int nr_seg = 0;
-static int segalloc = 0;
-
 /*
  * Info from dtb about the EFI system
  */
@@ -47,147 +43,6 @@ struct kv
 	{ firmware_reserved,	"reserved" },
 	{ 0, NULL },
 };
-
-static void
-init_avail(void)
-{
-	if (segs)
-		free(segs);
-	nr_seg = 0;
-	segalloc = 16;
-	segs = malloc(sizeof(*segs) * segalloc);
-}
-
-/*
- * Make sure at least n items can be accessed in the segs array.  Note the
- * realloc here will invalidate cached pointers (potentially), so addresses
- * into the segs array must be recomputed after this call.
- */
-static void
-need_avail(int n)
-{
-	if (n <= segalloc)
-		return;
-
-	while (n > segalloc)
-		segalloc *= 2;
-	segs = realloc(segs, segalloc * sizeof(*segs));
-}
-
-/*
- * Always called for a new range, so always just append a range,
- * unless it's continuous with the prior range.
- */
-static void
-add_avail(uint64_t start, uint64_t end, enum types type)
-{
-	/*
-	 * This range is contiguous with the previous range, and is
-	 * the same type: we can collapse the two.
-	 */
-	if (nr_seg >= 1 &&
-	    segs[nr_seg - 1].end + 1 == start &&
-	    segs[nr_seg - 1].type == type) {
-		segs[nr_seg - 1].end = end;
-		return;
-	}
-
-	/*
-	 * Otherwise we need to add a new range at the end, but don't need to
-	 * adjust the current end.
-	 */
-	need_avail(nr_seg + 1);
-	segs[nr_seg].start = start;
-	segs[nr_seg].end = end;
-	segs[nr_seg].type = type;
-	nr_seg++;
-}
-
-/*
- * All or part of a prior entry needs to be modified. Given the structure of the
- * code, we know that it will always be modifying the last time and/or extending
- * the one before it if its contiguous.
- */
-static void
-remove_avail(uint64_t start, uint64_t end, enum types type)
-{
-	struct memory_segments *s;
-
-	/*
-	 * simple case: we are extending a previously removed item.
-	 */
-	if (nr_seg >= 2) {
-		s = &segs[nr_seg - 2];
-		if (s->end + 1 == start &&
-		    s->type == type) {
-			s->end = end;
-			/* Now adjust the ending element */
-			s++;
-			if (s->end == end) {
-				/* we've used up the 'free' space */
-				nr_seg--;
-				return;
-			}
-			/* Otherwise adjust the 'free' space */
-			s->start = end + 1;
-			return;
-		}
-	}
-
-	/*
-	 * OK, we have four cases:
-	 * (1) The new chunk is at the start of the free space, but didn't catch the above
-	 *     folding for whatever reason (different type, start of space). In this case,
-	 *     we allocate 1 additional item. The current end is copied to the new end. The
-	 *     current end is set to <start, end, type> and the new end's start is set to end + 1.
-	 * (2) The new chunk is in the middle of the free space. In this case we allocate 2
-	 *     additional items. We copy the current end to the new end, set the new end's start
-	 *     to end + 1, the old end's end to start - 1 and the new item is <start, end, type>
-	 * (3) The new chunk is at the end of the current end. In this case we allocate 1 more
-	 *     and adjust the current end's end to start - 1 and set the new end to <start, end, type>.
-	 * (4) The new chunk is exactly the current end, except for type. In this case, we just adjust
-	 *     the type.
-	 * We can assume we always have at least one chunk since that's created with new_avail() above
-	 * necessarily before we are called to subset it.
-	 */
-	s = &segs[nr_seg - 1];
-	if (s->start == start) {
-		if (s->end == end) { /* (4) */
-			s->type = type;
-			return;
-		}
-		/* chunk at start of old chunk -> (1) */
-		need_avail(nr_seg + 1);
-		s = &segs[nr_seg - 1];	/* Realloc may change pointers */
-		s[1] = s[0];
-		s->start = start;
-		s->end = end;
-		s->type = type;
-		s[1].start = end + 1;
-		nr_seg++;
-		return;
-	}
-	if (s->end == end) {	/* At end of old chunk (3) */
-		need_avail(nr_seg + 1);
-		s = &segs[nr_seg - 1];	/* Realloc may change pointers */
-		s[1] = s[0];
-		s->end = start - 1;
-		s[1].start = start;
-		s[1].type = type;
-		nr_seg++;
-		return;
-	}
-	/* In the middle, need to split things up (2) */
-	need_avail(nr_seg + 2);
-	s = &segs[nr_seg - 1];	/* Realloc may change pointers */
-	s[2] = s[1] = s[0];
-	s->end = start - 1;
-	s[1].start = start;
-	s[1].end = end;
-	s[1].type = type;
-	s[2].start = end + 1;
-	nr_seg += 2;
-}
 
 static const char *
 parse_line(const char *line, uint64_t *startp, uint64_t *endp)
@@ -480,10 +335,7 @@ next_line:
 out:
 	close(fd);
 
-	printf("Found %d RAM segments:\n", nr_seg);
-	for (int i = 0; i < nr_seg; i++) {
-		printf("%#lx-%#lx type %lu\n", segs[i].start, segs[i].end, segs[i].type);
-	}
+	print_avail();
 
 	return true;
 }
@@ -494,21 +346,10 @@ kboot_get_phys_load_segment(void)
 #define HOLE_SIZE	(64ul << 20)
 #define KERN_ALIGN	(2ul << 20)
 	uint64_t	s;
-	uint64_t	len;
 
-	for (int i = 0; i < nr_seg; i++) {
-		if (segs[i].type != system_ram)	/* Not candiate */
-			continue;
-		s = roundup(segs[i].start, KERN_ALIGN);
-		if (s >= segs[i].end)		/* roundup past end */
-			continue;
-		len = segs[i].end - s + 1;
-		if (len >= HOLE_SIZE) {
-			printf("Found a big enough hole at in seg %d at %#lx (%#lx-%#lx)\n",
-			    i, s, segs[i].start, segs[i].end);
-			return (s);
-		}
-	}
+	s = first_avail(KERN_ALIGN, HOLE_SIZE, system_ram);
+	if (s != 0)
+		return (s);
 	s = 0x40000000 | 0x4200000;	/* should never get here */
 	printf("Falling back to crazy address %#lx\n", s);
 	return (s);
@@ -517,11 +358,6 @@ kboot_get_phys_load_segment(void)
 void
 bi_loadsmap(struct preloaded_file *kfp)
 {
-	char *buffer;
-	struct efi_map_header *efihdr;
-	struct efi_md *md;
-	uint64_t sz, efisz, attr;
-	uint32_t type;
 
 	/*
 	 * Make a note of a systbl. This is nearly mandatory on AARCH64.
@@ -538,38 +374,5 @@ bi_loadsmap(struct preloaded_file *kfp)
 		file_addmetadata(kfp, MODINFOMD_EFI_MAP, efi_map_size, efi_map_hdr);
 		return;
 	}
-
-	efisz = (sizeof(*efihdr) + 0xf) & ~0xf;
-	sz = nr_seg * sizeof(*md);
-	buffer = malloc(efisz + sz);
-	efihdr = (struct efi_map_header *)buffer;
-	md = (struct efi_md *)(buffer + efisz);
-	for (int i = 0; i < nr_seg; i++) {
-		switch (segs[i].type) {
-		case system_ram:
-		case linux_code:
-		case linux_data:
-			type = EFI_MD_TYPE_FREE;
-			attr = 0;
-			break;
-		case firmware_reserved:
-		case unknown:
-			type = EFI_MD_TYPE_RT_DATA;
-			attr = EFI_MD_ATTR_WB;
-			break;
-		}
-
-		md[i].md_type = type;
-		md[i].__pad = 0;
-		md[i].md_phys = segs[i].start;
-		md[i].md_virt = segs[i].start; /* VA == PA */
-		md[i].md_pages = howmany(segs[i].end - segs[i].start + 1,
-		    EFI_PAGE_SIZE);
-		md[i].md_attr = attr;
-	}
-	efihdr->memory_size = sz;
-	efihdr->descriptor_size = sizeof(*md);
-	efihdr->descriptor_version = EFI_MEMORY_DESCRIPTOR_VERSION;
-	file_addmetadata(kfp, MODINFOMD_EFI_MAP, efisz + sz, buffer);
-	free(buffer);
+	panic("Can't get UEFI memory map, nor a pointer to it, can't proceed.\n");
 }

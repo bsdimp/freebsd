@@ -31,6 +31,7 @@ SRCS=	\
 		init.c \
 		kbootfdt.c \
 		main.c \
+		seg.c \
 		termios.c \
 		util.c \
 		vers.c
