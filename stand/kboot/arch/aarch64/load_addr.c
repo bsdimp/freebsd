@@ -23,82 +23,6 @@ uint32_t efi_map_size;
 vm_paddr_t efi_map_phys_src;	/* From DTB */
 vm_paddr_t efi_map_phys_dst;	/* From our memory map metadata module */
 
-enum types {
-	system_ram = 1,
-	firmware_reserved,
-	linux_code,
-	linux_data,
-	unknown,
-};
-
-struct kv
-{
-	uint64_t	type;
-	char *		name;
-	int		flags;
-#define KV_KEEPER 1
-} str2type_kv[] = {
-	{ linux_code,		"Kernel code", KV_KEEPER },
-	{ linux_data,		"Kernel data", KV_KEEPER },
-	{ firmware_reserved,	"reserved" },
-	{ 0, NULL },
-};
-
-static const char *
-parse_line(const char *line, uint64_t *startp, uint64_t *endp)
-{
-	const char *walker;
-	char *next;
-	uint64_t start, end;
-
-	/*
-	 * Each line is a range followed by a descriptoin of the form:
-	 * <hex-number><dash><hex-number><space><colon><space><string>
-	 * Bail if we have any parsing errors.
-	 */
-	walker = line;
-	start = strtoull(walker, &next, 16);
-	if (start == ULLONG_MAX || walker == next)
-		return (NULL);
-	walker = next;
-	if (*walker != '-')
-		return (NULL);
-	walker++;
-	end = strtoull(walker, &next, 16);
-	if (end == ULLONG_MAX || walker == next)
-		return (NULL);
-	walker = next;
-	/* Now eat the ' : ' in front of the string we want to return */
-	if (strncmp(walker, " : ", 3) != 0)
-		return (NULL);
-	*startp = start;
-	*endp = end;
-	return (walker + 3);
-}
-
-static struct kv *
-kvlookup(const char *str, struct kv *kvs, size_t nkv)
-{
-	for (int i = 0; i < nkv; i++)
-		if (strcmp(kvs[i].name, str) == 0)
-			return (&kvs[i]);
-
-	return (NULL);
-}
-
-/* Trim trailing whitespace */
-static void
-chop(char *line)
-{
-	char *ep = line + strlen(line) - 1;
-
-	while (ep >= line && isspace(*ep))
-		*ep-- = '\0';
-}
-
-#define SYSTEM_RAM "System RAM"
-#define RESERVED "reserved"
-
 static bool
 do_memory_from_fdt(int fd)
 {
@@ -228,9 +152,6 @@ enumerate_memory_arch(void)
 {
 	int fd = -1;
 	char buf[128];
-	const char *str;
-	uint64_t start, end;
-	struct kv *kv;
 	bool rv;
 
 	/*
@@ -275,65 +196,7 @@ enumerate_memory_arch(void)
 	}
 
 	printf("Also reading /proc/iomem to learn of reserved areas\n");
-	fd = open("host:/proc/iomem", O_RDONLY);
-	if (fd == -1) {
-		printf("Can't get memory map\n");
-		return false;
-	}
-
-	if (fgetstr(buf, sizeof(buf), fd) < 0)
-		goto out;	/* Nothing to do ???? */
-	init_avail();
-	chop(buf);
-	while (true) {
-		/*
-		 * Look for top level items we understand.  Skip anything that's
-		 * a continuation, since we don't care here. If we care, we'll
-		 * consume them all when we recognize that top level item.
-		 */
-		if (buf[0] == ' ')	/* Continuation lines? Ignore */
-			goto next_line;
-		str = parse_line(buf, &start, &end);
-		if (str == NULL)	/* Malformed -> ignore */
-			goto next_line;
-		/*
-		 * All we care about is System RAM
-		 */
-		if (strncmp(str, SYSTEM_RAM, sizeof(SYSTEM_RAM) - 1) == 0)
-			add_avail(start, end, system_ram);
-		else if (strncmp(str, RESERVED, sizeof(RESERVED) - 1) == 0)
-			add_avail(start, end, firmware_reserved);
-		else
-			goto next_line;	/* Ignore hardware */
-		while (fgetstr(buf, sizeof(buf), fd) >= 0 && buf[0] == ' ') {
-			chop(buf);
-			str = parse_line(buf, &start, &end);
-			if (str == NULL)
-				break;
-			kv = kvlookup(str, str2type_kv, nitems(str2type_kv));
-			if (kv == NULL) /* failsafe for new types: igonre */
-				remove_avail(start, end, unknown);
-			else if ((kv->flags & KV_KEEPER) == 0)
-				remove_avail(start, end, kv->type);
-			/* Else no need to adjust since it's a keeper */
-		}
-
-		/*
-		 * if buf[0] == ' ' then we know that the fgetstr failed and we
-		 * should break. Otherwise fgetstr succeeded and we have a
-		 * buffer we need to examine for being a top level item.
-		 */
-		if (buf[0] == ' ')
-			break;
-		chop(buf);
-		continue; /* buf has next top level line to parse */
-next_line:
-		if (fgetstr(buf, sizeof(buf), fd) < 0)
-			break;
-	}
-
-out:
-	close(fd);
+	populate_avail_from_iomem();
 
 	print_avail();
 
@@ -347,7 +210,7 @@ kboot_get_phys_load_segment(void)
 #define KERN_ALIGN	(2ul << 20)
 	uint64_t	s;
 
-	s = first_avail(KERN_ALIGN, HOLE_SIZE, system_ram);
+	s = first_avail(KERN_ALIGN, HOLE_SIZE, SYSTEM_RAM);
 	if (s != 0)
 		return (s);
 	s = 0x40000000 | 0x4200000;	/* should never get here */
