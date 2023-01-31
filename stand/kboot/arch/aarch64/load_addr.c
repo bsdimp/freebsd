@@ -208,7 +208,10 @@ kboot_get_phys_load_segment(void)
 {
 #define HOLE_SIZE	(64ul << 20)
 #define KERN_ALIGN	(2ul << 20)
-	uint64_t	s;
+	static uint64_t	s = 0;
+
+	if (s != 0)
+		return (s);
 
 	s = first_avail(KERN_ALIGN, HOLE_SIZE, SYSTEM_RAM);
 	if (s != 0)
