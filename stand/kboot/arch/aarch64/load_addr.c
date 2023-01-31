@@ -143,44 +143,11 @@ errout:
 	return false;
 }
 
-uint64_t commit_limit;
-uint64_t committed_as;
-uint64_t mem_avail;
-
 bool
 enumerate_memory_arch(void)
 {
 	int fd = -1;
-	char buf[128];
 	bool rv;
-
-	/*
-	 * To properly size the slabs, we need to find how much memory we can
-	 * commit to using. commit_limit is the max, while commited_as is the
-	 * current total. We can use these later to allocate the largetst amount
-	 * of memory possible so we can support larger ram disks than we could
-	 * by using fixed segment sizes. We also grab the memory available so
-	 * we don't use more than 49% of that.
-	 */
-	fd = open("host:/proc/meminfo", O_RDONLY);
-	if (fd != -1) {
-		while (fgetstr(buf, sizeof(buf), fd) > 0) {
-			if        (strncmp(buf, "MemAvailable:", 13) == 0) {
-				mem_avail = strtoll(buf + 13, NULL, 0);
-				mem_avail <<= 10; /* Units are kB */
-			} else if (strncmp(buf, "CommitLimit:", 12) == 0) {
-				commit_limit = strtoll(buf + 13, NULL, 0);
-				commit_limit <<= 10; /* Units are kB */
-			} else if (strncmp(buf, "Committed_AS:", 13) == 0) {
-				committed_as = strtoll(buf + 14, NULL, 0);
-				committed_as <<= 10; /* Units are kB */
-			}
-		}
-	}
-	printf("Commit limit: %lld Committed bytes %lld Available %lld\n",
-	    (long long)commit_limit, (long long)committed_as,
-	    (long long)mem_avail);
-	close(fd);
 
 	fd = open("host:/sys/firmware/fdt", O_RDONLY);
 	if (fd != -1) {
