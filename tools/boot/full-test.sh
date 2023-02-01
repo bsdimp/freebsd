@@ -172,7 +172,7 @@ comconsole_speed=115200
 autoboot_delay=2
 # XXX not so good for ZFS, what to do?
 #vfs.root.mountfrom="ufs:/dev/ufs/root"
-vfs.root.mountfrom="zfs:linuxboot/"
+#vfs.root.mountfrom="zfs:linuxboot/"
 zfs_load="YES"
 boot_verbose=yes
 kern.cfg.order="acpi,fdt"
@@ -444,6 +444,10 @@ make_freebsd_images()
 	ufs=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.ufs
 	img=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.img
 	mkdir -p ${IMAGES}/${ma_combo}
+	mkdir -p ${dir2}/etc
+	cat > ${dir2}/etc/fstab <<EOF
+/dev/ufs/root	/		ufs	rw	1	1
+EOF
 	makefs -t msdos -o fat_type=32 -o sectors_per_cluster=1 \
 	       -o volume_label=EFISYS -s100m ${esp} ${src}
 	makefs -t ffs -B little -s 200m -o label=root ${ufs} ${dir} ${dir2}
@@ -488,6 +492,10 @@ EOF
     ufs=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.ufs
     img=${IMAGES}/${ma_combo}/freebsd-${ma_combo}.img
     mkdir -p ${IMAGES}/${ma_combo}
+    mkdir -p ${dir2}/etc
+    cat > ${dir2}/etc/fstab <<EOF
+/dev/ufs/root	/		ufs	rw	1	1
+EOF
     makefs -t ffs -B big -s 200m \
 	   -o label=root,version=2,bsize=32768,fsize=4096,density=16384 \
 	   ${ufs} ${dir} ${dir2}
