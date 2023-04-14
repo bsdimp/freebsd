@@ -48,6 +48,8 @@ local config = {
 	syshdr = "../sys/syscall.h",
 	sysmk = "/dev/null",
 	syssw = "init_sysent.c",
+	systruss = "../sys/systruss.h",
+	systruss_h = "_SYS_SYSTRUSS_H_",
 	syscallprefix = "SYS_",
 	switchname = "sysent",
 	namesname = "syscallnames",
@@ -88,6 +90,7 @@ local output_files = {
 	"syssw",
 	"systrace",
 	"sysproto",
+	"systruss",
 }
 
 -- These ones we'll create temporary files for; generation purposes.
@@ -102,6 +105,8 @@ local temp_files = {
 	"sysprotoend",
 	"systracetmp",
 	"systraceret",
+	"systrussargs",
+	"systrussflags",
 }
 
 -- Opened files
@@ -639,6 +644,19 @@ local function align_sysent_comment(col)
 	end
 end
 
+local function get_arg_inout(arg)
+	if arg:match("^_Inout_") then
+		return "IN | OUT"
+	end
+	if arg:match("^_In_") then
+		return "IN"
+	end
+	if arg:match("^_Out_") then
+		return "OUT"
+	end
+	return ""
+end
+
 local function strip_arg_annotations(arg)
 	arg = arg:gsub("_Contains_[^ ]*[_)] ?", "")
 	arg = arg:gsub("_In[^ ]*[_)] ?", "")
@@ -669,6 +687,7 @@ local function process_args(args)
 		local arg_abi_change = check_abi_changes(arg)
 		changes_abi = changes_abi or arg_abi_change
 
+		local arginout = get_arg_inout(arg)
 		arg = strip_arg_annotations(arg)
 
 		local argname = arg:match("([^* ]+)$")
@@ -715,26 +734,100 @@ local function process_args(args)
 				funcargs[#funcargs + 1] = {
 					type = "int",
 					name = "_pad",
+					inout = arginout,
 				}
 			end
 			funcargs[#funcargs + 1] = {
 				type = "uint32_t",
 				name = argname .. "1",
+				inout = arginout,
 			}
 			funcargs[#funcargs + 1] = {
 				type = "uint32_t",
 				name = argname .. "2",
+				inout = arginout,
 			}
 		else
 			funcargs[#funcargs + 1] = {
 				type = argtype,
 				name = argname,
+				inout = arginout,
 			}
 		end
 	end
 
 	::out::
 	return funcargs, changes_abi
+end
+
+local enum_seen = { }
+local enum_map = {
+	int = "Int",
+	size_t = "Sizet",
+	mode_t = "Octal",
+	uint32_t = "UInt",
+	long = "Long",
+	uid_t = "Int",
+	pid_t = "Int",
+	u_long = "LongHex",
+	u_int = "UInt",
+	osigset_t = "LongHex",
+	__socklen_t = "UInt",
+	off_t = "QuadHex",
+	gid_t = "Int",
+	key_t = "LongHex",
+	clockid_t = "Int",
+	id_t = "QuadHex",
+	acl_type_t = "Acltype",
+	["unsigned int"] = "UInt",
+	semid_t = "LongHex",
+	unsigned = "UInt",
+	lwpid_t = "Int",
+	cpuwhich_t = "Int",
+	cpusetid_t = "Int",
+	cpulevel_t = "Int",
+	idtype_t = "QuadHex",
+	dev_t = "QuadHex",
+	["struct aiocb *"] = "Aiocb",
+	["struct itimerval *"] = "Itimerval",
+	["struct kevent *"] = "Kevent",
+	["struct freebsd11_kevent *"] = "Kevent11",
+	["struct msghdr *"] = "Msghdr",
+	["struct pollfd *"] = "Pollfd",
+	["struct rlimit *"] = "Rlimit",
+	["struct rusage *"] = "Rusage",
+	["struct sctp_sndrcvinfo *"] = "Sctpsndrcvinfo",
+	["struct sigaction *"] = "Sigaction",
+	["struct sigevent *"] = "Sigevent",
+	["struct siginfo *"] = "Siginfo",
+	["struct sigset *"] = "Sigset",
+	["struct sockaddr *"] = "Sockaddr",
+	["struct stat *"] = "Stat",
+	["struct freebsd11_stat *"] = "Stat11",
+	["struct statfs *"] = "StatFs",
+	["struct timespec *"] = "Timespec",
+	["struct timeval *"] = "Timeval",
+}
+
+local function c_to_enum(argtype, inout)
+	local enum = argtype
+	local at = argtype:gsub("const ", "")
+
+	if enum_map[at] ~= nil then
+		enum = enum_map[at]
+	elseif isptrtype(argtype) then
+		enum  = "Ptr"
+	end
+
+	if enum_seen[enum] == nil then
+		enum_seen[enum] = argtype
+		write_line("systrussflags",string.format("\t%s,\n", enum))
+	end
+
+	if inout== nil or inout == '' then
+		return enum
+	end
+	return inout .. " | " .. enum
 end
 
 local function handle_noncompat(sysnum, thr_flag, flags, sysflags, rettype,
@@ -747,6 +840,34 @@ local function handle_noncompat(sysnum, thr_flag, flags, sysflags, rettype,
 		argssize = "AS(" .. argalias .. ")"
 	else
 		argssize = "0"
+	end
+
+	if flags & known_flags["SYSMUX"] == 0 and flags & known_flags["NODEF"] == 0 then
+		local ret_type=1
+--		if rettype == "void" then
+--			ret_type = 0
+--		elseif rettype == "off_t" then
+--			ret_type = 2
+--		end
+		if funcname == "exit" then
+			ret_type = 0
+		elseif funcname == "lseek" then
+			ret_type = 2
+		end
+		write_line("systrussargs", string.format([[
+#ifdef %s%s
+	[%s%s] = { .name = "%s", .ret_type = %d, .nargs = %d,
+]], config['syscallprefix'], funcname, config['syscallprefix'], funcname, funcname, ret_type, #funcargs))
+		if #funcargs > 0 then
+			write_line("systrussargs", "\t\t{ \n")
+			for idx, arg in ipairs(funcargs) do
+				local argtype = arg["type"]
+				local inout = arg["inout"]
+				write_line("systrussargs", string.format("\t\t  { %s, %d },\n", c_to_enum(argtype, inout), idx - 1))
+			end
+			write_line("systrussargs", "\t\t}\n")
+		end
+		write_line("systrussargs", string.format("\t}, /* %s %d */\n#endif\n", funcname, sysnum))
 	end
 
 	write_line("systrace", string.format([[
@@ -985,6 +1106,7 @@ local function handle_compat(sysnum, thr_flag, flags, sysflags, rettype,
 		write_line("sysarg", string.format(
 		    "struct %s {\n\tsyscallarg_t dummy;\n};\n", argalias))
 	end
+
 	if flags & dprotoflags == 0 then
 		write_line(outdcl, string.format(
 		    "%s\t%s%s(struct thread *, struct %s *);\n",
@@ -1026,6 +1148,21 @@ local function handle_compat(sysnum, thr_flag, flags, sysflags, rettype,
 		    config.syscallprefix, prefix, funcalias, sysnum))
 		write_line("sysmk", string.format(" \\\n\t%s%s.o",
 		    prefix, funcalias))
+		-- truss
+		local ret_type=1
+		write_line("systrussargs", string.format([[
+#ifdef %s%s%s
+	[%s%s%s] = { .name = "%s%s", .ret_type = %d, .nargs = %d,
+]], config['syscallprefix'], prefix, funcalias, config['syscallprefix'], prefix, funcalias, prefix, funcalias, ret_type, #funcargs))
+		if #funcargs > 0 then
+			write_line("systrussargs", "\t\t{ \n")
+			for idx, arg in ipairs(funcargs) do
+				argtype = arg["type"]
+				write_line("systrussargs", string.format("\t\t{ %s, %d },\n", c_to_enum(argtype), idx - 1))
+			end
+			write_line("systrussargs", "\t\t}\n")
+		end
+		write_line("systrussargs", string.format("\t}, /* %s%s %d */\n#endif\n", prefix, funcname, sysnum))
 	end
 end
 
@@ -1514,6 +1651,30 @@ systrace_return_setargdesc(int sysnum, int ndx, char *desc, size_t descsz)
 	switch (sysnum) {
 ]])
 
+-- Truss related bits
+write_line("systruss", string.format([[/*
+ * Table for truss to decode system calls
+ *
+ * DO NOT EDIT -- this file is automatically %s.
+ */
+
+#ifndef %s
+#define %s
+]], generated_tag, config['systruss_h'], config['systruss_h']))
+write_line("systrussargs",string.format([[
+static const struct syscall_decode decoded_syscalls[] = {
+]]))
+write_line("systrussflags",string.format([[/*
+ * System call arguments come in several flavors. These
+ * try to enumerate them all.
+ */
+
+#if 0
+enum Argtype {
+	None = 1,
+
+]]))
+
 -- Processing the sysfile will parse out the preprocessor bits and put them into
 -- the appropriate place.  Any syscall-looking lines get thrown into the sysfile
 -- buffer, one per line, for later processing once they're all glued together.
@@ -1594,6 +1755,41 @@ write_line("sysproto", read_file("sysprotoend"))
 
 write_line("systrace", read_file("systracetmp"))
 write_line("systrace", read_file("systraceret"))
+
+write_line("systrussflags", string.format([[
+	MAX_ARG_TYPE,
+};
+
+#define ARG_MASK	0xff
+#define	OUT		0x100
+#define	IN		0x200
+
+_Static_assert(ARG_MASK > MAX_ARG_TYPE,
+    "ARG_MASK overlaps with Argtype values");
+
+struct syscall_arg {
+	enum Argtype type;
+	int offset;
+};
+
+struct syscall_decode {
+	const char *name; /* Name for calling convention lookup. */
+	/*
+	 * Syscall return type:
+	 * 0: no return value (e.g. exit)
+	 * 1: normal return value (a single int/long/pointer)
+	 * 2: off_t return value (two values for 32-bit ABIs)
+	 */
+	u_int ret_type;
+	u_int nargs;		     /* number of meaningful arguments */
+	struct syscall_arg args[10]; /* Hopefully no syscalls with > 10 args */
+};
+#endif
+
+]]))
+write_line("systruss", read_file("systrussflags"))
+write_line("systruss", read_file("systrussargs"))
+write_line("systruss", string.format("};\n\n#endif /* %s */\n", config['systruss_h']))
 
 for _, v in ipairs(output_files) do
 	local target = config[v]
