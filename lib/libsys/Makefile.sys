@@ -19,9 +19,9 @@
 #
 .PATH: ${LIBSYS_SRCTOP}/${LIBC_ARCH} ${LIBSYS_SRCTOP}
 
-# Include the generated makefile containing the *complete* list
-# of syscall names in MIASM.
-.include "${SRCTOP}/sys/sys/syscall.mk"
+# Compute all the MIASM files to generate
+LSGTOOLS=${SRCTOP}/sys/tools/lsg
+MIASM!=${LSGTOOLS}/syscall_mk.lua ${SRCTOP}/sys/kern/syscalls.master
 
 # Include machine dependent definitions.
 .include "${LIBSYS_SRCTOP}/${LIBC_ARCH}/Makefile.sys"
