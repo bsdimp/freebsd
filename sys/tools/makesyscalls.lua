@@ -54,6 +54,7 @@ local config = {
 	switchname = "sysent",
 	namesname = "syscallnames",
 	systrace = "systrace_args.c",
+	bsduser = "bsduser-syscalls.c",
 	capabilities_conf = "capabilities.conf",
 	capenabled = {},
 	compat_set = "native",
@@ -91,6 +92,7 @@ local output_files = {
 	"systrace",
 	"sysproto",
 	"systruss",
+	"bsduser",
 }
 
 -- These ones we'll create temporary files for; generation purposes.
@@ -868,6 +870,56 @@ local function handle_noncompat(sysnum, thr_flag, flags, sysflags, rettype,
 			write_line("systrussargs", "\t\t}\n")
 		end
 		write_line("systrussargs", string.format("\t}, /* %s %d */\n#endif\n", funcname, sysnum))
+
+-- bsduser
+		write_line("bsduser", string.format("#ifndef custom_bsd_%s /* Allow override */\n", funcname))
+		write_line("bsduser", string.format("%s bsd_%s(", syscallret, funcname))
+		if #funcargs > 0 then
+			local sep = ""
+			write_line("systrussargs", "\t\t{ \n")
+			for idx, arg in ipairs(funcargs) do
+				local argtype = arg["type"]
+				local argname = arg["name"]
+				write_line("bsduser", string.format("%sabi_long arg%d", sep, idx))
+				sep=", "
+			end
+		else
+			write_line("bsduser", "void")
+		end
+		write_line("bsduser", ")\n{\n")
+		write_line("bsduser", [[
+	/* Convert IN parameters from target to host */
+	/*     scalors via g2h_xxx functions to map errno etc if needed */
+	/*     structures using t2h_xxx (which does user lock + g2h + user unlock */
+	/*     lock user any strings */
+	/*     do any pathname mapping */
+	/* Stage any OUT parameters */
+	/*     host storage for system call */
+	/*     lock_user output buffers */
+	/*     for any 'optional' out parameter, do foop dance */
+]])
+		if syscallret ~= "void" then
+			write_line("bsduser", string.format("\treturn do_bsd_%s(", funcname))
+		else
+			write_line("bsduser", string.format("\tdo_bsd_%s(", funcname))
+		end
+		sep=""
+		for idx, arg in ipairs(funcargs) do
+			write_line("bsduser", string.format("%sarg%d", sep, idx))
+			sep=", "
+		end
+		write_line("bsduser", ");\n")
+
+		write_line("bsduser", [[
+	/* Unlock strings */
+	/* Unlock buffers */
+	/* Convert any OUT parameters from host to target */
+	/*     scalors via h2g_xxx functions */
+	/*     structures using h2t_xxx functions (lock h2g unlock) */
+	/*     careful to optionally do optional parameters */
+]])
+		write_line("bsduser", "}\n")
+		write_line("bsduser", string.format("#endif /* custom_bsd_%s */\n\n", funcname))
 	end
 
 	write_line("systrace", string.format([[
