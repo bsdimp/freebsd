@@ -2598,15 +2598,15 @@ xptsetasyncbusfunc(struct cam_eb *bus, void *arg)
 }
 
 void
-xpt_action(union ccb *start_ccb)
+_xpt_action(struct ccb_hdr *ccb_h)
 {
 
-	CAM_DEBUG(start_ccb->ccb_h.path, CAM_DEBUG_TRACE,
-	    ("xpt_action: func %#x %s\n", start_ccb->ccb_h.func_code,
-		xpt_action_name(start_ccb->ccb_h.func_code)));
+	CAM_DEBUG(ccb_h->path, CAM_DEBUG_TRACE,
+	    ("xpt_action: func %#x %s\n", ccb_h->func_code,
+		xpt_action_name(ccb_h->func_code)));
 
-	start_ccb->ccb_h.status = CAM_REQ_INPROG;
-	(*(start_ccb->ccb_h.path->bus->xport->ops->action))(start_ccb);
+	ccb_h->status = CAM_REQ_INPROG;
+	(*(ccb_h->path->bus->xport->ops->action))((union ccb *)ccb_h);
 }
 
 void

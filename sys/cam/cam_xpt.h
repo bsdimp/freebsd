@@ -73,7 +73,13 @@ struct async_node {
 SLIST_HEAD(async_list, async_node);
 SLIST_HEAD(periph_list, cam_periph);
 
-void			xpt_action(union ccb *new_ccb);
+/*
+ * xpt_action is now a macro that takes a pointer to any of the ccb types,
+ * converts it to the ccb_hdr and calls _xpt_action
+ */
+void			_xpt_action(struct ccb_hdr *ccb);
+#define xpt_action(new_ccb) _xpt_action(cam_ccb_to_hdr((new_ccb)))
+
 void			xpt_action_default(union ccb *new_ccb);
 union ccb		*xpt_alloc_ccb(void);
 union ccb		*xpt_alloc_ccb_nowait(void);
