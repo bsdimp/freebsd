@@ -592,7 +592,7 @@ static void	 scsi_dev_async(u_int32_t async_code,
 				struct cam_et *target,
 				struct cam_ed *device,
 				void *async_arg);
-static void	 scsi_action(union ccb *start_ccb);
+static void	 scsi_action(struct ccb_hdr *ccb_h);
 static void	 scsi_announce_periph(struct cam_periph *periph);
 static void	 scsi_announce_periph_sbuf(struct cam_periph *periph, struct sbuf *sb);
 static void	 scsi_proto_announce(struct cam_ed *device);
@@ -2624,8 +2624,9 @@ scsi_dev_advinfo(union ccb *start_ccb)
 }
 
 static void
-scsi_action(union ccb *start_ccb)
+scsi_action(struct ccb_hdr *ccb_h)
 {
+	union ccb *start_ccb = (union ccb *)ccb_h;
 
 	if (start_ccb->ccb_h.func_code != XPT_SCSI_IO) {
 		KASSERT((start_ccb->ccb_h.alloc_flags & CAM_CCB_FROM_UMA) == 0,
@@ -2657,7 +2658,7 @@ scsi_action(union ccb *start_ccb)
 		break;
 	}
 	default:
-		xpt_action_default(start_ccb);
+		xpt_action_default(ccb_h);
 		break;
 	}
 }
@@ -2736,7 +2737,7 @@ scsi_set_transfer_settings(struct ccb_trans_settings *cts, struct cam_path *path
 	 */
 	if (cts->protocol != PROTO_SCSI) {
 		if (async_update == FALSE)
-			xpt_action_default((union ccb *)cts);
+			xpt_action_default(&cts->ccb_h);
 		return;
 	}
 
@@ -2927,7 +2928,7 @@ scsi_set_transfer_settings(struct ccb_trans_settings *cts, struct cam_path *path
 		}
 	}
 	if (async_update == FALSE)
-		xpt_action_default((union ccb *)cts);
+		xpt_action_default(&cts->ccb_h);
 }
 
 static void

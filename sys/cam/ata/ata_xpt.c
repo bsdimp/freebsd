@@ -187,7 +187,7 @@ static void	 ata_dev_async(u_int32_t async_code,
 				struct cam_et *target,
 				struct cam_ed *device,
 				void *async_arg);
-static void	 ata_action(union ccb *start_ccb);
+static void	 ata_action(struct ccb_hdr *ccb_h);
 static void	 ata_announce_periph(struct cam_periph *periph);
 static void	 ata_announce_periph_sbuf(struct cam_periph *periph, struct sbuf *sb);
 static void	 ata_proto_announce(struct cam_ed *device);
@@ -1795,8 +1795,9 @@ ata_dev_advinfo(union ccb *start_ccb)
 }
 
 static void
-ata_action(union ccb *start_ccb)
+ata_action(struct ccb_hdr *ccb_h)
 {
+	union ccb *start_ccb = (union ccb *)ccb_h;
 
 	if (start_ccb->ccb_h.func_code != XPT_ATA_IO) {
 		KASSERT((start_ccb->ccb_h.alloc_flags & CAM_CCB_FROM_UMA) == 0,
@@ -1848,7 +1849,7 @@ ata_action(union ccb *start_ccb)
 			xpt_done(start_ccb);
 			break;
 		}
-		xpt_action_default(start_ccb);
+		xpt_action_default(ccb_h);
 		break;
 	}
 	case XPT_DEV_ADVINFO:
@@ -1857,7 +1858,7 @@ ata_action(union ccb *start_ccb)
 		break;
 	}
 	default:
-		xpt_action_default(start_ccb);
+		xpt_action_default(ccb_h);
 		break;
 	}
 }
@@ -1870,7 +1871,7 @@ ata_get_transfer_settings(struct ccb_trans_settings *cts)
 	struct	cam_ed *device;
 
 	device = cts->ccb_h.path->device;
-	xpt_action_default((union ccb *)cts);
+	xpt_action_default(&cts->ccb_h);
 
 	if (cts->protocol == PROTO_UNKNOWN ||
 	    cts->protocol == PROTO_UNSPECIFIED) {
@@ -2029,7 +2030,7 @@ ata_set_transfer_settings(struct ccb_trans_settings *cts, struct cam_path *path,
 	}
 
 	if (async_update == FALSE)
-		xpt_action_default((union ccb *)cts);
+		xpt_action_default(&cts->ccb_h);
 }
 
 /*

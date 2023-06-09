@@ -2606,15 +2606,16 @@ _xpt_action(struct ccb_hdr *ccb_h)
 		xpt_action_name(ccb_h->func_code)));
 
 	ccb_h->status = CAM_REQ_INPROG;
-	(*(ccb_h->path->bus->xport->ops->action))((union ccb *)ccb_h);
+	(*(ccb_h->path->bus->xport->ops->action))(ccb_h);
 }
 
 void
-xpt_action_default(union ccb *start_ccb)
+xpt_action_default(struct ccb_hdr *ccb_h)
 {
 	struct cam_path *path;
 	struct cam_sim *sim;
 	struct mtx *mtx;
+	union ccb *start_ccb=(union ccb *)ccb_h;
 
 	path = start_ccb->ccb_h.path;
 	CAM_DEBUG(path, CAM_DEBUG_TRACE,

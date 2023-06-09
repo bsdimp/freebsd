@@ -42,7 +42,7 @@ typedef struct cam_ed * (*xpt_alloc_device_func)(struct cam_eb *bus,
 					         struct cam_et *target,
 					         lun_id_t lun_id);
 typedef void (*xpt_release_device_func)(struct cam_ed *device);
-typedef void (*xpt_action_func)(union ccb *start_ccb);
+typedef void (*xpt_action_func)(struct ccb_hdr *hdr);
 typedef void (*xpt_dev_async_func)(u_int32_t async_code,
 				   struct cam_eb *bus,
 				   struct cam_et *target,

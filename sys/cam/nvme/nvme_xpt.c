@@ -155,7 +155,7 @@ static void	 nvme_dev_async(u_int32_t async_code,
 				struct cam_et *target,
 				struct cam_ed *device,
 				void *async_arg);
-static void	 nvme_action(union ccb *start_ccb);
+static void	 nvme_action(struct ccb_hdr *ccb_h);
 static void	 nvme_announce_periph(struct cam_periph *periph);
 static void	 nvme_proto_announce(struct cam_ed *device);
 static void	 nvme_proto_denounce(struct cam_ed *device);
@@ -737,8 +737,10 @@ nvme_dev_advinfo(union ccb *start_ccb)
 }
 
 static void
-nvme_action(union ccb *start_ccb)
+nvme_action(struct ccb_hdr *ccb_h)
 {
+	union ccb *start_ccb = (union ccb *)ccb_h;
+
 	CAM_DEBUG(start_ccb->ccb_h.path, CAM_DEBUG_TRACE,
 	    ("nvme_action: func= %#x\n", start_ccb->ccb_h.func_code));
 
@@ -755,7 +757,7 @@ nvme_action(union ccb *start_ccb)
 		break;
 
 	default:
-		xpt_action_default(start_ccb);
+		xpt_action_default(ccb_h);
 		break;
 	}
 }

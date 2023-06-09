@@ -80,7 +80,7 @@ SLIST_HEAD(periph_list, cam_periph);
 void			_xpt_action(struct ccb_hdr *ccb);
 #define xpt_action(new_ccb) _xpt_action(cam_ccb_to_hdr((new_ccb)))
 
-void			xpt_action_default(union ccb *new_ccb);
+void			xpt_action_default(struct ccb_hdr *ccb_h);
 union ccb		*xpt_alloc_ccb(void);
 union ccb		*xpt_alloc_ccb_nowait(void);
 void			xpt_free_ccb(union ccb *free_ccb);
