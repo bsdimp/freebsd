@@ -165,7 +165,7 @@ xpt_path_inq(struct ccb_pathinq *cpi, struct cam_path *path)
 	bzero(cpi, sizeof(*cpi));
 	xpt_setup_ccb(&cpi->ccb_h, path, CAM_PRIORITY_NORMAL);
 	cpi->ccb_h.func_code = XPT_PATH_INQ;
-	xpt_action((union ccb *)cpi);
+	xpt_action(cpi);
 }
 
 #endif /* _KERNEL */
