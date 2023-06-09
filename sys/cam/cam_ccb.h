@@ -1384,6 +1384,20 @@ union ccb {
 	bzero((char *)(ccbp) + sizeof((ccbp)->ccb_h),	\
 	    sizeof(*(ccbp)) - sizeof((ccbp)->ccb_h))
 
+/*
+ * A generic to convert a pointer to any ccb to the ccb header including a ccb
+ * header. For ccb_hdr pointers, it uses the pointer directly. For all other
+ * types, we rely on the fact that there is a ccb_h element to that structure
+ * and we take the address of that element to get the ccb_hdr we pass to
+ * xpt_action. We don't list all possible CCBs here and rely on the default: to
+ * pick up new ones that are added and to indirectly enforce the requirement
+ * that the first element of all ccb's be the ccb header named ccb_h.
+ */
+#define cam_ccb_to_hdr(gccb)				\
+	_Generic((gccb),				\
+	    struct ccb_hdr * : (gccb),			\
+	    default: &((gccb)->ccb_h))
+
 __BEGIN_DECLS
 static __inline void
 cam_fill_csio(struct ccb_scsiio *csio, u_int32_t retries,
