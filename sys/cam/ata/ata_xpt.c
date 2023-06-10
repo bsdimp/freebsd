@@ -1799,28 +1799,28 @@ ata_action(struct ccb_hdr *ccb_h)
 {
 	union ccb *start_ccb = (union ccb *)ccb_h;
 
-	if (start_ccb->ccb_h.func_code != XPT_ATA_IO) {
-		KASSERT((start_ccb->ccb_h.alloc_flags & CAM_CCB_FROM_UMA) == 0,
+	if (ccb_h->func_code != XPT_ATA_IO) {
+		KASSERT((ccb_h->alloc_flags & CAM_CCB_FROM_UMA) == 0,
 		    ("%s: ccb %p, func_code %#x should not be allocated "
 		    "from UMA zone\n",
-		    __func__, start_ccb, start_ccb->ccb_h.func_code));
+		    __func__, ccb_h, ccb_h->func_code));
 	}
 
-	switch (start_ccb->ccb_h.func_code) {
+	switch (ccb_h->func_code) {
 	case XPT_SET_TRAN_SETTINGS:
 	{
 		ata_set_transfer_settings(&start_ccb->cts,
-					   start_ccb->ccb_h.path,
+					   ccb_h->path,
 					   /*async_update*/FALSE);
 		break;
 	}
 	case XPT_SCAN_BUS:
 	case XPT_SCAN_TGT:
-		ata_scan_bus(start_ccb->ccb_h.path->periph, start_ccb);
+		ata_scan_bus(ccb_h->path->periph, start_ccb);
 		break;
 	case XPT_SCAN_LUN:
-		ata_scan_lun(start_ccb->ccb_h.path->periph,
-			      start_ccb->ccb_h.path, start_ccb->crcn.flags,
+		ata_scan_lun(ccb_h->path->periph,
+			      ccb_h->path, start_ccb->crcn.flags,
 			      start_ccb);
 		break;
 	case XPT_GET_TRAN_SETTINGS:
@@ -1833,7 +1833,7 @@ ata_action(struct ccb_hdr *ccb_h)
 		struct cam_ed *device;
 		u_int	maxlen = 0;
 
-		device = start_ccb->ccb_h.path->device;
+		device = ccb_h->path->device;
 		if (device->protocol == PROTO_SCSI &&
 		    (device->flags & CAM_DEV_IDENTIFY_DATA_VALID)) {
 			uint16_t p =
@@ -1845,7 +1845,7 @@ ata_action(struct ccb_hdr *ccb_h)
 			    (p == ATA_PROTO_ATAPI_12) ? 12 : 0;
 		}
 		if (start_ccb->csio.cdb_len > maxlen) {
-			start_ccb->ccb_h.status = CAM_REQ_INVALID;
+			ccb_h->status = CAM_REQ_INVALID;
 			xpt_done(start_ccb);
 			break;
 		}
