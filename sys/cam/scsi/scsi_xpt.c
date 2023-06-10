@@ -2507,16 +2507,14 @@ scsi_devise_transport(struct cam_path *path)
 }
 
 static void
-scsi_dev_advinfo(union ccb *start_ccb)
+scsi_dev_advinfo(struct ccb_dev_advinfo *cdai)
 {
-	struct cam_ed *device;
-	struct ccb_dev_advinfo *cdai;
+	struct ccb_hdr *ccb_h = &cdai->ccb_h;
+	struct cam_ed *device = ccb_h->path->device;
 	off_t amt;
 
-	xpt_path_assert(start_ccb->ccb_h.path, MA_OWNED);
-	start_ccb->ccb_h.status = CAM_REQ_INVALID;
-	device = start_ccb->ccb_h.path->device;
-	cdai = &start_ccb->cdai;
+	xpt_path_assert(ccb_h->path, MA_OWNED);
+	ccb_h->status = CAM_REQ_INVALID;
 	switch(cdai->buftype) {
 	case CDAI_TYPE_SCSI_DEVID:
 		if (cdai->flags & CDAI_FLAG_STORE)
@@ -2552,7 +2550,7 @@ scsi_dev_advinfo(union ccb *start_ccb)
 				break;
 			device->physpath = malloc(cdai->bufsiz, M_CAMXPT, M_NOWAIT);
 			if (device->physpath == NULL) {
-				start_ccb->ccb_h.status = CAM_REQ_ABORTED;
+				ccb_h->status = CAM_REQ_ABORTED;
 				return;
 			}
 			device->physpath_len = cdai->bufsiz;
@@ -2582,7 +2580,7 @@ scsi_dev_advinfo(union ccb *start_ccb)
 			device->rcap_buf = malloc(cdai->bufsiz, M_CAMXPT,
 						  M_NOWAIT);
 			if (device->rcap_buf == NULL) {
-				start_ccb->ccb_h.status = CAM_REQ_ABORTED;
+				ccb_h->status = CAM_REQ_ABORTED;
 				return;
 			}
 
@@ -2615,10 +2613,10 @@ scsi_dev_advinfo(union ccb *start_ccb)
 	default:
 		return;
 	}
-	start_ccb->ccb_h.status = CAM_REQ_CMP;
+	ccb_h->status = CAM_REQ_CMP;
 
 	if (cdai->flags & CDAI_FLAG_STORE) {
-		xpt_async(AC_ADVINFO_CHANGED, start_ccb->ccb_h.path,
+		xpt_async(AC_ADVINFO_CHANGED, ccb_h->path,
 			  (void *)(uintptr_t)cdai->buftype);
 	}
 }
@@ -2632,7 +2630,7 @@ scsi_action(struct ccb_hdr *ccb_h)
 		KASSERT((ccb_h->alloc_flags & CAM_CCB_FROM_UMA) == 0,
 		    ("%s: ccb %p, func_code %#x should not be allocated "
 		    "from UMA zone\n",
-		    __func__, start_ccb, ccb_h->func_code));
+		    __func__, ccb_h, ccb_h->func_code));
 	}
 
 	switch (ccb_h->func_code) {
@@ -2654,7 +2652,7 @@ scsi_action(struct ccb_hdr *ccb_h)
 		break;
 	case XPT_DEV_ADVINFO:
 	{
-		scsi_dev_advinfo(start_ccb);
+		scsi_dev_advinfo(&start_ccb->cdai);
 		break;
 	}
 	default:
