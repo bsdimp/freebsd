@@ -859,7 +859,7 @@ xpt_rescan(union ccb *ccb)
 	}
 	CAM_DEBUG(ccb->ccb_h.path, CAM_DEBUG_TRACE,
 	    ("xpt_rescan: func %#x %s\n", ccb->ccb_h.func_code,
- 		xpt_action_name(ccb->ccb_h.func_code)));
+		xpt_action_name(ccb->ccb_h.func_code)));
 
 	ccb->ccb_h.ppriv_ptr1 = ccb->ccb_h.cbfcnp;
 	ccb->ccb_h.cbfcnp = xpt_rescan_done;
@@ -2617,12 +2617,12 @@ xpt_action_default(struct ccb_hdr *ccb_h)
 	struct mtx *mtx;
 	union ccb *start_ccb=(union ccb *)ccb_h;
 
-	path = start_ccb->ccb_h.path;
+	path = ccb_h->path;
 	CAM_DEBUG(path, CAM_DEBUG_TRACE,
-	    ("xpt_action_default: func %#x %s\n", start_ccb->ccb_h.func_code,
-		xpt_action_name(start_ccb->ccb_h.func_code)));
+	    ("xpt_action_default: func %#x %s\n", ccb_h->func_code,
+		xpt_action_name(ccb_h->func_code)));
 
-	switch (start_ccb->ccb_h.func_code) {
+	switch (ccb_h->func_code) {
 	case XPT_SCSI_IO:
 	{
 		struct cam_ed *device;
@@ -2644,11 +2644,11 @@ xpt_action_default(struct ccb_hdr *ccb_h)
 		 * devices with an ANSI revision greater than 2.
 		 */
 		device = path->device;
-		if (device->protocol_version <= SCSI_REV_2
-		 && start_ccb->ccb_h.target_lun < 8
-		 && (start_ccb->ccb_h.flags & CAM_CDB_POINTER) == 0) {
+		if (device->protocol_version <= SCSI_REV_2 &&
+		    ccb_h->target_lun < 8 &&
+		    (ccb_h->flags & CAM_CDB_POINTER) == 0) {
 			start_ccb->csio.cdb_io.cdb_bytes[1] |=
-			    start_ccb->ccb_h.target_lun << 5;
+			    ccb_h->target_lun << 5;
 		}
 		start_ccb->csio.scsi_status = SCSI_STATUS_OK;
 	}
@@ -2659,7 +2659,7 @@ xpt_action_default(struct ccb_hdr *ccb_h)
 		start_ccb->csio.resid = 0;
 		/* FALLTHROUGH */
 	case XPT_ATA_IO:
-		if (start_ccb->ccb_h.func_code == XPT_ATA_IO)
+		if (ccb_h->func_code == XPT_ATA_IO)
 			start_ccb->ataio.resid = 0;
 		/* FALLTHROUGH */
 	case XPT_NVME_IO:
@@ -2688,7 +2688,7 @@ xpt_action_default(struct ccb_hdr *ccb_h)
 			start_ccb->ccg.cylinders = 0;
 			start_ccb->ccg.heads = 0;
 			start_ccb->ccg.secs_per_track = 0;
-			start_ccb->ccb_h.status = CAM_REQ_CMP;
+			ccb_h->status = CAM_REQ_CMP;
 			break;
 		}
 		goto call_sim;
@@ -2712,7 +2712,7 @@ xpt_action_default(struct ccb_hdr *ccb_h)
 				xpt_freeze_devq_device(device, 1);
 				mtx_unlock(&devq->send_mtx);
 				xpt_done(abort_ccb);
-				start_ccb->ccb_h.status = CAM_REQ_CMP;
+				ccb_h->status = CAM_REQ_CMP;
 				break;
 			}
 			mtx_unlock(&devq->send_mtx);
@@ -2728,7 +2728,7 @@ xpt_action_default(struct ccb_hdr *ccb_h)
 				abort_ccb->ccb_h.status =
 				    CAM_REQ_ABORTED|CAM_DEV_QFRZN;
 				xpt_freeze_devq(abort_ccb->ccb_h.path, 1);
-				start_ccb->ccb_h.status = CAM_REQ_CMP;
+				ccb_h->status = CAM_REQ_CMP;
 				break;
 			}
 		}
@@ -2738,7 +2738,7 @@ xpt_action_default(struct ccb_hdr *ccb_h)
 			 * It's already completed but waiting
 			 * for our SWI to get to it.
 			 */
-			start_ccb->ccb_h.status = CAM_UA_ABORT;
+			ccb_h->status = CAM_UA_ABORT;
 			break;
 		}
 		/*
@@ -2769,16 +2769,16 @@ call_sim:
 			mtx = NULL;
 
 		CAM_DEBUG(path, CAM_DEBUG_TRACE,
-		    ("Calling sim->sim_action(): func=%#x\n", start_ccb->ccb_h.func_code));
+		    ("Calling sim->sim_action(): func=%#x\n", ccb_h->func_code));
 		(*(sim->sim_action))(sim, start_ccb);
 		CAM_DEBUG(path, CAM_DEBUG_TRACE,
-		    ("sim->sim_action returned: status=%#x\n", start_ccb->ccb_h.status));
+		    ("sim->sim_action returned: status=%#x\n", ccb_h->status));
 		if (mtx)
 			mtx_unlock(mtx);
 		break;
 	case XPT_PATH_STATS:
 		start_ccb->cpis.last_reset = path->bus->last_reset;
-		start_ccb->ccb_h.status = CAM_REQ_CMP;
+		ccb_h->status = CAM_REQ_CMP;
 		break;
 	case XPT_GDEV_TYPE:
 	{
@@ -2786,7 +2786,7 @@ call_sim:
 
 		dev = path->device;
 		if ((dev->flags & CAM_DEV_UNCONFIGURED) != 0) {
-			start_ccb->ccb_h.status = CAM_DEV_NOT_THERE;
+			ccb_h->status = CAM_DEV_NOT_THERE;
 		} else {
 			struct ccb_getdev *cgd;
 
@@ -2797,8 +2797,7 @@ call_sim:
 			cgd->inq_flags = dev->inq_flags;
 			cgd->ccb_h.status = CAM_REQ_CMP;
 			cgd->serial_num_len = dev->serial_num_len;
-			if ((dev->serial_num_len > 0)
-			 && (dev->serial_num != NULL))
+			if (dev->serial_num_len > 0 && dev->serial_num != NULL)
 				bcopy(dev->serial_num, cgd->serial_num,
 				      dev->serial_num_len);
 		}
@@ -2851,8 +2850,8 @@ call_sim:
 		 * list has changed, and therefore they need to start over
 		 * from the beginning.
 		 */
-		if ((cgdl->index != 0) &&
-		    (cgdl->generation != device->generation)) {
+		if (cgdl->index != 0 &&
+		    cgdl->generation != device->generation) {
 			cgdl->status = CAM_GDEVLIST_LIST_CHANGED;
 			break;
 		}
@@ -2943,9 +2942,9 @@ call_sim:
 		}
 
 		if (cdm->status == CAM_DEV_MATCH_ERROR)
-			start_ccb->ccb_h.status = CAM_REQ_CMP_ERR;
+			ccb_h->status = CAM_REQ_CMP_ERR;
 		else
-			start_ccb->ccb_h.status = CAM_REQ_CMP;
+			ccb_h->status = CAM_REQ_CMP;
 
 		break;
 	}
@@ -3002,7 +3001,7 @@ call_sim:
 			SLIST_INSERT_HEAD(async_head, cur_entry, links);
 			xpt_acquire_device(path->device);
 		}
-		start_ccb->ccb_h.status = CAM_REQ_CMP;
+		ccb_h->status = CAM_REQ_CMP;
 		break;
 	}
 	case XPT_REL_SIMQ:
@@ -3037,10 +3036,10 @@ call_sim:
 				 * the freeze count so that a single timeout
 				 * is sufficient for releasing the queue.
 				 */
-				start_ccb->ccb_h.flags &= ~CAM_DEV_QFREEZE;
+				ccb_h->flags &= ~CAM_DEV_QFREEZE;
 				callout_stop(&dev->callout);
 			} else {
-				start_ccb->ccb_h.flags |= CAM_DEV_QFREEZE;
+				ccb_h->flags |= CAM_DEV_QFREEZE;
 			}
 
 			callout_reset_sbt(&dev->callout,
@@ -3057,28 +3056,28 @@ call_sim:
 				 * completion is still sufficient to unfreeze
 				 * the queue.
 				 */
-				start_ccb->ccb_h.flags &= ~CAM_DEV_QFREEZE;
+				ccb_h->flags &= ~CAM_DEV_QFREEZE;
 			} else {
 				dev->flags |= CAM_DEV_REL_ON_COMPLETE;
-				start_ccb->ccb_h.flags |= CAM_DEV_QFREEZE;
+				ccb_h->flags |= CAM_DEV_QFREEZE;
 			}
 		}
 
 		if ((crs->release_flags & RELSIM_RELEASE_AFTER_QEMPTY) != 0) {
 			if ((dev->flags & CAM_DEV_REL_ON_QUEUE_EMPTY) != 0
 			 || (dev->ccbq.dev_active == 0)) {
-				start_ccb->ccb_h.flags &= ~CAM_DEV_QFREEZE;
+				ccb_h->flags &= ~CAM_DEV_QFREEZE;
 			} else {
 				dev->flags |= CAM_DEV_REL_ON_QUEUE_EMPTY;
-				start_ccb->ccb_h.flags |= CAM_DEV_QFREEZE;
+				ccb_h->flags |= CAM_DEV_QFREEZE;
 			}
 		}
 		mtx_unlock(&dev->sim->devq->send_mtx);
 
-		if ((start_ccb->ccb_h.flags & CAM_DEV_QFREEZE) == 0)
+		if ((ccb_h->flags & CAM_DEV_QFREEZE) == 0)
 			xpt_release_devq(path, /*count*/1, /*run_queue*/TRUE);
 		start_ccb->crs.qfrozen_cnt = dev->ccbq.queue.qfrozen_cnt;
-		start_ccb->ccb_h.status = CAM_REQ_CMP;
+		ccb_h->status = CAM_REQ_CMP;
 		break;
 	}
 	case XPT_DEBUG: {
@@ -3086,7 +3085,7 @@ call_sim:
 
 		/* Check that all request bits are supported. */
 		if (start_ccb->cdbg.flags & ~(CAM_DEBUG_COMPILE)) {
-			start_ccb->ccb_h.status = CAM_FUNC_NOTAVAIL;
+			ccb_h->status = CAM_FUNC_NOTAVAIL;
 			break;
 		}
 
@@ -3098,29 +3097,29 @@ call_sim:
 		}
 		if (start_ccb->cdbg.flags != CAM_DEBUG_NONE) {
 			if (xpt_create_path(&cam_dpath, NULL,
-					    start_ccb->ccb_h.path_id,
-					    start_ccb->ccb_h.target_id,
-					    start_ccb->ccb_h.target_lun) !=
+					    ccb_h->path_id,
+					    ccb_h->target_id,
+					    ccb_h->target_lun) !=
 					    CAM_REQ_CMP) {
-				start_ccb->ccb_h.status = CAM_RESRC_UNAVAIL;
+				ccb_h->status = CAM_RESRC_UNAVAIL;
 			} else {
 				cam_dflags = start_ccb->cdbg.flags;
-				start_ccb->ccb_h.status = CAM_REQ_CMP;
+				ccb_h->status = CAM_REQ_CMP;
 				xpt_print(cam_dpath, "debugging flags now %x\n",
 				    cam_dflags);
 			}
 		} else
-			start_ccb->ccb_h.status = CAM_REQ_CMP;
+			ccb_h->status = CAM_REQ_CMP;
 		break;
 	}
 	case XPT_NOOP:
-		if ((start_ccb->ccb_h.flags & CAM_DEV_QFREEZE) != 0)
+		if ((ccb_h->flags & CAM_DEV_QFREEZE) != 0)
 			xpt_freeze_devq(path, 1);
-		start_ccb->ccb_h.status = CAM_REQ_CMP;
+		ccb_h->status = CAM_REQ_CMP;
 		break;
 	case XPT_REPROBE_LUN:
 		xpt_async(AC_INQ_CHANGED, path, NULL);
-		start_ccb->ccb_h.status = CAM_REQ_CMP;
+		ccb_h->status = CAM_REQ_CMP;
 		xpt_done(start_ccb);
 		break;
 	case XPT_ASYNC:
@@ -3128,10 +3127,10 @@ call_sim:
 		 * Queue the async operation so it can be run from a sleepable
 		 * context.
 		 */
-		start_ccb->ccb_h.status = CAM_REQ_CMP;
+		ccb_h->status = CAM_REQ_CMP;
 		mtx_lock(&cam_async.cam_doneq_mtx);
 		STAILQ_INSERT_TAIL(&cam_async.cam_doneq, &start_ccb->ccb_h, sim_links.stqe);
-		start_ccb->ccb_h.pinfo.index = CAM_ASYNC_INDEX;
+		ccb_h->pinfo.index = CAM_ASYNC_INDEX;
 		mtx_unlock(&cam_async.cam_doneq_mtx);
 		wakeup(&cam_async.cam_doneq);
 		break;
@@ -3140,21 +3139,20 @@ call_sim:
 	case XPT_TERM_IO:
 	case XPT_ENG_INQ:
 		/* XXX Implement */
-		xpt_print(start_ccb->ccb_h.path,
+		xpt_print(ccb_h->path,
 		    "%s: CCB type %#x %s not supported\n", __func__,
-		    start_ccb->ccb_h.func_code,
-		    xpt_action_name(start_ccb->ccb_h.func_code));
-		start_ccb->ccb_h.status = CAM_PROVIDE_FAIL;
-		if (start_ccb->ccb_h.func_code & XPT_FC_DEV_QUEUED) {
+		    ccb_h->func_code,
+		    xpt_action_name(ccb_h->func_code));
+		ccb_h->status = CAM_PROVIDE_FAIL;
+		if (ccb_h->func_code & XPT_FC_DEV_QUEUED) {
 			xpt_done(start_ccb);
 		}
 		break;
 	}
 	CAM_DEBUG(path, CAM_DEBUG_TRACE,
 	    ("xpt_action_default: func= %#x %s status %#x\n",
-		start_ccb->ccb_h.func_code,
- 		xpt_action_name(start_ccb->ccb_h.func_code),
-		start_ccb->ccb_h.status));
+		ccb_h->func_code, xpt_action_name(ccb_h->func_code),
+		ccb_h->status));
 }
 
 /*
