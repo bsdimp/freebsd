@@ -739,16 +739,15 @@ nvme_action(struct ccb_hdr *ccb_h)
 {
 	union ccb *start_ccb = (union ccb *)ccb_h;
 
-	CAM_DEBUG(start_ccb->ccb_h.path, CAM_DEBUG_TRACE,
-	    ("nvme_action: func= %#x\n", start_ccb->ccb_h.func_code));
+	CAM_DEBUG(ccb_h->path, CAM_DEBUG_TRACE,
+	    ("nvme_action: func= %#x\n", ccb_h->func_code));
 
-	switch (start_ccb->ccb_h.func_code) {
+	switch (ccb_h->func_code) {
 	case XPT_SCAN_BUS:
 	case XPT_SCAN_TGT:
 	case XPT_SCAN_LUN:
-		nvme_scan_lun(start_ccb->ccb_h.path->periph,
-			      start_ccb->ccb_h.path, start_ccb->crcn.flags,
-			      start_ccb);
+		nvme_scan_lun(ccb_h->path->periph, ccb_h->path,
+		    start_ccb->crcn.flags, start_ccb);
 		break;
 	case XPT_DEV_ADVINFO:
 		nvme_dev_advinfo(&start_ccb->cdai);
