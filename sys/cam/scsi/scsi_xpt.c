@@ -2628,28 +2628,28 @@ scsi_action(struct ccb_hdr *ccb_h)
 {
 	union ccb *start_ccb = (union ccb *)ccb_h;
 
-	if (start_ccb->ccb_h.func_code != XPT_SCSI_IO) {
-		KASSERT((start_ccb->ccb_h.alloc_flags & CAM_CCB_FROM_UMA) == 0,
+	if (ccb_h->func_code != XPT_SCSI_IO) {
+		KASSERT((ccb_h->alloc_flags & CAM_CCB_FROM_UMA) == 0,
 		    ("%s: ccb %p, func_code %#x should not be allocated "
 		    "from UMA zone\n",
-		    __func__, start_ccb, start_ccb->ccb_h.func_code));
+		    __func__, start_ccb, ccb_h->func_code));
 	}
 
-	switch (start_ccb->ccb_h.func_code) {
+	switch (ccb_h->func_code) {
 	case XPT_SET_TRAN_SETTINGS:
 	{
 		scsi_set_transfer_settings(&start_ccb->cts,
-					   start_ccb->ccb_h.path,
+					   ccb_h->path,
 					   /*async_update*/FALSE);
 		break;
 	}
 	case XPT_SCAN_BUS:
 	case XPT_SCAN_TGT:
-		scsi_scan_bus(start_ccb->ccb_h.path->periph, start_ccb);
+		scsi_scan_bus(ccb_h->path->periph, start_ccb);
 		break;
 	case XPT_SCAN_LUN:
-		scsi_scan_lun(start_ccb->ccb_h.path->periph,
-			      start_ccb->ccb_h.path, start_ccb->crcn.flags,
+		scsi_scan_lun(ccb_h->path->periph,
+			      ccb_h->path, start_ccb->crcn.flags,
 			      start_ccb);
 		break;
 	case XPT_DEV_ADVINFO:
