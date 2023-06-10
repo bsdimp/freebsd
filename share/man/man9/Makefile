@@ -60,6 +60,9 @@ MAN=	accept_filter.9 \
 	bus_space.9 \
 	byteorder.9 \
 	callout.9 \
+	cam_ccb.9 \
+	cam_sim.9 \
+	cam_xpt.9 \
 	casuword.9 \
 	cd.9 \
 	cnv.9 \
@@ -458,6 +461,8 @@ MAN=	accept_filter.9 \
 	vrele.9 \
 	vslock.9 \
 	watchdog.9 \
+	xpt_action.9 \
+	xpt_done.9 \
 	zero_region.9 \
 	zone.9
 
@@ -2421,6 +2426,7 @@ MLINKS+=vref.9 VREF.9 \
 MLINKS+=vrele.9 vput.9 \
 	vrele.9 vunref.9
 MLINKS+=vslock.9 vsunlock.9
+MLINKS+=xpt_done.9 xpt_done_direct.9
 MLINKS+=zone.9 uma.9 \
 	zone.9 uma_prealloc.9 \
 	zone.9 uma_reclaim.9 \

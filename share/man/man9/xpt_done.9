@@ -1,0 +1,64 @@
+.\" Copyright (c) 2023 Netflix, Inc
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd June 10, 2023
+.Dt XPT_DONE 9
+.Os
+.Sh NAME
+.Nm xpt_done ,
+.Nm xpt_done_direct
+.Nd conclude CCB processing
+.Sh SYNOPSIS
+.In cam/cam_xpt_sim.h
+.Ft void
+.Fn xpt_done "ccb *done_ccb"
+.Ft void
+.Fn xpt_done_direct "ccb *done_ccb"
+.Sh DESCRIPTION
+.Fn xpt_done
+function concludes processing of
+.Fa done_ccb
+and queues it to one of the
+.Fa xpt_done_td
+threads to run its completion rotuine via
+.Fn xpt_done_process .
+As several threads may be involved, the order that the completions of CCBs run
+is undefined.
+.Pp
+.Fn xpt_done_direct
+function concludes processing of
+.Fa done_ccb
+and calls
+.Fn xpt_done_process
+directly.
+.Pp
+The CCB's
+.Fa cbfncp
+function is called at the end of processing.
+It is responsible for cleaning up, including releasing the ccb with
+.Xr xpt_release_ccb 9 .
+.Pp
+See
+.Xr cam_ccb 9
+for the locking protocol used and when it is safe to use
+.Nm xpt_done_direct .
+.Sh SEE ALSO
+.Xr cam_ccb 9 ,
+.Xr cam_sim 9 ,
+.Xr cam_xpt 9
+.Sh HISTORY
+The
+.Nm
+function first appeared in
+.Fx 3
+with the rest of CAM.
+Prior to
+.Fx 14 ,
+.Nm
+required a
+.Ft union ccb *
+argument.
+.Fx 14
+relaxed this to the union, any valid CCB type, or the common CCB header
+.Ft struct ccb_hdr * .

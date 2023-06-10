@@ -1,0 +1,44 @@
+.\" Copyright (c) 2023 Netflix, Inc
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd June 10, 2023
+.Dt XPT_ACTION 9
+.Os
+.Sh NAME
+.Nm xpt_action
+.Nd dispatch a CCB for processing
+.Sh SYNOPSIS
+.In cam/cam_xpt.h
+.Ft void
+.Fn xpt_action "ccb *new_ccb"
+.Sh DESCRIPTION
+.Fn xpt_action
+function dispatches the
+.Fa new_ccb
+to the device's XPT layer.
+The XPT layer either answers the request, or passes the request to the SIM for
+processing.
+The function returns immediately.
+The
+.Fa new_ccb
+argument may be any valid CCB type.
+.Sh SEE ALSO
+.Xr cam_ccb 9 ,
+.Xr cam_sim 9 ,
+.Xr cam_xpt 9
+.Sh HISTORY
+The
+.Nm
+function first appeared in
+.Fx 3
+with the rest of CAM.
+Prior to
+.Fx 14 ,
+.Nm
+required a
+.Ft union ccb *
+argument.
+.Fx 14
+relaxed this to the union, any valid CCB type, or the common CCB header
+.Ft struct ccb_hdr * .
