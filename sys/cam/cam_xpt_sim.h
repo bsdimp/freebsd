@@ -47,8 +47,10 @@ void		xpt_release_simq(struct cam_sim *sim, int run_queue);
 u_int32_t	xpt_freeze_devq(struct cam_path *path, u_int count);
 void		xpt_release_devq(struct cam_path *path,
 		    u_int count, int run_queue);
-void		xpt_done(union ccb *done_ccb);
-void		xpt_done_direct(union ccb *done_ccb);
+void		_xpt_done(struct ccb_hdr *ccb_h);
+#define xpt_done(done_ccb) _xpt_done(cam_ccb_to_hdr((done_ccb)))
+void		_xpt_done_direct(struct ccb_hdr *ccb_h);
+#define xpt_done_direct(done_ccb) _xpt_done_direct(cam_ccb_to_hdr((done_ccb)))
 #endif
 
 #endif /* _CAM_CAM_XPT_SIM_H */

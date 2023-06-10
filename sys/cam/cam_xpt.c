@@ -4559,8 +4559,9 @@ xpt_release_simq(struct cam_sim *sim, int run_queue)
 }
 
 void
-xpt_done(union ccb *done_ccb)
+_xpt_done(struct ccb_hdr *ccb_h)
 {
+	union ccb *done_ccb = (union ccb *)ccb_h;
 	struct cam_doneq *queue;
 	int	run, hash;
 
@@ -4594,8 +4595,9 @@ xpt_done(union ccb *done_ccb)
 }
 
 void
-xpt_done_direct(union ccb *done_ccb)
+_xpt_done_direct(struct ccb_hdr *ccb_h)
 {
+	union ccb *done_ccb = (union ccb *)ccb_h;
 
 	CAM_DEBUG(done_ccb->ccb_h.path, CAM_DEBUG_TRACE,
 	    ("xpt_done_direct: status %#x\n", done_ccb->ccb_h.status));
