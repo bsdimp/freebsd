@@ -174,7 +174,7 @@ static struct scsi_nv task_attrs[] = {
 };
 
 static const char scsicmd_opts[] = "a:c:dfi:o:r";
-static const char readdefect_opts[] = "f:GPqsS:X";
+static const char readdefect_opts[] = "f:GPqr:sS:X";
 static const char negotiate_opts[] = "acD:M:O:qR:T:UW:";
 static const char smprg_opts[] = "l";
 static const char smppc_opts[] = "a:A:d:lm:M:o:p:s:S:T:";
@@ -3877,6 +3877,22 @@ readdefects(struct cam_device *device, int argc, char **argv,
 		case 'q':
 			quiet = true;
 			break;
+		case 'r': {
+			char *endptr;
+			unsigned long reserved;
+			const unsigned long byte2_defined = SRDD10_PLIST |
+			    SRDD10_GLIST | SRDD10_DLIST_FORMAT_MASK;
+
+			reserved = strtoul(optarg, &endptr, 0);
+			if (*endptr != '\0' ||
+			    (reserved & byte2_defined) ||
+			    reserved > 0xff) {
+				error = 1;
+				warnx("invalid reserved bits %s", optarg);
+			}
+			list_format |= reserved;
+			break;
+		}
 		case 's':
 			summary = true;
 			break;

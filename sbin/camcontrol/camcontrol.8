@@ -115,6 +115,7 @@
 .Op Fl P
 .Op Fl G
 .Op Fl q
+.Op Fl r Ar value
 .Op Fl s
 .Op Fl S Ar offset
 .Op Fl X
@@ -644,7 +645,8 @@ READ DEFECT DATA (10) command (0x37) or the
 .Tn SCSI
 READ DEFECT DATA (12) command (0xB7) to the given device, and
 print out any combination of: the total number of defects, the primary
-defect list (PLIST), and the grown defect list (GLIST).
+defect list (PLIST), the grown defect list (GLIST) and any vendor specific
+defect list(s) that setting the reserve bits generate.
 .Bl -tag -width 11n
 .It Fl f Ar format
 Specify the requested format of the defect list.
@@ -697,6 +699,12 @@ This is the list of defects that were present in the factory.
 When printing status information with
 .Fl s ,
 only print the number of defects.
+.It Fl r Ar value
+Sets the reserved bits of byte 2 of the READ DEFECT DATA command to
+.Ar value
+This causes vendor specific behavior, such as returning other types of
+defects.
+The value is ORed into byte 2 and may only specify bits in the mask 0xe0.
 .It Fl s
 Just print the number of defects, not the list of defects.
 .It Fl S Ar offset
