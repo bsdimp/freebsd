@@ -1,7 +1,4 @@
 # $Id: auto.obj.mk,v 1.12 2015/12/16 01:57:06 sjg Exp $
-#
-#	@(#) Copyright (c) 2004, Simon J. Gerraty
-#
 #	This file is provided in the hope that it will
 #	be of use.  There is absolutely NO WARRANTY.
 #	Permission to copy, redistribute or otherwise

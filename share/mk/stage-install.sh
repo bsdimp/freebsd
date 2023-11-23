@@ -34,9 +34,6 @@
 
 # RCSid:
 #	$Id: stage-install.sh,v 1.5 2013/04/19 16:32:24 sjg Exp $
-#
-#	@(#) Copyright (c) 2013, Simon J. Gerraty
-#
 #	This file is provided in the hope that it will
 #	be of use.  There is absolutely NO WARRANTY.
 #	Permission to copy, redistribute or otherwise

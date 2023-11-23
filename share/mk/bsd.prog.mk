@@ -1,4 +1,3 @@
-#	from: @(#)bsd.prog.mk	5.26 (Berkeley) 6/25/91
 
 .include <bsd.init.mk>
 .include <bsd.compiler.mk>

@@ -1,7 +1,4 @@
 # $Id: dirdeps-options.mk,v 1.21 2022/09/06 22:18:45 sjg Exp $
-#
-#	@(#) Copyright (c) 2018-2022, Simon J. Gerraty
-#
 #	This file is provided in the hope that it will
 #	be of use.  There is absolutely NO WARRANTY.
 #	Permission to copy, redistribute or otherwise

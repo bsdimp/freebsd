@@ -1,7 +1,4 @@
 # $Id: progs.mk,v 1.11 2012/11/06 17:18:54 sjg Exp $
-#
-#	@(#) Copyright (c) 2006, Simon J. Gerraty
-#
 #	This file is provided in the hope that it will
 #	be of use.  There is absolutely NO WARRANTY.
 #	Permission to copy, redistribute or otherwise

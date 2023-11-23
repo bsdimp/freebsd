@@ -1,8 +1,5 @@
 # $Id: meta.sys.mk,v 1.51 2023/05/11 20:05:32 sjg Exp $
 
-#
-#	@(#) Copyright (c) 2010-2023, Simon J. Gerraty
-#
 #	This file is provided in the hope that it will
 #	be of use.  There is absolutely NO WARRANTY.
 #	Permission to copy, redistribute or otherwise

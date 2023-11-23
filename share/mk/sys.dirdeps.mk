@@ -1,7 +1,4 @@
 # $Id: sys.dirdeps.mk,v 1.12 2023/05/14 16:16:03 sjg Exp $
-#
-#	@(#) Copyright (c) 2012-2023, Simon J. Gerraty
-#
 #	This file is provided in the hope that it will
 #	be of use.  There is absolutely NO WARRANTY.
 #	Permission to copy, redistribute or otherwise

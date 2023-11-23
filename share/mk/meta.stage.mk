@@ -1,7 +1,4 @@
 # $Id: meta.stage.mk,v 1.67 2023/04/17 01:22:10 sjg Exp $
-#
-#	@(#) Copyright (c) 2011-2017, Simon J. Gerraty
-#
 #	This file is provided in the hope that it will
 #	be of use.  There is absolutely NO WARRANTY.
 #	Permission to copy, redistribute or otherwise
