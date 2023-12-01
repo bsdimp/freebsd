@@ -181,3 +181,33 @@ get_confirmation(void)
 	} while (response == -1);
 	return (response);
 }
+
+
+/*
+ * Parse the next N args (or one arg with N strings) to fill in a command buffer
+ * as a list of hex values.
+ *
+ * Increment optind by the number of arguments the encoding routine processed.
+ * After each call to getopt(3), optind points to the argument that getopt
+ * should process _next_.  In this case, that means it points to the first
+ * command string argument, if there is one.  Once we increment this, it should
+ * point to either the next command line argument, or it should be past the end
+ * of the list.
+ */
+size_t
+hex_args_to_buffer(uint8_t *buffer, size_t len, const char *str,
+    int argc, char **argv, int *got)
+{
+	int retlen;
+	struct get_hook hook;
+
+	while (isspace(*str) && *str != '\0')
+		str++;
+	hook.argc = argc;
+	hook.argv = argv;
+	hook.got = 0;
+	retlen = buff_encode_visit(buffer, len, str, iget, &hook);
+	*got = hook.got;
+
+	return retlen;
+}

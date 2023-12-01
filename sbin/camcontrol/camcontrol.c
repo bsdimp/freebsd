@@ -111,6 +111,7 @@ typedef enum {
 	CAM_CMD_DEVTYPE,
 	CAM_CMD_AMA,
 	CAM_CMD_DEPOP,
+	CAM_CMD_DECODE,
 } cam_cmd;
 
 typedef enum {
@@ -233,6 +234,7 @@ static struct camcontrol_opts option_table[] = {
 	{"epc", CAM_CMD_EPC, CAM_ARG_NONE, "c:dDeHp:Pr:sS:T:"},
 	{"timestamp", CAM_CMD_TIMESTAMP, CAM_ARG_NONE, "f:mrsUT:"},
 	{"depop", CAM_CMD_DEPOP, CAM_ARG_NONE, "ac:de:ls"},
+	{"decode", CAM_CMD_DECODE, CAM_ARG_NONE, "a:c:d:e:N:s:"},
 	{"help", CAM_CMD_USAGE, CAM_ARG_NONE, NULL},
 	{"-?", CAM_CMD_USAGE, CAM_ARG_NONE, NULL},
 	{"-h", CAM_CMD_USAGE, CAM_ARG_NONE, NULL},
@@ -4585,7 +4587,7 @@ scsicmd(struct cam_device *device, int argc, char **argv, char *combinedopt,
 	uint8_t *data_ptr = NULL;
 	uint8_t cdb[20];
 	uint8_t atacmd[12];
-	struct get_hook hook;
+	int got;
 	int c, data_bytes = 0, valid_bytes;
 	int cdb_len = 0;
 	int atacmd_len = 0;
@@ -4607,48 +4609,16 @@ scsicmd(struct cam_device *device, int argc, char **argv, char *combinedopt,
 	while ((c = getopt(argc, argv, combinedopt)) != -1) {
 		switch(c) {
 		case 'a':
-			tstr = optarg;
-			while (isspace(*tstr) && (*tstr != '\0'))
-				tstr++;
-			hook.argc = argc - optind;
-			hook.argv = argv + optind;
-			hook.got = 0;
-			atacmd_len = buff_encode_visit(atacmd, sizeof(atacmd), tstr,
-						    iget, &hook);
-			/*
-			 * Increment optind by the number of arguments the
-			 * encoding routine processed.  After each call to
-			 * getopt(3), optind points to the argument that
-			 * getopt should process _next_.  In this case,
-			 * that means it points to the first command string
-			 * argument, if there is one.  Once we increment
-			 * this, it should point to either the next command
-			 * line argument, or it should be past the end of
-			 * the list.
-			 */
-			optind += hook.got;
+			/* Parsing next N args, have to adjust optind */
+			amdcmd_len = hex_args_to_buffer(amdcmd, sizeof(amdcmd),
+			    argc - optind, argv + optind, &got);
+			optind += got;
 			break;
 		case 'c':
-			tstr = optarg;
-			while (isspace(*tstr) && (*tstr != '\0'))
-				tstr++;
-			hook.argc = argc - optind;
-			hook.argv = argv + optind;
-			hook.got = 0;
-			cdb_len = buff_encode_visit(cdb, sizeof(cdb), tstr,
-						    iget, &hook);
-			/*
-			 * Increment optind by the number of arguments the
-			 * encoding routine processed.  After each call to
-			 * getopt(3), optind points to the argument that
-			 * getopt should process _next_.  In this case,
-			 * that means it points to the first command string
-			 * argument, if there is one.  Once we increment
-			 * this, it should point to either the next command
-			 * line argument, or it should be past the end of
-			 * the list.
-			 */
-			optind += hook.got;
+			/* Parsing next N args, have to adjust optind */
+			cdb_len = hex_args_to_buffer(cdb, sizeof(cdb),
+			    argc - optind, argv + optind, &got);
+			optind += got;
 			break;
 		case 'd':
 			dmacmd = 1;

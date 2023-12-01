@@ -5,6 +5,7 @@ PACKAGE=runtime
 PROG=	camcontrol
 SRCS=	camcontrol.c
 SRCS+=	attrib.c
+SRCS+=	decode.c
 SRCS+=	depop.c
 SRCS+=	epc.c
 SRCS+=	fwdownload.c

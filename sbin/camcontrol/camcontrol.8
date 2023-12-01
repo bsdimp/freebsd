@@ -25,7 +25,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd June 1, 2023
+.Dd December 1, 2023
 .Dt CAMCONTROL 8
 .Os
 .Sh NAME
@@ -370,6 +370,12 @@
 .Ao Fl l | Fl d | Fl r Ac
 .Op Fl e Ar elem
 .Op Fl c Ar capacity
+.Nm
+.Ic decode
+.Op Ao Fl a Ar cmd | Fl N Ar cmd | Fl c Ar cmd Ac
+.Op Fl d Ar devd-line
+.Op Fl e Ar error-buff
+.Op Fl v
 .Nm
 .Ic help
 .Sh DESCRIPTION
@@ -2644,6 +2650,20 @@ Report the current status of the physical elements of a drive.
 .It Fl r
 Restore all the eligible physical elements to service.
 .El
+.It Ic decode
+Decode a ATA or SCSI command buffer, and optionally any sense or other data
+returned by the drive.
+This command generates no I/O.
+The command and reply are interpreted according to the relevant spec.
+The
+.Ic cmd
+function requires the
+.Fl c
+argument to specify SCSI CDB or the
+.Fl a
+argument to specify ATA Command Block registers values or the
+.Fl N
+argument to specify NVME register block
 .It Ic help
 Print out verbose usage information.
 .El
