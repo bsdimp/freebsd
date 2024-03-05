@@ -46,7 +46,9 @@ typedef struct _node {
 	struct timespec	st_mtimespec;		/* last modification time */
 	char	*slink;				/* symbolic link reference */
 	uid_t	st_uid;				/* uid */
+	char	*uname;
 	gid_t	st_gid;				/* gid */
+	char	*gname;
 #define	MBITS	(S_ISUID|S_ISGID|S_ISTXT|S_IRWXU|S_IRWXG|S_IRWXO)
 	mode_t	st_mode;			/* mode */
 	dev_t	st_rdev;			/* device type */

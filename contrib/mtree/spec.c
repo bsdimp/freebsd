@@ -342,7 +342,8 @@ dump_nodes(FILE *fp, const char *dir, NODE *root, int pathlast)
 			    nodetype(cur->type));
 		if (MATCHFLAG(F_UID | F_UNAME)) {
 			if (keys & F_UNAME &&
-			    (name = user_from_uid(cur->st_uid, 1)) != NULL)
+			    (name = cur->uname ? cur->uname :
+			      user_from_uid(cur->st_uid, 1)) != NULL)
 				appendfield(fp, pathlast, "uname=%s", name);
 			else
 				appendfield(fp, pathlast, "uid=%u",
@@ -350,7 +351,8 @@ dump_nodes(FILE *fp, const char *dir, NODE *root, int pathlast)
 		}
 		if (MATCHFLAG(F_GID | F_GNAME)) {
 			if (keys & F_GNAME &&
-			    (name = group_from_gid(cur->st_gid, 1)) != NULL)
+			    (name = cur->gname ? cur->gname :
+			      group_from_gid(cur->st_gid, 1)) != NULL)
 				appendfield(fp, pathlast, "gname=%s", name);
 			else
 				appendfield(fp, pathlast, "gid=%u",
@@ -582,9 +584,12 @@ set(char *t, NODE *ip)
 		case F_GNAME:
 			if (mtree_Wflag)	/* don't parse if whacking */
 				break;
-			if (gid_from_group(val, &gid) == -1)
-				mtree_err("unknown group `%s'", val);
-			ip->st_gid = gid;
+			if (gid_from_group(val, &gid) == -1) {
+				// mtree_err("unknown group `%s'", val);
+				ip->uname = strdup(val);
+			} else {
+				ip->st_gid = gid;
+			}
 			break;
 		case F_MD5:
 			if (val[0]=='0' && val[1]=='x')
@@ -660,9 +665,12 @@ set(char *t, NODE *ip)
 		case F_UNAME:
 			if (mtree_Wflag)	/* don't parse if whacking */
 				break;
-			if (uid_from_user(val, &uid) == -1)
-				mtree_err("unknown user `%s'", val);
-			ip->st_uid = uid;
+			if (uid_from_user(val, &uid) == -1) {
+				//mtree_err("unknown user `%s'", val);
+				ip->uname = strdup(val);
+			} else {
+				ip->st_uid = uid;
+			}
 			break;
 		case F_SHA256:
 			if (val[0]=='0' && val[1]=='x')

@@ -64,11 +64,15 @@ shownode(NODE *n, int f, char const *path)
 	if (f & F_GID)
 		printf(" gid=%d", n->st_gid);
 	if (f & F_GNAME) {
-		gr = getgrgid(n->st_gid);
-		if (gr == NULL)
-			printf(" gid=%d", n->st_gid);
-		else
-			printf(" gname=%s", gr->gr_name);
+		if (n->gname != NULL) {
+			printf(" gname=%s", n->gname); 
+		} else {
+			gr = getgrgid(n->st_gid);
+			if (gr == NULL)
+				printf(" gid=%d", n->st_gid);
+			else
+				printf(" gname=%s", gr->gr_name);
+		}
 	}
 	if (f & F_MODE)
 		printf(" mode=%o", n->st_mode);
@@ -79,11 +83,15 @@ shownode(NODE *n, int f, char const *path)
 	if (f & F_UID)
 		printf(" uid=%d", n->st_uid);
 	if (f & F_UNAME) {
-		pw = getpwuid(n->st_uid);
-		if (pw == NULL)
-			printf(" uid=%d", n->st_uid);
-		else
-			printf(" uname=%s", pw->pw_name);
+		if (n->uname != NULL) {
+			printf(" uname=%s", n->uname);
+		} else {
+			pw = getpwuid(n->st_uid);
+			if (pw == NULL)
+				printf(" uid=%d", n->st_uid);
+			else
+				printf(" uname=%s", pw->pw_name);
+		}
 	}
 	if (f & F_MD5)
 		printf(" %s=%s", MD5KEY, n->md5digest);
