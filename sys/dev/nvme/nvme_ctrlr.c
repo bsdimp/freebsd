@@ -1191,6 +1191,13 @@ nvme_ctrlr_reset_task(void *arg, int pending)
 	}
 
 	atomic_cmpset_32(&ctrlr->is_resetting, 1, 0);
+
+	/*
+	 * Wakeup anybody waiting.
+	 */
+	mtx_lock(&ctrlr->lock);
+	wakeup(&ctrlr->is_resetting);
+	mtx_unlock(&ctrlr->lock);
 }
 
 /*
@@ -1328,8 +1335,32 @@ nvme_ctrlr_ioctl(struct cdev *cdev, u_long cmd, caddr_t arg, int flag,
 
 	switch (cmd) {
 	case NVME_RESET_CONTROLLER:
+	{
+		bool was_failed = ctrlr->is_failed;
+
+		/*
+		 * We fail controllers for many reasons. Take us out of the
+		 * failed state temporarily. Resetting the controller can fix
+		 * some of these reasons. Wait for the reset to finish before
+		 * returning, and if we were failed and the reset didn't result
+		 * in a new failure, call notify_new_controller to notify the
+		 * consumers that the controller is back (we previously failed
+		 * them).
+		 *
+		 * We don't need to have a sanity timeout because the reset task
+		 * is limited and will eventually return and wakeup
+		 * is_resetting.
+		 */
+		ctrlr->is_failed = false;
 		nvme_ctrlr_reset(ctrlr);
+		mtx_lock(&ctrlr->lock);
+		while (ctrlr->is_resetting != 0)
+			mtx_sleep(&ctrlr->is_resetting, &ctrlr->lock, PRIBIO, "nvmeIR", 0);
+		mtx_unlock(&ctrlr->lock);
+		if (was_failed && !ctrlr->is_failed)
+			nvme_notify_new_controller(ctrlr);
 		break;
+	}
 	case NVME_PASSTHROUGH_CMD:
 		pt = (struct nvme_pt_command *)arg;
 		return (nvme_ctrlr_passthrough_cmd(ctrlr, pt, le32toh(pt->cmd.nsid),
