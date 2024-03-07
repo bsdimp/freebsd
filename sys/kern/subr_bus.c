@@ -98,6 +98,7 @@ struct devclass {
 	char		*name;
 	device_t	*devices;	/* array of devices indexed by unit */
 	int		maxunit;	/* size of devices array */
+	int		probe_bias;	/* User configured "bonus" for probe order */
 	int		flags;
 #define DC_HAS_CHILDREN		1
 
@@ -242,6 +243,10 @@ devclass_sysctl_init(devclass_t dc)
 	    CTLTYPE_STRING | CTLFLAG_RD | CTLFLAG_MPSAFE,
 	    dc, DEVCLASS_SYSCTL_PARENT, devclass_sysctl_handler, "A",
 	    "parent class");
+	SYSCTL_ADD_INT(&dc->sysctl_ctx,
+	    SYSCTL_CHILDREN(dc->sysctl_tree), OID_AUTO, "%probe_bias",
+	    CTLFLAG_RWTUN | CTLFLAG_MPSAFE, &dc->probe_bias, 0,
+	    "Bonus added probe values");
 }
 
 enum {
@@ -1608,7 +1613,7 @@ device_probe_child(device_t dev, device_t child)
 	devclass_t dc;
 	driverlink_t best = NULL;
 	driverlink_t dl;
-	int result, pri = 0;
+	int result, bias, pri = 0;
 	/* We should preserve the devclass (or lack of) set by the bus. */
 	int hasclass = (child->devclass != NULL);
 
@@ -1671,6 +1676,14 @@ device_probe_child(device_t dev, device_t child)
 				break;
 			}
 
+			/*
+			 * Remember the probe bias for this devclass the user
+			 * configured. This is added to the result to give the
+			 * final priority for this driver and to break ties
+			 * differently than default.
+			 */
+			bias = child->devclass->probe_bias;
+
 			/* Reset flags and devclass before the next probe. */
 			child->devflags = 0;
 			if (!hasclass)
@@ -1704,11 +1717,13 @@ device_probe_child(device_t dev, device_t child)
 			/*
 			 * A priority lower than SUCCESS, remember the
 			 * best matching driver. Initialise the value
-			 * of pri for the first match.
+			 * of pri for the first match. Add in the %probe_bias
+			 * value, if any, to allow the user to break ties or
+			 * boost non-preferred drivers.
 			 */
-			if (best == NULL || result > pri) {
+			if (best == NULL || result + bias > pri) {
 				best = dl;
-				pri = result;
+				pri = result + bias;
 				continue;
 			}
 		}
