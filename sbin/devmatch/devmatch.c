@@ -55,8 +55,6 @@ static struct option longopts[] = {
 	{ NULL,			0,			NULL,	0 }
 };
 
-static struct devmatch *sc;
-
 static void *
 read_hints(const char *fn, size_t *len)
 {
@@ -83,13 +81,13 @@ read_hints(const char *fn, size_t *len)
 }
 
 static void
-read_linker_hints(void)
+read_linker_hints(struct devmatch *dm)
 {
 	char fn[MAXPATHLEN];
 	char *modpath, *p, *q;
 	size_t buflen, len;
 
-	if (sc->linker_hints == NULL) {
+	if (dm->linker_hints == NULL) {
 		if (sysctlbyname("kern.module_path", NULL, &buflen, NULL, 0) < 0)
 			errx(1, "Can't find kernel module path.");
 		modpath = malloc(buflen);
@@ -100,31 +98,31 @@ read_linker_hints(void)
 		p = modpath;
 		while ((q = strsep(&p, ";")) != NULL) {
 			snprintf(fn, sizeof(fn), "%s/linker.hints", q);
-			sc->hints = read_hints(fn, &len);
-			if (sc->hints == NULL)
+			dm->hints = read_hints(fn, &len);
+			if (dm->hints == NULL)
 				continue;
 			break;
 		}
 		if (q == NULL) {
-			if (IS_QUIET(sc->flags))
+			if (IS_QUIET(dm->flags))
 				exit(EX_UNAVAILABLE);
 			else
 				errx(EX_UNAVAILABLE, "Can't read linker hints file.");
 		}
 	} else {
-		sc->hints = read_hints(sc->linker_hints, &len);
-		if (sc->hints == NULL)
+		dm->hints = read_hints(dm->linker_hints, &len);
+		if (dm->hints == NULL)
 			err(1, "Can't open %s for reading", fn);
 	}
 
-	if (*(int *)(intptr_t)sc->hints != LINKER_HINTS_VERSION) {
+	if (*(int *)(intptr_t)dm->hints != LINKER_HINTS_VERSION) {
 		warnx("Linker hints version %d doesn't match expected %d.",
-		    *(int *)(intptr_t)sc->hints, LINKER_HINTS_VERSION);
-		free(sc->hints);
-		sc->hints = NULL;
+		    *(int *)(intptr_t)dm->hints, LINKER_HINTS_VERSION);
+		free(dm->hints);
+		dm->hints = NULL;
 	}
-	if (sc->hints != NULL)
-		sc->hints_end = (void *)((intptr_t)sc->hints + (intptr_t)len);
+	if (dm->hints != NULL)
+		dm->hints_end = (void *)((intptr_t)dm->hints + (intptr_t)len);
 }
 
 static int
@@ -230,20 +228,20 @@ pnpval_as_str(const char *val, const char *pnpinfo)
 }
 
 static void
-search_hints(const char *bus, const char *dev, const char *pnpinfo)
+search_hints(struct devmatch *dm, const char *bus, const char *dev, const char *pnpinfo)
 {
 	char val1[256], val2[256];
 	int ival, len, ents, i, notme, mask, bit, v, found;
 	void *ptr, *walker;
 	char *lastmod = NULL, *cp, *s;
 
-	walker = sc->hints;
+	walker = dm->hints;
 	getint(&walker);
 	found = 0;
-	if (IS_VERBOSE(sc->flags))
+	if (IS_VERBOSE(dm->flags))
 		printf("Searching bus %s dev %s for pnpinfo %s\n",
 		    bus, dev, pnpinfo);
-	while (walker < sc->hints_end) {
+	while (walker < dm->hints_end) {
 		len = getint(&walker);
 		ival = getint(&walker);
 		ptr = walker;
@@ -252,7 +250,7 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 			getstr(&ptr, val1);
 			ival = getint(&ptr);
 			getstr(&ptr, val2);
-			if (IS_DUMP(sc->flags) || IS_VERBOSE(sc->flags))
+			if (IS_DUMP(dm->flags) || IS_VERBOSE(dm->flags))
 				printf("Version: if %s.%d kmod %s\n", val1, ival, val2);
 			break;
 		case MDT_MODULE:
@@ -261,33 +259,33 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 			if (lastmod)
 				free(lastmod);
 			lastmod = strdup(val2);
-			if (IS_DUMP(sc->flags) || IS_VERBOSE(sc->flags))
+			if (IS_DUMP(dm->flags) || IS_VERBOSE(dm->flags))
 				printf("Module %s in %s\n", val1, val2);
 			break;
 		case MDT_PNP_INFO:
-			if (!IS_DUMP(sc->flags) && !IS_UNBOUND(sc->flags) && lastmod && strcmp(lastmod, "kernel") == 0)
+			if (!IS_DUMP(dm->flags) && !IS_UNBOUND(dm->flags) && lastmod && strcmp(lastmod, "kernel") == 0)
 				break;
 			getstr(&ptr, val1);
 			getstr(&ptr, val2);
 			ents = getint(&ptr);
-			if (IS_DUMP(sc->flags) || IS_VERBOSE(sc->flags))
+			if (IS_DUMP(dm->flags) || IS_VERBOSE(dm->flags))
 				printf("PNP info for bus %s format %s %d entries (%s)\n",
 				    val1, val2, ents, lastmod);
 			if (strcmp(val1, "usb") == 0) {
-				if (IS_VERBOSE(sc->flags))
+				if (IS_VERBOSE(dm->flags))
 					printf("Treating usb as uhub -- bug in source table still?\n");
 				strcpy(val1, "uhub");
 			}
 			if (bus && strcmp(val1, bus) != 0) {
-				if (IS_VERBOSE(sc->flags))
+				if (IS_VERBOSE(dm->flags))
 					printf("Skipped because table for bus %s, looking for %s\n",
 					    val1, bus);
 				break;
 			}
 			for (i = 0; i < ents; i++) {
-				if (IS_VERBOSE(sc->flags))
+				if (IS_VERBOSE(dm->flags))
 					printf("---------- Entry %d ----------\n", i);
-				if (IS_DUMP(sc->flags))
+				if (IS_DUMP(dm->flags))
 					printf("   ");
 				cp = val2;
 				notme = 0;
@@ -302,21 +300,21 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 					case 'L':
 					case 'M':
 						ival = getint(&ptr);
-						if (IS_DUMP(sc->flags)) {
+						if (IS_DUMP(dm->flags)) {
 							printf("%#x:", ival);
 							break;
 						}
 						if (bit >= 0 && ((1 << bit) & mask) == 0)
 							break;
 						if (cp[2] == '#') {
-							if (IS_VERBOSE(sc->flags)) {
+							if (IS_VERBOSE(dm->flags)) {
 								printf("Ignoring %s (%c) table=%#x tomatch=%#x\n",
 								    cp + 2, *cp, v, ival);
 							}
 							break;
 						}
 						v = pnpval_as_int(cp + 2, pnpinfo);
-						if (IS_VERBOSE(sc->flags))
+						if (IS_VERBOSE(dm->flags))
 							printf("Matching %s (%c) table=%#x tomatch=%#x\n",
 							    cp + 2, *cp, v, ival);
 						switch (*cp) {
@@ -345,7 +343,7 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 					case 'D':
 					case 'Z':
 						getstr(&ptr, val1);
-						if (IS_DUMP(sc->flags)) {
+						if (IS_DUMP(dm->flags)) {
 							printf("'%s':", val1);
 							break;
 						}
@@ -354,14 +352,14 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 						if (bit >= 0 && ((1 << bit) & mask) == 0)
 							break;
 						if (cp[2] == '#') {
-							if (IS_VERBOSE(sc->flags)) {
+							if (IS_VERBOSE(dm->flags)) {
 								printf("Ignoring %s (%c) table=%#x tomatch=%#x\n",
 								    cp + 2, *cp, v, ival);
 							}
 							break;
 						}
 						s = pnpval_as_str(cp + 2, pnpinfo);
-						if (IS_VERBOSE(sc->flags))
+						if (IS_VERBOSE(dm->flags))
 							printf("Matching %s (%c) table=%s tomatch=%s\n",
 							    cp + 2, *cp, s, val1);
 						if (strcmp(s, val1) != 0)
@@ -374,7 +372,7 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 						 * to be more general for multiple keys. Currently, nothing
 						 * does that.
 						 */
-						if (IS_DUMP(sc->flags))				/* No per-row data stored */
+						if (IS_DUMP(dm->flags))				/* No per-row data stored */
 							break;
 						if (cp[strlen(cp) - 1] == ';')		/* Skip required ; at end */
 							cp[strlen(cp) - 1] = '\0';	/* in case it's not there */
@@ -392,15 +390,15 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 					if (cp)
 						cp++;
 				} while (cp && *cp);
-				if (IS_DUMP(sc->flags))
+				if (IS_DUMP(dm->flags))
 					printf("\n");
 				else if (!notme) {
-					if (!IS_UNBOUND(sc->flags)) {
-						if (IS_ALL(sc->flags))
+					if (!IS_UNBOUND(dm->flags)) {
+						if (IS_ALL(dm->flags))
 							printf("%s: %s\n", *dev ? dev : "unattached", lastmod);
 						else
 							printf("%s\n", lastmod);
-						if (IS_VERBOSE(sc->flags))
+						if (IS_VERBOSE(dm->flags))
 							printf("Matches --- %s ---\n", lastmod);
 					}
 					found++;
@@ -408,17 +406,17 @@ search_hints(const char *bus, const char *dev, const char *pnpinfo)
 			}
 			break;
 		default:
-			if (IS_DUMP(sc->flags))
+			if (IS_DUMP(dm->flags))
 				printf("Unknown Type %d len %d\n", ival, len);
 			break;
 		}
 		walker = (void *)(len - sizeof(int) + (intptr_t)walker);
 	}
-	if (IS_UNBOUND(sc->flags) && found == 0 && *pnpinfo) {
-		if (IS_VERBOSE(sc->flags))
+	if (IS_UNBOUND(dm->flags) && found == 0 && *pnpinfo) {
+		if (IS_VERBOSE(dm->flags))
 			printf("------------------------- ");
 		printf("%s on %s pnpinfo %s", *dev ? dev : "unattached", bus, pnpinfo);
-		if (IS_VERBOSE(sc->flags))
+		if (IS_VERBOSE(dm->flags))
 			printf(" -------------------------");
 		printf("\n");
 	}
@@ -430,13 +428,14 @@ find_unmatched(struct devinfo_dev *dev, void *arg)
 {
 	struct devinfo_dev *parent;
 	char *bus, *p;
+	struct devmatch *dm = arg;
 
 	do {
-		if (!IS_ALL(sc->flags) && dev->dd_name[0] != '\0')
+		if (!IS_ALL(dm->flags) && dev->dd_name[0] != '\0')
 			break;
 		if (!(dev->dd_flags & DF_ENABLED))
 			break;
-		if (!IS_ALL(sc->flags) && dev->dd_flags & DF_ATTACHED_ONCE)
+		if (!IS_ALL(dm->flags) && dev->dd_flags & DF_ATTACHED_ONCE)
 			break;
 		parent = devinfo_handle_to_device(dev->dd_parent);
 		bus = strdup(parent->dd_name);
@@ -444,10 +443,10 @@ find_unmatched(struct devinfo_dev *dev, void *arg)
 		while (p >= bus && isdigit(*p))
 			p--;
 		*++p = '\0';
-		if (IS_VERBOSE(sc->flags))
+		if (IS_VERBOSE(dm->flags))
 			printf("Searching %s %s bus at %s for pnpinfo %s\n",
 			    dev->dd_name, bus, dev->dd_location, dev->dd_pnpinfo);
-		search_hints(bus, dev->dd_name, dev->dd_pnpinfo);
+		search_hints(dm, bus, dev->dd_name, dev->dd_pnpinfo);
 		free(bus);
 	} while (0);
 
@@ -543,7 +542,7 @@ devmatch_find_nomatch(struct devmatch *dm, char *nomatch)
 	devinfo_foreach_device_child(dm->root, find_exact_dev, (void *)&info);
 	if (info.dev != NULL && info.dev->dd_flags & DF_ATTACHED_ONCE)
 		exit(0);
-	search_hints(bus, "", pnpinfo);
+	search_hints(dm, bus, "", pnpinfo);
 
 	exit(0);
 }
@@ -560,9 +559,9 @@ devmatch_init(uint32_t flags, const char *linker_hints)
 	dm->flags = flags;
 	dm->linker_hints = linker_hints;
 
-	read_linker_hints();
+	read_linker_hints(dm);
 	if (IS_DUMP(dm->flags)) {
-		search_hints(NULL, NULL, NULL);
+		search_hints(dm, NULL, NULL, NULL);
 		exit(0);
 	}
 
@@ -583,7 +582,7 @@ devmatch_fini(struct devmatch *dm)
 void
 devmatch_find(struct devmatch *dm)
 {
-	devinfo_foreach_device_child(dm->root, find_unmatched, (void *)0);
+	devinfo_foreach_device_child(dm->root, find_unmatched, dm);
 }
 
 static void
@@ -600,6 +599,7 @@ main(int argc, char **argv)
 	uint32_t flags = 0;
 	const char *linker_hints = NULL;
 	char *nomatch_str = NULL;
+	struct devmatch *dm;
 
 	while ((ch = getopt_long(argc, argv, "adh:p:quv",
 		    longopts, NULL)) != -1) {
@@ -635,10 +635,10 @@ main(int argc, char **argv)
 	if (argc >= 1)
 		usage();
 
-	sc = devmatch_init(flags, linker_hints);
+	dm = devmatch_init(flags, linker_hints);
 	if (nomatch_str != NULL)
-		devmatch_find_nomatch(sc, nomatch_str);
+		devmatch_find_nomatch(dm, nomatch_str);
 	else
-		devmatch_find(sc);
-	devmatch_fini(sc);
+		devmatch_find(dm);
+	devmatch_fini(dm);
 }
