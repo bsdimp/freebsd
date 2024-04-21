@@ -569,6 +569,27 @@ find_nomatch(char *nomatch)
 }
 
 static void
+devmatch_init(void)
+{
+	read_linker_hints();
+	if (IS_DUMP(flags)) {
+		search_hints(NULL, NULL, NULL);
+		exit(0);
+	}
+
+	if (devinfo_init())
+		err(1, "devinfo_init");
+	if ((root = devinfo_handle_to_device(DEVINFO_ROOT_DEVICE)) == NULL)
+		errx(1, "can't find root device");
+}
+
+static void
+devmatch_fini(void)
+{
+	devinfo_free();
+}
+
+static void
 usage(void)
 {
 
@@ -615,19 +636,10 @@ main(int argc, char **argv)
 	if (argc >= 1)
 		usage();
 
-	read_linker_hints();
-	if (IS_DUMP(flags)) {
-		search_hints(NULL, NULL, NULL);
-		exit(0);
-	}
-
-	if (devinfo_init())
-		err(1, "devinfo_init");
-	if ((root = devinfo_handle_to_device(DEVINFO_ROOT_DEVICE)) == NULL)
-		errx(1, "can't find root device");
+	devmatch_init();
 	if (nomatch_str != NULL)
 		find_nomatch(nomatch_str);
 	else
 		devinfo_foreach_device_child(root, find_unmatched, (void *)0);
-	devinfo_free();
+	devmatch_fini();
 }
