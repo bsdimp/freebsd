@@ -221,6 +221,22 @@ action::~action()
 	// nothing
 }
 
+device_autoload::device_autoload()
+{
+	// nothing
+}
+
+device_autoload::~device_autoload()
+{
+	// nothing
+}
+
+bool
+device_autoload::do_action(config &)
+{
+	return (false);
+}
+
 static int
 my_system(const char *command)
 {
@@ -1198,6 +1214,13 @@ new_action(const char *cmd)
 {
 	eps *e = new action(cmd);
 	free(const_cast<char *>(cmd));
+	return (e);
+}
+
+eps *
+new_device_autoload()
+{
+	eps *e = new device_autoload();
 	return (e);
 }
 

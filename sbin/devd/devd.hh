@@ -125,6 +125,18 @@ private:
 	std::string _cmd;
 };
 
+/**
+ * device_autoload is used to automatically load drivers.  It matches everything.
+ */
+class device_autoload : public eps
+{
+public:
+	device_autoload();
+	virtual ~device_autoload();
+	virtual bool do_match(config &) { return true; }
+	virtual bool do_action(config &);
+};
+
 struct event_proc
 {
 public:

@@ -92,6 +92,7 @@ pid-file		{ return PID_FILE; }
 attach			{ return ATTACH; }
 detach			{ return DETACH; }
 device-name		{ return DEVICE_NAME; }
+device-autoload		{ return DEVICE_AUTOLOAD; }
 media-type		{ return MEDIA_TYPE; }
 class			{ return CLASS; }
 subdevice		{ return SUBDEVICE; }

@@ -48,9 +48,10 @@
 %token <str> ID
 %token OPTIONS SET DIRECTORY PID_FILE DEVICE_NAME ACTION MATCH
 %token ATTACH DETACH NOMATCH NOTIFY MEDIA_TYPE CLASS SUBDEVICE
+%token DEVICE_AUTOLOAD
 
-%type <eventproc> match_or_action_list
-%type <eps> match_or_action match action
+%type <eventproc> match_or_action_list nomatch_list
+%type <eps> match_or_action match action device_autoload nomatch
 
 %%
 
@@ -111,7 +112,7 @@ detach_block
 	;
 
 nomatch_block
-	: NOMATCH NUMBER BEGINBLOCK match_or_action_list ENDBLOCK SEMICOLON
+	: NOMATCH NUMBER BEGINBLOCK nomatch_list ENDBLOCK SEMICOLON
 		{ add_nomatch($2, $4); }
 	| NOMATCH NUMBER BEGINBLOCK ENDBLOCK SEMICOLON
 	;
@@ -133,6 +134,18 @@ match_or_action
 	| action
 	;
 
+nomatch_list
+	: nomatch { $$ = add_to_event_proc( NULL, $1); }
+	| nomatch_list nomatch
+			{ $$ = add_to_event_proc($1, $2); }
+	;
+
+nomatch
+	: match
+	| action
+	| device_autoload
+	;
+
 match
 	: MATCH STRING STRING SEMICOLON	{ $$ = new_match($2, $3); }
 	| DEVICE_NAME STRING SEMICOLON
@@ -147,6 +160,10 @@ match
 
 action
 	: ACTION STRING SEMICOLON	{ $$ = new_action($2); }
+	;
+
+device_autoload
+	: DEVICE_AUTOLOAD SEMICOLON	{ $$ = new_device_autoload(); }
 	;
 
 %%

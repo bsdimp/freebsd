@@ -44,6 +44,7 @@ struct event_proc *add_to_event_proc(struct event_proc *, struct eps *);
 struct eps *new_match(const char *, const char *);
 struct eps *new_media(const char *, const char *);
 struct eps *new_action(const char *);
+struct eps *new_device_autoload(void);
 void set_pidfile(const char *);
 void set_variable(const char *, const char *);
 void yyerror(const char *s);
