@@ -41,6 +41,8 @@
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 
+#include "devmatch.h"
+
 /* options descriptor */
 static struct option longopts[] = {
 	{ "all",		no_argument,		NULL,	'a' },
@@ -51,29 +53,6 @@ static struct option longopts[] = {
 	{ "unbound",		no_argument,		NULL,	'u' },
 	{ "verbose",		no_argument,		NULL,	'v' },
 	{ NULL,			0,			NULL,	0 }
-};
-
-#define DM_ALL		0x01
-#define DM_DUMP		0x02
-#define DM_QUIET	0x04
-#define DM_UNBOUND	0x08
-#define DM_VERBOSE	0x10
-
-#define IS_(a, b)	((b & DM_ ## a) != 0)
-#define IS_ALL(f)	IS_(ALL, f)
-#define IS_DUMP(f)	IS_(DUMP, f)
-#define IS_QUIET(f)	IS_(QUIET, f)
-#define IS_UNBOUND(f)	IS_(UNBOUND, f)
-#define IS_VERBOSE(f)	IS_(VERBOSE, f)
-
-struct devmatch
-{
-	const char *linker_hints;
-	uint32_t flags;
-
-	void *hints;
-	void *hints_end;
-	struct devinfo_dev *root;
 };
 
 static struct devmatch *sc;
@@ -514,8 +493,8 @@ find_exact_dev(struct devinfo_dev *dev, void *arg)
 	return (devinfo_foreach_device_child(dev, find_exact_dev, arg));
 }
 
-static void
-find_nomatch(char *nomatch)
+void
+devmatch_find_nomatch(struct devmatch *dm, char *nomatch)
 {
 	char *bus, *pnpinfo, *tmp, *busnameunit;
 	struct exact_info info;
@@ -561,7 +540,7 @@ find_nomatch(char *nomatch)
 	info.loc = pnpinfo;
 	info.bus = busnameunit;
 	info.dev = NULL;
-	devinfo_foreach_device_child(sc->root, find_exact_dev, (void *)&info);
+	devinfo_foreach_device_child(dm->root, find_exact_dev, (void *)&info);
 	if (info.dev != NULL && info.dev->dd_flags & DF_ATTACHED_ONCE)
 		exit(0);
 	search_hints(bus, "", pnpinfo);
@@ -569,33 +548,42 @@ find_nomatch(char *nomatch)
 	exit(0);
 }
 
-static void
+struct devmatch *
 devmatch_init(uint32_t flags, const char *linker_hints)
 {
-	sc = malloc(sizeof(*sc));
-	if (sc == NULL)
+	struct devmatch *dm;
+
+	dm = malloc(sizeof(*dm));
+	if (dm == NULL)
 		err(1, "No memory for state");
 
-	sc->flags = flags;
-	sc->linker_hints = linker_hints;
+	dm->flags = flags;
+	dm->linker_hints = linker_hints;
 
 	read_linker_hints();
-	if (IS_DUMP(sc->flags)) {
+	if (IS_DUMP(dm->flags)) {
 		search_hints(NULL, NULL, NULL);
 		exit(0);
 	}
 
 	if (devinfo_init())
 		err(1, "devinfo_init");
-	if ((sc->root = devinfo_handle_to_device(DEVINFO_ROOT_DEVICE)) == NULL)
+	if ((dm->root = devinfo_handle_to_device(DEVINFO_ROOT_DEVICE)) == NULL)
 		errx(1, "can't find root device");
+	return (dm);
 }
 
-static void
-devmatch_fini(void)
+void
+devmatch_fini(struct devmatch *dm)
 {
 	devinfo_free();
-	free(sc);
+	free(dm);
+}
+
+void
+devmatch_find(struct devmatch *dm)
+{
+	devinfo_foreach_device_child(dm->root, find_unmatched, (void *)0);
 }
 
 static void
@@ -647,10 +635,10 @@ main(int argc, char **argv)
 	if (argc >= 1)
 		usage();
 
-	devmatch_init(flags, linker_hints);
+	sc = devmatch_init(flags, linker_hints);
 	if (nomatch_str != NULL)
-		find_nomatch(nomatch_str);
+		devmatch_find_nomatch(sc, nomatch_str);
 	else
-		devinfo_foreach_device_child(sc->root, find_unmatched, (void *)0);
-	devmatch_fini();
+		devmatch_find(sc);
+	devmatch_fini(sc);
 }
