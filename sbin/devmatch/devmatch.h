@@ -19,6 +19,7 @@
 #define IS_UNBOUND(f)	IS_(UNBOUND, f)
 #define IS_VERBOSE(f)	IS_(VERBOSE, f)
 
+struct devinfo_dev;
 struct devmatch
 {
 	const char *linker_hints;
