@@ -78,7 +78,7 @@ read_linker_hints(struct devmatch *dm)
 	if (dm->linker_hints == NULL) {
 		if (sysctlbyname("kern.module_path", NULL, &buflen, NULL, 0) < 0)
 			errx(1, "Can't find kernel module path.");
-		modpath = malloc(buflen);
+		modpath = (char *)malloc(buflen);
 		if (modpath == NULL)
 			err(1, "Can't get memory for modpath.");
 		if (sysctlbyname("kern.module_path", modpath, &buflen, NULL, 0) < 0)
@@ -116,7 +116,7 @@ read_linker_hints(struct devmatch *dm)
 static int
 getint(void **ptr)
 {
-	int *p = *ptr;
+	int *p = (int *)*ptr;
 	int rv;
 
 	p = (int *)roundup2((intptr_t)p, sizeof(int));
@@ -128,7 +128,7 @@ getint(void **ptr)
 static void
 getstr(void **ptr, char *val)
 {
-	int *p = *ptr;
+	int *p = (int *)*ptr;
 	char *c = (char *)p;
 	int len = *(uint8_t *)c;
 
@@ -143,7 +143,7 @@ pnpval_as_int(const char *val, const char *pnpinfo)
 {
 	int rv;
 	char key[256];
-	char *cp;
+	const char *cp;
 
 	if (pnpinfo == NULL)
 		return -1;
@@ -187,7 +187,7 @@ pnpval_as_str(const char *val, const char *pnpinfo)
 {
 	static char retval[256];
 	char key[256];
-	char *cp;
+	const char *cp;
 
 	if (pnpinfo == NULL) {
 		*retval = '\0';
@@ -221,7 +221,8 @@ devmatch_search_hints(struct devmatch *dm, const char *bus, const char *dev, con
 	char val1[256], val2[256];
 	int ival, len, ents, i, notme, mask, bit, v, found;
 	void *ptr, *walker;
-	char *lastmod = NULL, *cp, *s;
+	char *lastmod = NULL, *cp;
+	const char *s;
 
 	walker = dm->hints;
 	getint(&walker);
@@ -418,7 +419,7 @@ find_unmatched(struct devinfo_dev *dev, void *arg)
 {
 	struct devinfo_dev *parent;
 	char *bus, *p;
-	struct devmatch *dm = arg;
+	struct devmatch *dm = (struct devmatch *)arg;
 
 	do {
 		if (!IS_ALL(dm->flags) && dev->dd_name[0] != '\0')
@@ -463,7 +464,7 @@ find_exact_dev(struct devinfo_dev *dev, void *arg)
 	char *loc;
 	struct exact_info *info;
 
-	info = arg;
+	info = (struct exact_info *)arg;
 	do {
 		if (info->dev != NULL)
 			break;
@@ -541,7 +542,7 @@ devmatch_init(uint32_t flags, const char *linker_hints)
 {
 	struct devmatch *dm;
 
-	dm = malloc(sizeof(*dm));
+	dm = (struct devmatch *)malloc(sizeof(*dm));
 	if (dm == NULL)
 		err(1, "No memory for state");
 

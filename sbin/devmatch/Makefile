@@ -1,9 +1,7 @@
-
 PACKAGE=	devmatch
-PROG=	devmatch
-MAN=	devmatch.8
-
-SRCS=	main.c devmatch.c
+PROG_CXX=	devmatch
+MAN=		devmatch.8
+SRCS=		main.cc devmatch.cc
 
 LIBADD= devinfo
 
