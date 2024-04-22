@@ -215,8 +215,8 @@ pnpval_as_str(const char *val, const char *pnpinfo)
 	return retval;
 }
 
-static void
-search_hints(struct devmatch *dm, const char *bus, const char *dev, const char *pnpinfo)
+int
+devmatch_search_hints(struct devmatch *dm, const char *bus, const char *dev, const char *pnpinfo)
 {
 	char val1[256], val2[256];
 	int ival, len, ents, i, notme, mask, bit, v, found;
@@ -409,6 +409,8 @@ search_hints(struct devmatch *dm, const char *bus, const char *dev, const char *
 		printf("\n");
 	}
 	free(lastmod);
+
+	return (0);
 }
 
 static int
@@ -434,7 +436,7 @@ find_unmatched(struct devinfo_dev *dev, void *arg)
 		if (IS_VERBOSE(dm->flags))
 			printf("Searching %s %s bus at %s for pnpinfo %s\n",
 			    dev->dd_name, bus, dev->dd_location, dev->dd_pnpinfo);
-		search_hints(dm, bus, dev->dd_name, dev->dd_pnpinfo);
+		devmatch_search_hints(dm, bus, dev->dd_name, dev->dd_pnpinfo);
 		free(bus);
 	} while (0);
 
@@ -530,7 +532,7 @@ devmatch_find_nomatch(struct devmatch *dm, char *nomatch)
 	devinfo_foreach_device_child(dm->root, find_exact_dev, (void *)&info);
 	if (info.dev != NULL && info.dev->dd_flags & DF_ATTACHED_ONCE)
 		exit(0);
-	search_hints(dm, bus, "", pnpinfo);
+	devmatch_search_hints(dm, bus, "", pnpinfo);
 
 	exit(0);
 }
@@ -548,10 +550,8 @@ devmatch_init(uint32_t flags, const char *linker_hints)
 	dm->linker_hints = linker_hints;
 
 	read_linker_hints(dm);
-	if (IS_DUMP(dm->flags)) {
-		search_hints(dm, NULL, NULL, NULL);
-		exit(0);
-	}
+	if (IS_DUMP(dm->flags))
+		return (dm);
 
 	if (devinfo_init())
 		err(1, "devinfo_init");

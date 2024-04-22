@@ -34,3 +34,4 @@ struct devmatch *devmatch_init(uint32_t flags, const char *linker_hints);
 void devmatch_fini(struct devmatch *dm);
 void devmatch_find_nomatch(struct devmatch *dm, char *nomatch);
 void devmatch_find(struct devmatch *dm);
+int devmatch_search_hints(struct devmatch *dm, const char *bus, const char *dev, const char *pnpinfo);

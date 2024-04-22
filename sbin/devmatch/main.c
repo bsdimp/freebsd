@@ -93,7 +93,9 @@ main(int argc, char **argv)
 		usage();
 
 	dm = devmatch_init(flags, linker_hints);
-	if (nomatch_str != NULL)
+	if (IS_DUMP(dm->flags))
+		devmatch_search_hints(dm, NULL, NULL, NULL);
+	else if (nomatch_str != NULL)
 		devmatch_find_nomatch(dm, nomatch_str);
 	else
 		devmatch_find(dm);
