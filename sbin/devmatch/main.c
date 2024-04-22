@@ -24,8 +24,8 @@
  */
 
 #include <err.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <getopt.h>
 
 #include "devmatch.h"
@@ -100,4 +100,5 @@ main(int argc, char **argv)
 	else
 		devmatch_find(dm);
 	devmatch_fini(dm);
+	exit(0);
 }
