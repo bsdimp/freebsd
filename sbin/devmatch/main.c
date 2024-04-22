@@ -52,7 +52,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	int ch;
+	int ch, rv = 0;
 	uint32_t flags = 0;
 	const char *linker_hints = NULL;
 	char *nomatch_str = NULL;
@@ -94,11 +94,11 @@ main(int argc, char **argv)
 
 	dm = devmatch_init(flags, linker_hints);
 	if (IS_DUMP(dm->flags))
-		devmatch_search_hints(dm, NULL, NULL, NULL);
+		rv = devmatch_search_hints(dm, NULL, NULL, NULL);
 	else if (nomatch_str != NULL)
-		devmatch_find_nomatch(dm, nomatch_str);
+		rv = devmatch_find_nomatch(dm, nomatch_str);
 	else
-		devmatch_find(dm);
+		rv = devmatch_find(dm);
 	devmatch_fini(dm);
-	exit(0);
+	exit(rv);
 }

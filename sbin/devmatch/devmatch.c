@@ -482,7 +482,7 @@ find_exact_dev(struct devinfo_dev *dev, void *arg)
 	return (devinfo_foreach_device_child(dev, find_exact_dev, arg));
 }
 
-void
+int
 devmatch_find_nomatch(struct devmatch *dm, char *nomatch)
 {
 	char *bus, *pnpinfo, *tmp, *busnameunit;
@@ -531,10 +531,9 @@ devmatch_find_nomatch(struct devmatch *dm, char *nomatch)
 	info.dev = NULL;
 	devinfo_foreach_device_child(dm->root, find_exact_dev, (void *)&info);
 	if (info.dev != NULL && info.dev->dd_flags & DF_ATTACHED_ONCE)
-		exit(0);
+		return (0);
 	devmatch_search_hints(dm, bus, "", pnpinfo);
-
-	exit(0);
+	return (0);
 }
 
 struct devmatch *
@@ -567,8 +566,10 @@ devmatch_fini(struct devmatch *dm)
 	free(dm);
 }
 
-void
+int
 devmatch_find(struct devmatch *dm)
 {
 	devinfo_foreach_device_child(dm->root, find_unmatched, dm);
+
+	return (0);
 }
