@@ -26,10 +26,9 @@
 #include <sys/param.h>
 #include <ctype.h>
 #include <devinfo.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <getopt.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +40,46 @@
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 
+#include <exception>
+#include <memory>
+#include <stdexcept>
+
 #include "devmatch.h"
+
+/* Make err / errx RAII */
+struct free_delete {
+	void operator()(void *p) const {
+		std::free(p);
+	}
+};
+
+static void
+err(int, const char *fmt, ...)
+{
+	char *str, *str2;
+	va_list ap;
+
+	va_start(ap, fmt);
+	vasprintf(&str, fmt, ap);
+	std::shared_ptr<char> s1(str, free_delete());
+	va_end(ap);
+	asprintf(&str2, "%s: %s", str, strerror(errno));
+	std::shared_ptr<char> s2(str2, free_delete());
+	throw std::runtime_error(str2);
+}
+
+static void
+errx(int, const char *fmt, ...)
+{
+	char *str;
+	va_list ap;
+
+	va_start(ap, fmt);
+	vasprintf(&str, fmt, ap);
+	std::shared_ptr<char> s1(str, free_delete());
+	va_end(ap);
+	throw std::runtime_error(str);
+}
 
 static void *
 read_hints(const char *fn, size_t *len)
@@ -104,7 +142,7 @@ devmatch::read_linker_hints()
 	}
 
 	if (*(int *)(intptr_t)hints != LINKER_HINTS_VERSION) {
-		warnx("Linker hints version %d doesn't match expected %d.",
+		errx(1, "Linker hints version %d doesn't match expected %d.",
 		    *(int *)(intptr_t)hints, LINKER_HINTS_VERSION);
 		free(hints);
 		hints = NULL;
