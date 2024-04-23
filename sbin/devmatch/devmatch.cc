@@ -117,6 +117,7 @@ devmatch::read_linker_hints()
 		if (sysctlbyname("kern.module_path", NULL, &buflen, NULL, 0) < 0)
 			errx(1, "Can't find kernel module path.");
 		modpath = (char *)malloc(buflen);
+		std::shared_ptr<char> s1(modpath, free_delete());
 		if (modpath == NULL)
 			err(1, "Can't get memory for modpath.");
 		if (sysctlbyname("kern.module_path", modpath, &buflen, NULL, 0) < 0)
