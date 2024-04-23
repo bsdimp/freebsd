@@ -130,10 +130,7 @@ devmatch::read_linker_hints()
 			break;
 		}
 		if (q == NULL) {
-			if (IS_QUIET(flags))
-				exit(EX_UNAVAILABLE);
-			else
-				errx(EX_UNAVAILABLE, "Can't read linker hints file.");
+			errx(EX_UNAVAILABLE, "Can't read linker hints file.");
 		}
 	} else {
 		hints = read_hints(linker_hints, &len);

@@ -105,7 +105,8 @@ main(int argc, char **argv)
 			rv = dm.find();
 	}
 	catch (std::exception e) {
-		std::cerr << e.what() << std::endl;
+		if (IS_QUIET(flags))
+			std::cerr << e.what() << std::endl;
 		::exit(1);
 	}
 	return(rv);
