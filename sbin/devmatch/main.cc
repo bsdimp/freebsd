@@ -28,6 +28,9 @@
 #include <stdlib.h>
 #include <getopt.h>
 
+#include <exception>
+#include <iostream>
+
 #include "devmatch.h"
 
 /* options descriptor */
@@ -56,7 +59,6 @@ main(int argc, char **argv)
 	uint32_t flags = 0;
 	const char *linker_hints = NULL;
 	char *nomatch_str = NULL;
-	struct devmatch *dm;
 
 	while ((ch = getopt_long(argc, argv, "adh:p:quv",
 		    longopts, NULL)) != -1) {
@@ -92,13 +94,19 @@ main(int argc, char **argv)
 	if (argc >= 1)
 		usage();
 
-	dm = devmatch_init(flags, linker_hints);
-	if (IS_DUMP(dm->flags))
-		rv = devmatch_search_hints(dm, NULL, NULL, NULL);
-	else if (nomatch_str != NULL)
-		rv = devmatch_find_nomatch(dm, nomatch_str);
-	else
-		rv = devmatch_find(dm);
-	devmatch_fini(dm);
-	exit(rv);
+	try {
+		devmatch dm(flags, linker_hints);
+
+		if (IS_DUMP(flags))
+			rv = dm.search_hints(NULL, NULL, NULL);
+		else if (nomatch_str != NULL)
+			rv = dm.find_nomatch(nomatch_str);
+		else
+			rv = dm.find();
+	}
+	catch (std::exception e) {
+		std::cerr << e.what() << std::endl;
+		::exit(1);
+	}
+	return(rv);
 }

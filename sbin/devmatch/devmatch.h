@@ -20,8 +20,22 @@
 #define IS_VERBOSE(f)	IS_(VERBOSE, f)
 
 struct devinfo_dev;
-struct devmatch
+class devmatch
 {
+public:
+	devmatch(uint32_t f, const char *l)
+	    : linker_hints(l), flags(f), hints(NULL), hints_end(NULL), root(NULL) {
+		init();
+	}
+	~devmatch();
+	int find_nomatch(char *nomatch);
+	int find();
+	int search_hints(const char *bus, const char *dev, const char *pnpinfo);
+private:
+	void init();
+	void read_linker_hints();
+	static int find_unmatched(struct devinfo_dev *dev, void *arg);
+
 	const char *linker_hints;
 	uint32_t flags;
 
@@ -30,8 +44,3 @@ struct devmatch
 	struct devinfo_dev *root;
 };
 
-struct devmatch *devmatch_init(uint32_t flags, const char *linker_hints);
-void devmatch_fini(struct devmatch *dm);
-int devmatch_find_nomatch(struct devmatch *dm, char *nomatch);
-int devmatch_find(struct devmatch *dm);
-int devmatch_search_hints(struct devmatch *dm, const char *bus, const char *dev, const char *pnpinfo);
