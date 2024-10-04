@@ -87,7 +87,7 @@ static void	acpi_print_facs(ACPI_TABLE_FACS *facs);
 static void	acpi_print_dsdt(ACPI_TABLE_HEADER *dsdp);
 static ACPI_TABLE_HEADER *acpi_map_sdt(vm_offset_t pa);
 static void	acpi_print_rsd_ptr(ACPI_TABLE_RSDP *rp);
-static void	acpi_handle_rsdt(ACPI_TABLE_HEADER *rsdp);
+static void	acpi_handle_rsdt(ACPI_TABLE_HEADER *rsdp, const char *elm);
 static void	acpi_walk_subtables(ACPI_TABLE_HEADER *table, void *first,
 		    void (*action)(ACPI_SUBTABLE_HEADER *));
 static void	acpi_walk_nfit(ACPI_TABLE_HEADER *table, void *first,
@@ -2545,8 +2545,59 @@ acpi_print_rsd_ptr(ACPI_TABLE_RSDP *rp)
 	printf(END_COMMENT);
 }
 
+
 static void
-acpi_handle_rsdt(ACPI_TABLE_HEADER *rsdp)
+acpi_report_sdp(ACPI_TABLE_HEADER *sdp, const char *tbl)
+{
+	if (tbl != NULL && memcmp(sdp->Signature, tbl, 4) != 0)
+		return;
+	if (!memcmp(sdp->Signature, ACPI_SIG_BERT, 4))
+		acpi_handle_bert(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_DMAR, 4))
+		acpi_handle_dmar(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_ECDT, 4))
+		acpi_handle_ecdt(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_EINJ, 4))
+		acpi_handle_einj(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_ERST, 4))
+		acpi_handle_erst(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_FADT, 4))
+		acpi_handle_fadt(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_HEST, 4))
+		acpi_handle_hest(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_HPET, 4))
+		acpi_handle_hpet(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_IVRS, 4))
+		acpi_handle_ivrs(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_LPIT, 4))
+		acpi_handle_lpit(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_MADT, 4))
+		acpi_handle_madt(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_MCFG, 4))
+		acpi_handle_mcfg(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_NFIT, 4))
+		acpi_handle_nfit(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_SLIT, 4))
+		acpi_handle_slit(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_SPCR, 4))
+		acpi_handle_spcr(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_SRAT, 4))
+		acpi_handle_srat(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_TCPA, 4))
+		acpi_handle_tcpa(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_TPM2, 4))
+		acpi_handle_tpm2(sdp);
+	else if (!memcmp(sdp->Signature, ACPI_SIG_WDDT, 4))
+		acpi_handle_wddt(sdp);
+	else {
+		printf(BEGIN_COMMENT);
+		acpi_print_sdt(sdp);
+		printf(END_COMMENT);
+	}
+}
+
+static void
+acpi_handle_rsdt(ACPI_TABLE_HEADER *rsdp, const char *tbl)
 {
 	ACPI_TABLE_HEADER *sdp;
 	ACPI_TABLE_RSDT *rsdt;
@@ -2554,7 +2605,14 @@ acpi_handle_rsdt(ACPI_TABLE_HEADER *rsdp)
 	vm_offset_t addr;
 	int entries, i;
 
-	acpi_print_rsdt(rsdp);
+	if (tbl == NULL) {
+		acpi_print_rsdt(rsdp);
+	} else {
+		if (memcmp(tbl, rsdp->Signature, 4) == 0) {
+			acpi_print_rsdt(rsdp);
+			return;
+		}
+	}
 	rsdt = (ACPI_TABLE_RSDT *)rsdp;
 	xsdt = (ACPI_TABLE_XSDT *)rsdp;
 	entries = (rsdp->Length - sizeof(ACPI_TABLE_HEADER)) / addr_size;
@@ -2571,49 +2629,7 @@ acpi_handle_rsdt(ACPI_TABLE_HEADER *rsdp)
 			    sdp->Signature);
 			continue;
 		}
-		if (!memcmp(sdp->Signature, ACPI_SIG_BERT, 4))
-			acpi_handle_bert(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_DMAR, 4))
-			acpi_handle_dmar(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_ECDT, 4))
-			acpi_handle_ecdt(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_EINJ, 4))
-			acpi_handle_einj(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_ERST, 4))
-			acpi_handle_erst(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_FADT, 4))
-			acpi_handle_fadt(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_HEST, 4))
-			acpi_handle_hest(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_HPET, 4))
-			acpi_handle_hpet(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_IVRS, 4))
-			acpi_handle_ivrs(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_LPIT, 4))
-			acpi_handle_lpit(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_MADT, 4))
-			acpi_handle_madt(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_MCFG, 4))
-			acpi_handle_mcfg(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_NFIT, 4))
-			acpi_handle_nfit(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_SLIT, 4))
-			acpi_handle_slit(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_SPCR, 4))
-			acpi_handle_spcr(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_SRAT, 4))
-			acpi_handle_srat(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_TCPA, 4))
-			acpi_handle_tcpa(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_TPM2, 4))
-			acpi_handle_tpm2(sdp);
-		else if (!memcmp(sdp->Signature, ACPI_SIG_WDDT, 4))
-			acpi_handle_wddt(sdp);
-		else {
-			printf(BEGIN_COMMENT);
-			acpi_print_sdt(sdp);
-			printf(END_COMMENT);
-		}
+		acpi_report_sdp(sdp, tbl);
 	}
 }
 
@@ -2801,9 +2817,9 @@ aml_disassemble_separate(ACPI_TABLE_HEADER *rsdt, ACPI_TABLE_HEADER *dsdp)
 }
 
 void
-sdt_print_all(ACPI_TABLE_HEADER *rsdp)
+sdt_print_all(ACPI_TABLE_HEADER *rsdp, const char *tbl)
 {
-	acpi_handle_rsdt(rsdp);
+	acpi_handle_rsdt(rsdp, tbl);
 }
 
 /* Fetch a table matching the given signature via the RSDT. */
