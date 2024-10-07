@@ -241,6 +241,21 @@ uart_pl011_init(struct uart_bas *bas, int baudrate, int databits, int stopbits,
 	__uart_setreg(bas, UART_IMSC, __uart_getreg(bas, UART_IMSC) &
 	    ~IMSC_MASK_ALL);
 
+	/*
+	 * Loader tells us to infer the rclk when it sets xo to -1 in
+	 * hw.uart.console*. We know the baudrate was set by the firmware, so
+	 * calculate rclk from baudrate and the divisor register.  If 'div' is
+	 * actually 0, the resulting 0 value will have us fall back to other
+	 * rclk methods.
+	 */
+	if (bas->rclk == -1) {
+		uint32_t div;
+
+		div = ((__uart_getreg(bas, UART_IBRD) & ~3) << 6) |
+		    (__uart_getreg(bas, UART_FBRD) & 0x3f);
+		bas->rclk = (div * baudrate) / 4;
+	}
+
 	uart_pl011_param(bas, baudrate, databits, stopbits, parity);
 }
 
