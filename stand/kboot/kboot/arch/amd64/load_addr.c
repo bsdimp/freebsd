@@ -53,11 +53,11 @@ struct kv
 	{ system_ram,		"System RAM" },
 	{ acpi_tables,		"ACPI Tables" },
 	{ acpi_nv_storage,	"ACPI Non-volatile Storage" },
-	{ unusable,		"Unusable memory" },
+	{ unusable,		"Unusable Memory" },
 	{ persistent_old,	"Persistent Memory (legacy)" },
 	{ persistent,		"Persistent Memory" },
 	{ soft_reserved,	"Soft Reserved" },
-	{ reserved,		"reserved" },
+	{ reserved,		"Reserved" },
 	{ 0, NULL },
 };
 
@@ -88,6 +88,7 @@ enumerate_memory_arch(void)
 	char buf[80];
 
 	for (n = 0; n < nitems(segs); n++) {
+		printf("enum %d\n", n);
 		snprintf(name, sizeof(name), "%s/%d/start", MEMMAP, n);
 		if (!file2u64(name, &segs[n].start))
 			break;
@@ -97,8 +98,10 @@ enumerate_memory_arch(void)
 		snprintf(name, sizeof(name), "%s/%d/type", MEMMAP, n);
 		if (!file2str(name, buf, sizeof(buf)))
 			break;
+		printf("Type is %s\n", buf);
 		if (!str2type(str2type_kv, buf, &segs[n].type))
 			break;
+		printf("And %lld\n", (long long)segs[n].type);
 	}
 
 	nr_seg = n;
