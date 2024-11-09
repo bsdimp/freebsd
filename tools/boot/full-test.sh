@@ -71,12 +71,7 @@ MTREE=$(SHELL="which mtree" ${MAKE} ${DEFARCH} buildenv | tail -1) || die "No mt
 
 # MAKE=$(SHELL="which make" ${MAKE} ${DEFARCH} buildenv | tail -1) || die "No make, try buildworld first" 
 
-# hack -- I have extra junk in my qemu, but it's not needed to recreate things
-if [ $(whoami) = imp ]; then
-    qemu_bin=/home/imp/git/qemu/00-build
-else
-    qemu_bin=/usr/local/bin
-fi
+qemu_bin=/opt/homebrew/bin
 
 # All the architectures under test
 # Note: we can't yet do armv7 because we don't have a good iso for it and would
