@@ -382,6 +382,8 @@ main(int argc, const char **argv)
 			bootdev = getenv("currdev");
 	}
 #endif
+	if (bootdev == NULL)
+		bootdev = "host:/";
 	if (bootdev != NULL) {
 		/*
 		 * Otherwise, honor what's on the command line. If we've been
@@ -510,8 +512,8 @@ kboot_copyin(const void *src, vm_offset_t dest, const size_t len)
 
 	if (pa_start == PA_INVAL) {
 		pa_start = kboot_get_phys_load_segment();
-//		padding = 2 << 20; /* XXX amd64: revisit this when we make it work */
-		padding = 0;
+		padding = 2 << 20; /* XXX amd64: revisit this when we make it work */
+//		padding = 0;
 		offset = dest;
 		get_phys_buffer(pa_start, len, &destbuf);
 	}
