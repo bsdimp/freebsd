@@ -150,21 +150,36 @@ enumerate_memory_arch(void)
 	int fd = -1;
 	bool rv = false;
 
+	/*
+	 * FDT publishes the parameters for the memory table in a series of
+	 * nodes in the DTB.  One of them is the physical address for the memory
+	 * table. Try to open the fdt nblob to find this information if we can
+	 * and try to grab things from memory. If we return rv == TRUE then
+	 * we found it. The global efi_map_phys_src is set != 0 when we know
+	 * the PA but can't read it.
+	 */
 	fd = open("host:/sys/firmware/fdt", O_RDONLY);
 	if (fd != -1) {
 		rv = do_memory_from_fdt(fd);
 		close(fd);
-		/*
-		 * So, we have physaddr to the memory table. However, we can't
-		 * open /dev/mem on some platforms to get the actual table. So
-		 * we have to fall through to get it from /proc/iomem.
-		 */
-	}
-	if (!rv) {
-		printf("Could not obtain UEFI memory tables, expect failure\n");
 	}
 
-	populate_avail_from_iomem();
+	/*
+	 * We have the efi map, use it to populate avail. This should be the
+	 * typical case. But sometimes we can't read the PA so in those cases
+	 * we don't try to populate avail from the map...
+	 */
+	if (0 && rv && efi_map_phys_src == 0) {
+		rv = populate_avail_from_efi(efi_map_hdr);
+	}
+
+	/*
+	 * So we haven't read the EFI map, fallback to parsing /proc/iomem
+	 */
+	if (!rv || efi_map_phys_src != 0) {
+		printf("Could not obtain UEFI memory tables, expect failure\n");
+		populate_avail_from_iomem();
+	}
 
 	print_avail();
 
@@ -181,7 +196,9 @@ kboot_get_phys_load_segment(void)
 	if (s != 0)
 		return (s);
 
+	print_avail();
 	s = first_avail(KERN_ALIGN, HOLE_SIZE, SYSTEM_RAM);
+	print("Using %#llx\n", (long long)s);
 	if (s != 0)
 		return (s);
 	s = 0x40000000 | 0x4200000;	/* should never get here */
