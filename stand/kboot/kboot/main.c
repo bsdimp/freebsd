@@ -512,8 +512,11 @@ kboot_copyin(const void *src, vm_offset_t dest, const size_t len)
 
 	if (pa_start == PA_INVAL) {
 		pa_start = kboot_get_phys_load_segment();
+#ifdef __amd64__
 		padding = 2 << 20; /* XXX amd64: revisit this when we make it work */
-//		padding = 0;
+#else
+		padding = 0;
+#endif
 		offset = dest;
 		get_phys_buffer(pa_start, len, &destbuf);
 	}
