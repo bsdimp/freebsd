@@ -5,9 +5,87 @@
  */
 
 #include <sys/param.h>
+#include <sys/linker.h>
 #include "stand.h"
+#include "bootstrap.h"
 #include "efi.h"
 #include "seg.h"
+
+vm_paddr_t efi_systbl_phys;
+struct efi_map_header *efi_map_hdr;
+uint32_t efi_map_size;
+vm_paddr_t efi_map_phys_src;	/* From DTB */
+vm_paddr_t efi_map_phys_dst;	/* From our memory map metadata module */
+
+void
+efi_set_systbl(uint64_t tbl)
+{
+	efi_systbl_phys = tbl;
+}
+
+void
+efi_read_from_sysfs(void)
+{
+	
+}
+
+/*
+ * We may have no ability to read the PA that this map is in, so pass
+ * the address to FreeBSD via a rather odd flag entry as the first map
+ * so early boot can copy the memory map into this space and have the
+ * rest of the code cope.
+ */
+bool
+efi_read_from_pa(uint64_t pa, uint32_t map_size, uint32_t desc_size, uint32_t vers)
+{
+	uint32_t efisz, sz;
+	char *buf;
+	int fd2, len;
+	struct efi_md *map;		/* Really an array */
+
+	/*
+	 * We may have no ability to read the PA that this map is in, so pass
+	 * the address to FreeBSD via a rather odd flag entry as the first map
+	 * so early boot can copy the memory map into this space and have the
+	 * rest of the code cope. We also have to round the size of the header
+	 * to 16 byte boundary.
+	 */
+	efisz = roundup2(sizeof(*efi_map_hdr), 16);
+	sz = efisz + map_size;
+	buf = malloc(efisz + map_size);
+	if (buf == NULL)
+		return false;
+	efi_map_hdr = (struct efi_map_header *)buf;
+	efi_map_size = sz;
+	map = (struct efi_md *)(buf + efisz);
+	bzero(map, sz);
+	efi_map_hdr->memory_size = map_size;
+	efi_map_hdr->descriptor_size = desc_size;
+	efi_map_hdr->descriptor_version = vers;
+
+	/*
+	 * Try to read in the actual UEFI map. This may fail, and that's OK. We just
+	 * won't print the map.
+	 */
+	fd2 = open("host:/dev/mem", O_RDONLY);
+	if (fd2 < 0)
+		goto no_read;
+	if (lseek(fd2, pa, SEEK_SET) < 0)
+		goto no_read;
+	len = read(fd2, map, sz);
+	if (len != sz)
+		goto no_read;
+	efi_map_phys_src = 0;		/* Mark MODINFOMD_EFI_MAP as valid */
+	close(fd2);
+	printf("UEFI MAP:\n");
+	print_efi_map(efi_map_hdr);
+	return (true);
+
+no_read:				/* Just get it the trampoline */
+	efi_map_phys_src = pa;
+	close(fd2);
+	return (true);
+}
 
 void
 foreach_efi_map_entry(struct efi_map_header *efihdr, efi_map_entry_cb cb, void *argp)
@@ -98,37 +176,24 @@ print_efi_map(struct efi_map_header *efihdr)
 	foreach_efi_map_entry(efihdr, print_efi_map_entry, NULL);
 }
 
-static void
-efi_map_entry_add_avail(struct efi_md *p, void *argp)
+void
+efi_bi_loadsmap(struct preloaded_file *kfp)
 {
-	bool *retval = argp;
+	/*
+	 * Make a note of a systbl. This is nearly mandatory on AARCH64.
+	 */
+	if (efi_systbl_phys)
+		file_addmetadata(kfp, MODINFOMD_FW_HANDLE, sizeof(efi_systbl_phys), &efi_systbl_phys);
 
 	/*
-	 * The kernel iteself uses a lot more types as memory it can use. Be
-	 * conservative here so we don't overwrite anything during the reboot
-	 * process which copies the new kernel (so we can't use the Linux kenrel
-	 * space for example). Anything that's not free, we simply don't add to
-	 * the system ram space. We just need to find a big enough place we can
-	 * land the kernel, and most of the other types we might use are
-	 * typically too small anyway, even if we could safely use them.
+	 * If we have efi_map_hdr, then it's a pointer to the PA where this
+	 * memory map lives. The trampoline code will copy it over. If we don't
+	 * have it, panic because /proc/iomem isn't sufficient and there's no
+	 * hope.
 	 */
-	if (p->md_type != EFI_MD_TYPE_FREE)
+	if (efi_map_hdr != NULL) {
+		file_addmetadata(kfp, MODINFOMD_EFI_MAP, efi_map_size, efi_map_hdr);
 		return;
-
-	/*
-	 * The memory map is always disjoint, so we never have to remove avail.
-	 */
-	add_avail(p->md_phys, p->md_phys + p->md_pages * EFI_PAGE_SIZE - 1,
-		SYSTEM_RAM);
-	*retval = true;
-}
-
-bool
-populate_avail_from_efi(struct efi_map_header *efihdr)
-{
-	bool retval = false;
-
-	init_avail();
-	foreach_efi_map_entry(efihdr, efi_map_entry_add_avail, &retval);
-	return retval;
+	}
+	panic("Can't get UEFI memory map, nor a pointer to it, can't proceed.\n");
 }
