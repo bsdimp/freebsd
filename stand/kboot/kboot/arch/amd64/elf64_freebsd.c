@@ -96,13 +96,15 @@ struct file_format *file_formats[] = {
 
 #ifndef	EFI
 /*
- * We create the stack that we want. We have the address of the page tables
- * we make on top (so we pop that off and set %cr3). We have the entry point
- * to the kernel (which retq pops off) This leaves the stack that the btext
- * wants: offset 4 is modulep and offset8 is kernend, with the filler bytes
- * to keep this aligned. This makes the trampoline very simple.
+ * We create the stack that we want. We have the address to write EFI systble
+ * to, if any. We have the address of the page tables we make on top (so we pop
+ * that off and set %cr3). We have the entry point to the kernel (which retq
+ * pops off) This leaves the stack that the btext wants: offset 4 is modulep and
+ * offset8 is kernend, with the filler bytes to keep this aligned. This makes
+ * the trampoline very simple.
  */
 struct trampoline_data {
+	uint64_t	systbl;			// PA to write systble PA into
 	uint64_t	pt4;			// Page table address to pop
 	uint64_t	entry;			// return address to jump to kernel
 	uint32_t	fill1;			// 0
@@ -110,7 +112,7 @@ struct trampoline_data {
 	uint32_t	kernend;		// 8 kernel end
 	uint32_t	fill2;			// 12
 };
-_Static_assert(sizeof(struct trampoline_data) == 32, "Bad size for trampoline data");
+_Static_assert(sizeof(struct trampoline_data) == 40, "Bad size for trampoline data");
 #endif
 
 static pml4_entry_t *PT4;
@@ -423,6 +425,27 @@ elf64_exec(struct preloaded_file *fp)
 #else
 	trampoline_data = (void *)trampoline + tramp_data_offset;
 	trampoline_data->entry = ehdr->e_entry;
+	/*
+	 * So I need the EFI system table, but that's not observable in
+	 * userland, so we have to arrange for it to be harvested at trampoline
+	 * time.
+	 */
+	md = file_findmetadata(fp, MODINFOMD_FW_HANDLE);
+	if (md == NULL || md->md_addr == 0) {
+		/* XXX or PANIC ? */
+		printf("Need to copy EFI MAP, but EFI MAP not found. %p\n", md);
+	} else {
+		/*
+		 * The only place I can find systbl is in the boot_param
+		 * structure. The trampoline gets it from there and stores
+		 * it in our metadata. Compute the PA where we need to store
+		 * it and push it (since PA == VA for most of memory).
+		 */
+		printf("Metadata EFI SYSTEM TABLE at VA %lx\n", md->md_addr);
+		trampoline_data->systbl = md->md_addr + staging - fp->f_addr;
+		printf("Copying EFI SYSTEM TABLE from linux boot_param to %#lx\n",
+		    trampoline_data->systbl);
+	}
 	trampoline_data->pt4 = trampolinebase + LOADER_PAGE_SIZE;
 	/*
 	 * So we compute the VA of the module data by modulep + KERNBASE....

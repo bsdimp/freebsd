@@ -38,6 +38,7 @@
  * store them here. This is constructed to be a useful stack:
  *
  * struct trampoline_data {
+ *	uint64_t	systbl;			// PA to write the systbl PA to
  *	uint64_t	pt4;			// Page table address to pop
  *	uint64_t	entry;			// return address to jump to kernel
  *	uint32_t	fill1;			// 0
@@ -47,33 +48,47 @@
  * };
  *
  * loader.kboot will construct a stack that btext expects, which is arguments on
- * the stack, not in registers, and these args are 32-bit not 64
+ * the stack, not in registers, and these args are 32-bit not 64. The extra stuff
+ * is data the trampoline code consumes.
  *
  * Processor is already in long mode when we're called, paging is enabled and
  * boot loader loads things such that:
  * - kernel mapped at KERNBASE, aligned to 2MB, below 4GB, contiguous memory
+ * - %cr3 tells us our PA later in boot, so we install it before jumping
+ *   to the kernel.
  * - there is a 2M hole at KERNBASE (KERNSTART = KERNBASE + 2M)
  * - kernel is mapped with 2M superpages
  * - The kernel, modules and metadata is in first 4GB which is unity mapped
  * - There's additional memory after loader provided data for early allocations
  *
- * Unlike EFI, we don't support copying the staging area. We tell Linux to land
- * the kernel in its final location with the needed alignment, etc. We copy the
- * trampoline code to 1MB offset above KERNBASE since that memory is otherwise
- * free and safely above the lower 1MB swamp we inherited from IBM PC, though
- * this code makes no assumptions about where that might.
+ * Unlike coming directly from loader.efi, we don't support copying the staging
+ * area. We tell Linux to land the kernel in its final location with the needed
+ * alignment, etc. We copy the trampoline code to 1MB offset above KERNBASE
+ * since that memory is otherwise free and safely above the lower 1MB swamp we
+ * inherited from IBM PC, though this code makes no assumptions about where that
+ * might be.
  *
- * Thus, the trampoline just needs to set %rsp to that stack pop the %cr3 value,
- * set it and then retq to jump to the kernel with its stack args filled in.
- * Since the handoff to this code used to be from 32-bit code, it uses the i386
- * calling conventions which put the arguments on the stack. The kernel's btext
- * routine expects this setup.
+ * Thus, the trampoline just needs to set %rsp to that stack pop the systab
+ * patch value, pop the %cr3 value, set it and then retq to jump to the kernel
+ * with its stack args filled in.  Since the handoff to this code used to be
+ * from 32-bit code, it uses the i386 calling conventions which put the
+ * arguments on the stack. The kernel's btext routine expects this setup.
  */
+
+#include "linux_bootparam.h"
 	.text
 	.globl	tramp
 tramp:
 	cli				/* Make sure we don't get interrupted. */
 	leaq	tramp_pt4(%rip), %rsp	/* Setup our pre-filled-in stack */
+	popq	%rdi			/* Pop systbl dst */
+	testq	%rdi, %rdi		/* Do we have one? */
+	je	1f			/* Skip storing code if not */
+	movl	SYSTAB_LO(%rsi), %eax	/* Load the low bits */
+	movl	%eax, (%rdi)		/*    and store */
+	movl	SYSTAB_HI(%rsi), %eax	/* Load the high bits */
+	movl	%eax, 4(%rdi)		/*    and store -- little endian */
+1:
 	popq	%rax			/* Pop off the PT4 ptr for %cr3 */
 	movq	%rax, %cr3		/* set the page table */
 	retq				/* Return addr and args already on stack */
@@ -84,6 +99,8 @@ tramp:
  */
 	.p2align	3		/* Stack has to be 8 byte aligned */
 trampoline_data:
+tramp_systbl_pa:
+		.quad	0		/* PA to write systbl PA to if != 0 */
 tramp_pt4:	.quad	0		/* New %cr3 value */
 tramp_entry:	.quad	0		/* Entry to kernel (btext) */
 	/* %rsp points here on entry to amd64 kernel's btext */
