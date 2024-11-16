@@ -38,6 +38,8 @@
  * store them here. This is constructed to be a useful stack:
  *
  * struct trampoline_data {
+ *	uint64_t	memmap_size;		// Size of the memmap bufer
+ *	uint64_t	memmap;			// PA area to write to
  *	uint64_t	systbl;			// PA to write the systbl PA to
  *	uint64_t	pt4;			// Page table address to pop
  *	uint64_t	entry;			// return address to jump to kernel
@@ -76,19 +78,69 @@
  */
 
 #include "linux_bootparam.h"
+
+/*
+ * efi_map_header offsets and size it's 20 bytes in size, padded to the next
+ * 16-byte boundary.
+ */
+#define MEMORY_SIZE_OFFSET	0
+#define DESC_SIZE_OFFSET	8
+#define DESC_VERS_OFFSET	16
+#define HDR_LEN			32
+
 	.text
 	.globl	tramp
 tramp:
 	cli				/* Make sure we don't get interrupted. */
 	leaq	tramp_pt4(%rip), %rsp	/* Setup our pre-filled-in stack */
+
+	/*
+	 * If we have a EFI memory map, copy it over.
+	 */
+
+	popq	%rcx			/* Pop size of efi memmap buffer */
+	popq	%rdi			/* Pop efi memmap */
+	testq	%rdi, %rdi		/* Do we have one? */
+	je	no_map			/* Skip storing code if not */
+
+	/*
+	 * %rsi -> linux_boot_param
+	 * %rdi -> pa of where to scribble memory map
+	 * %rcx -> size of the memory map buffer
+	 */
+	movq	%rsi, %r8
+	movl	MEMMAP_LO(%rsi), %eax
+	movl	MEMMAP_HI(%rsi), %esi
+	shlq	$32, %rsi
+	orq	%rax, %rsi
+	/* %rsi source of memory map info, %r8 saved %rsi */
+
+	/* Construct header */
+	movl	MEMMAP_DSIZE(%rsi), %eax
+	movq	%rax, DESC_SIZE_OFFSET(%rdi)
+	movl	MEMMAP_DVERS(%rsi), %eax
+	movl	%eax, DESC_VERS_OFFSET(%rdi)
+	movl	MEMMAP_SIZE(%rsi), %eax
+	cmp	%rcx, %rax		/* Clip to buffer size */
+	jg	1f
+	movq	%rax, %rcx
+1:
+	movq	%rax, MEMORY_SIZE_OFFSET(%rdi)	/* Store clipped size */
+
+	addq	HDR_LEN, %rdi		/* Move to point to memory map area */
+	rep	movsb
+	movq	%r8, %rsi		/* Restore linux_boot_param */
+
+no_map:
 	popq	%rdi			/* Pop systbl dst */
 	testq	%rdi, %rdi		/* Do we have one? */
-	je	1f			/* Skip storing code if not */
+	je	no_systbl		/* Skip storing code if not */
 	movl	SYSTAB_LO(%rsi), %eax	/* Load the low bits */
 	movl	%eax, (%rdi)		/*    and store */
 	movl	SYSTAB_HI(%rsi), %eax	/* Load the high bits */
 	movl	%eax, 4(%rdi)		/*    and store -- little endian */
-1:
+
+no_systbl:
 	popq	%rax			/* Pop off the PT4 ptr for %cr3 */
 	movq	%rax, %cr3		/* set the page table */
 	retq				/* Return addr and args already on stack */
@@ -99,6 +151,10 @@ tramp:
  */
 	.p2align	3		/* Stack has to be 8 byte aligned */
 trampoline_data:
+tramp_memmap_size:
+		.quad	0		/* maximum number of bytes in efi memmap */
+tramp_memmap_pa:
+		.quad	0		/* PA to write systbl PA to if != 0 */
 tramp_systbl_pa:
 		.quad	0		/* PA to write systbl PA to if != 0 */
 tramp_pt4:	.quad	0		/* New %cr3 value */

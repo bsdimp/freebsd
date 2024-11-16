@@ -44,6 +44,7 @@
 
 #include "bootstrap.h"
 #include "kboot.h"
+#include "efi.h"
 
 #include "platform/acfreebsd.h"
 #include "acconfig.h"
@@ -104,6 +105,8 @@ struct file_format *file_formats[] = {
  * the trampoline very simple.
  */
 struct trampoline_data {
+	uint64_t	efimap_len;		// maximum size of memory map we can have
+	uint64_t	efimap;			// PA of area to write memory map to
 	uint64_t	systbl;			// PA to write systble PA into
 	uint64_t	pt4;			// Page table address to pop
 	uint64_t	entry;			// return address to jump to kernel
@@ -112,7 +115,7 @@ struct trampoline_data {
 	uint32_t	kernend;		// 8 kernel end
 	uint32_t	fill2;			// 12
 };
-_Static_assert(sizeof(struct trampoline_data) == 40, "Bad size for trampoline data");
+_Static_assert(sizeof(struct trampoline_data) == 56, "Bad size for trampoline data");
 #endif
 
 static pml4_entry_t *PT4;
@@ -425,6 +428,7 @@ elf64_exec(struct preloaded_file *fp)
 #else
 	trampoline_data = (void *)trampoline + tramp_data_offset;
 	trampoline_data->entry = ehdr->e_entry;
+
 	/*
 	 * So I need the EFI system table, but that's not observable in
 	 * userland, so we have to arrange for it to be harvested at trampoline
@@ -433,7 +437,7 @@ elf64_exec(struct preloaded_file *fp)
 	md = file_findmetadata(fp, MODINFOMD_FW_HANDLE);
 	if (md == NULL || md->md_addr == 0) {
 		/* XXX or PANIC ? */
-		printf("Need to copy EFI MAP, but EFI MAP not found. %p\n", md);
+		printf("Need to save SYSTBL, but FW_HANDLE not found. %p\n", md);
 	} else {
 		/*
 		 * The only place I can find systbl is in the boot_param
@@ -446,6 +450,30 @@ elf64_exec(struct preloaded_file *fp)
 		printf("Copying EFI SYSTEM TABLE from linux boot_param to %#lx\n",
 		    trampoline_data->systbl);
 	}
+
+	md = file_findmetadata(fp, MODINFOMD_EFI_MAP);
+	if (md == NULL || md->md_addr == 0) {
+		/* XXX or PANIC ? */
+		printf("Need to copy EFI MAP, but EFI MAP not found. %p\n", md);
+	} else {
+		/*
+		 * The only place I can find memory map is in the boot_param
+		 * structure. The trampoline gets it from there and stores
+		 * it in our metadata. Compute the PA where we need to store
+		 * it and push it (since PA == VA for most of memory).
+		 */
+		printf("Metadata EFI MEMORY MAP at VA %lx\n", md->md_addr);
+		trampoline_data->efimap_len = efi_map_size;
+		trampoline_data->efimap = md->md_addr + staging - fp->f_addr;
+		printf("Copying EFI memory map from linux boot_param to %#lx\n",
+		    trampoline_data->efimap);
+	}
+
+	/*
+	 * I also need to copy the full memory map as well.
+	 */
+
+
 	trampoline_data->pt4 = trampolinebase + LOADER_PAGE_SIZE;
 	/*
 	 * So we compute the VA of the module data by modulep + KERNBASE....
