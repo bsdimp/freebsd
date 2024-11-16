@@ -38,8 +38,13 @@ struct linux_boot_params {
 	uint8_t _pad1[0x1c0];				/* 0x000 */
 	struct linux_efi_info efi_info;			/* 0x1c0 */
 	uint8_t _pad2[0x1000 = 0x1c0 - sizeof(linux_efi_info)]; /* 0x1e0 */
-} __packed;
+} __packed;	/* Total size 4k, the page size on x86 */
 #endif
 
-#define SYSTAB_LO (0x1c0 + 0x04)
-#define SYSTAB_HI (0x1c0 + 0x18)
+#define SYSTAB_LO	(0x1c0 + 0x04)
+#define MEMMAP_DSIZE	(0x1c0 + 0x08)
+#define MEMMAP_DVERS	(0x1c0 + 0x0c)
+#define MEMMAP_LO	(0x1c0 + 0x10)
+#define MEMMAP_SIZE	(0x1c0 + 0x14)
+#define SYSTAB_HI	(0x1c0 + 0x18)
+#define MEMMAP_HI	(0x1c0 + 0x1c)
