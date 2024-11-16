@@ -36,7 +36,12 @@
 bool
 enumerate_memory_arch(void)
 {
-	efi_read_from_sysfs();
+	/*
+	 * Setup dummy systbl pointer so it's created correctly.
+	 */
+	efi_set_systbl(0xcafebeeffacefeedULL);
+/*	efi_read_from_sysfs(); */ /* Sadly, the info isn't there, so we have to do: */
+	efi_setup_fake_efi_map();
 	if (!populate_avail_from_iomem())
 		return (false);
 	print_avail();
