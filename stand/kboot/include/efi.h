@@ -21,3 +21,8 @@ void efi_set_systbl(uint64_t tbl);
 void foreach_efi_map_entry(struct efi_map_header *efihdr, efi_map_entry_cb cb, void *argp);
 void print_efi_map(struct efi_map_header *efihdr);
 void efi_bi_loadsmap(struct preloaded_file *kfp);
+void efi_setup_fake_efi_map(void);
+
+extern uint32_t efi_map_size;
+extern vm_paddr_t efi_map_phys_src;	/* From DTB */
+extern vm_paddr_t efi_map_phys_dst;	/* From our memory map metadata module */

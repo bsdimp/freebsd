@@ -10,6 +10,7 @@
 #include "bootstrap.h"
 #include "efi.h"
 #include "seg.h"
+#include "util.h"
 
 vm_paddr_t efi_systbl_phys;
 struct efi_map_header *efi_map_hdr;
@@ -22,11 +23,76 @@ efi_set_systbl(uint64_t tbl)
 {
 	efi_systbl_phys = tbl;
 }
-
+		
 void
 efi_read_from_sysfs(void)
 {
-	
+	uint32_t efisz, sz, map_size;
+	int entries = 0;
+	struct efi_md *map;		/* Really an array */
+	char *buf;
+	struct stat sb;
+	char fn[100];
+
+	/*
+	 * Count the number of entries we have. They are numbered from 0
+	 * through entries - 1.
+	 */
+	do {
+		printf("Looking at index %d\n", entries);
+		snprintf(fn, sizeof(fn), "/sys/firmware/efi/runtime-map/%d/phys_addr", entries++);
+	} while (stat(fn, &sb) == 0);
+
+	/*
+	 * We incremented entries one past the first failure, so we need to
+	 * adjust the count and the test for 'nothing found' is against 1.
+	 */
+	if (entries == 1)
+		goto err;
+	entries--;
+
+	/* XXX lots of copied code, refactor? */
+	map_size = sizeof(struct efi_md) * entries;
+	efisz = roundup2(sizeof(*efi_map_hdr), 16);
+	sz = efisz + map_size;
+	buf = malloc(efisz + map_size);
+	if (buf == NULL)
+		return;
+	efi_map_hdr = (struct efi_map_header *)buf;
+	efi_map_size = sz;
+	map = (struct efi_md *)(buf + efisz);
+	bzero(map, sz);
+	efi_map_hdr->memory_size = map_size;
+	efi_map_hdr->descriptor_size = sizeof(struct efi_md);
+	efi_map_hdr->descriptor_version = EFI_MEMORY_DESCRIPTOR_VERSION;
+	for (int i = 0; i < entries; i++) {
+		struct efi_md *m;
+
+		printf("Populating index %d\n", i);
+		m = map + i;
+		snprintf(fn, sizeof(fn), "/sys/firmware/efi/runtime-map/%d/type", i);
+		if (!file2u32(fn, &m->md_type))
+			goto err;
+		snprintf(fn, sizeof(fn), "/sys/firmware/efi/runtime-map/%d/phys_addr", i);
+		if (!file2u64(fn, &m->md_phys))
+			goto err;
+		snprintf(fn, sizeof(fn), "/sys/firmware/efi/runtime-map/%d/virt_addr", i);
+		if (!file2u64(fn, &m->md_virt))
+			goto err;
+		snprintf(fn, sizeof(fn), "/sys/firmware/efi/runtime-map/%d/num_pages", i);
+		if (!file2u64(fn, &m->md_pages))
+			goto err;
+		snprintf(fn, sizeof(fn), "/sys/firmware/efi/runtime-map/%d/attribute", i);
+		if (!file2u64(fn, &m->md_attr))
+			goto err;
+	}
+	efi_map_phys_src = 0;
+	printf("UEFI MAP:\n");
+	print_efi_map(efi_map_hdr);
+	printf("DONE\n");
+	return;
+err:
+	printf("Parse error in reading current memory map\n");
 }
 
 /*
@@ -177,6 +243,29 @@ print_efi_map(struct efi_map_header *efihdr)
 }
 
 void
+efi_setup_fake_efi_map()
+{
+	uint32_t efisz, sz, map_size;
+	char *buf;
+
+	/*
+	 * On some platforms we need to reserve space for the memory map. amd64 has to
+	 * pull this data out of boot_param tables, so we have to create a dummy map
+	 * (or the alternative is to pass this data into the kernel and have it parse
+	 * these tables directly, which seems ickier).
+	 */
+	efisz = roundup2(sizeof(*efi_map_hdr), 16);
+	map_size = 256 * 64;		/* 256 entries of 64 bytes to be future proof rev 1 is 40 bytes */
+	sz = efisz + map_size;
+	buf = malloc(efisz + map_size);
+	if (buf == NULL)
+		return;	 /* XXX */
+	efi_map_hdr = (struct efi_map_header *)buf;
+	efi_map_size = efisz + map_size;
+	efi_map_phys_src = 1;		/* Bogus address to flag 'copy from boot_params' */
+}
+
+void
 efi_bi_loadsmap(struct preloaded_file *kfp)
 {
 	/*
@@ -195,5 +284,6 @@ efi_bi_loadsmap(struct preloaded_file *kfp)
 		file_addmetadata(kfp, MODINFOMD_EFI_MAP, efi_map_size, efi_map_hdr);
 		return;
 	}
+
 	panic("Can't get UEFI memory map, nor a pointer to it, can't proceed.\n");
 }
