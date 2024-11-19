@@ -6,7 +6,8 @@ WARNS?= 4
 .PATH:	${.CURDIR}/arch/${MACHINE_ARCH}
 CFLAGS+=-I${.CURDIR} -I${.CURDIR}/arch/${MACHINE_ARCH}
 
-SRCS=	crt1.c \
+SRCS=	backtrace.c \
+	crt1.c \
 	host_syscall.S \
 	host_syscalls.c \
 	termios.c

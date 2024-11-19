@@ -35,6 +35,7 @@
 #include "host_syscall.h"
 #include "kboot.h"
 #include "stand.h"
+#include "backtrace.h"
 #include <smbios.h>
 
 struct arch_switch	archsw;
@@ -327,6 +328,11 @@ main(int argc, const char **argv)
 	void *heapbase;
 	const size_t heapsize = 64*1024*1024;
 	const char *bootdev;
+
+	/*
+	 * setup for crash reporting.
+	 */
+	text_crash_init(argv[0]);
 
 	archsw.arch_getdev = kboot_getdev;
 	archsw.arch_copyin = kboot_copyin;
