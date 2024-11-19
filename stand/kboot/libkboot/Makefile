@@ -7,7 +7,8 @@ WARNS?= 4
 CFLAGS+=-I${.CURDIR} -I${.CURDIR}/arch/${MACHINE_ARCH}
 CFLAGS+=-I${LDRSRC}
 
-SRCS=	crt1.c
+SRCS+=	backtrace.c
+SRCS+=	crt1.c
 SRCS+=	efi.c
 SRCS+=	host_syscall.S
 SRCS+=	host_syscalls.c
