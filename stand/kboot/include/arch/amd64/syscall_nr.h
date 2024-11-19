@@ -21,6 +21,8 @@
 #define SYS_pselect6		270
 #define SYS_read		  0
 #define SYS_reboot		169
+#define SYS_rt_sigaction	 13
+#define SYS_rt_sigreturn	 15
 #define SYS_symlinkat		266
 #define SYS_uname		 63
 #define SYS_write		  1
