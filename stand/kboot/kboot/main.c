@@ -36,6 +36,7 @@
 #include "kboot.h"
 #include "stand.h"
 #include "backtrace.h"
+#include "signal.h"
 #include <smbios.h>
 
 struct arch_switch	archsw;

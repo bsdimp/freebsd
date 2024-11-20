@@ -1,3 +1,4 @@
+#include "syscall_nr.h"
 #include <machine/asm.h>
 
 /*
@@ -16,3 +17,8 @@ ENTRY(host_syscall)
 	ret
 /* Note: We're exposing the raw return value to the caller */
 END(host_syscall)
+
+ENTRY(__rt_restore)
+	mov	x8, #SYS_rt_sigreturn
+	svc	0
+END(__rt_restore)

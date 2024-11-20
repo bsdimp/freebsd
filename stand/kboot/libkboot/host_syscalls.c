@@ -6,6 +6,7 @@
 
 #include "host_syscall.h"
 #include "syscall_nr.h"
+#include "signal.h"
 #include <stand.h>
 
 /*
@@ -168,4 +169,20 @@ ssize_t
 host_write(int fd, const void *buf, size_t nbyte)
 {
 	return host_syscall(SYS_write, fd, (uintptr_t)buf, nbyte);
+}
+
+int
+host_sigaction(int sig, struct host_sigaction *restrict act,
+    struct host_sigaction *restrict oact)
+{
+/*
+ * Some platforms (all the oness we currently have) requires a sigreturn
+ * routine. Also, on Linux, all the sig* routines are the 'newer' (from 2.2)
+ * realtime signal interfaces.
+ */
+#ifdef HOST_SA_RESTORER
+	act->sa_flags |= HOST_SA_RESTORER;
+	act->sa_restorer = __rt_restore;
+#endif
+	return host_syscall(SYS_rt_sigaction, sig, (uintptr_t)act, (uintptr_t)oact, HOST_NSIG / 8);
 }
