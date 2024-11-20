@@ -3566,6 +3566,8 @@ bus_generic_suspend(device_t dev)
 	 * safer to bring down devices in the reverse order.
 	 */
 	TAILQ_FOREACH_REVERSE(child, &dev->children, device_list, link) {
+		if (!device_is_attached(child))
+			continue;
 		error = BUS_SUSPEND_CHILD(dev, child);
 		if (error != 0) {
 			child = TAILQ_NEXT(child, link);
@@ -3591,6 +3593,8 @@ bus_generic_resume(device_t dev)
 	device_t	child;
 
 	TAILQ_FOREACH(child, &dev->children, link) {
+		if (!device_is_attached(child))
+			continue;
 		BUS_RESUME_CHILD(dev, child);
 		/* if resume fails, there's nothing we can usefully do... */
 	}
