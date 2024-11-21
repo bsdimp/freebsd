@@ -322,6 +322,12 @@ out:
 	close(fd);
 }
 
+static void
+handle_trap(int sig, host_siginfo_t *sip, void *xucp)
+{
+	printf("Got a signal %d\n", sig);
+	text_crash_dump_ctx(xucp);
+}
 
 int
 main(int argc, const char **argv)
@@ -329,11 +335,15 @@ main(int argc, const char **argv)
 	void *heapbase;
 	const size_t heapsize = 64*1024*1024;
 	const char *bootdev;
+	struct host_sigaction sa;
 
 	/*
 	 * setup for crash reporting.
 	 */
 	text_crash_init(argv[0]);
+	sa.sa_sigaction = handle_trap;
+	sa.sa_flags = HOST_SA_SIGINFO | HOST_SA_RESETHAND;
+	host_sigaction(HOST_SIGSEGV, &sa, NULL);
 
 	archsw.arch_getdev = kboot_getdev;
 	archsw.arch_copyin = kboot_copyin;
