@@ -2179,6 +2179,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 
 	if (sc == NULL) {
 		ccb->ccb_h.status = CAM_SEL_TIMEOUT;
+		printf("SEL TIMEOUT\n");
 		xpt_done(ccb);
 		return;
 	}
@@ -2210,6 +2211,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 				    cam_sim_path(sc->sc_sim), ccb->ccb_h.target_id,
 				    (uintmax_t)ccb->ccb_h.target_lun);
 				ccb->ccb_h.status = CAM_SCSI_BUSY;
+				printf("SCSI BUSY\n");
 				xpt_done(ccb);
 				goto done;
 			}
@@ -2413,6 +2415,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 			    (uintmax_t)ccb->ccb_h.target_lun);
 
 			ccb->ccb_h.status = CAM_FUNC_NOTAVAIL;
+			printf("NOT AVAILABLE\n");
 			xpt_done(ccb);
 			break;
 		}
@@ -2439,6 +2442,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 		    (uintmax_t)ccb->ccb_h.target_lun, ccb->ccb_h.func_code);
 
 		ccb->ccb_h.status = CAM_FUNC_NOTAVAIL;
+		printf("NOT AVAILABLE 2\n");
 		xpt_done(ccb);
 		break;
 	}
@@ -2486,7 +2490,6 @@ umass_cam_illegal_request(union ccb *ccb)
 /* umass_cam_cb
  *	finalise a completed CAM command
  */
-
 static void
 umass_cam_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
     uint8_t status)
@@ -2557,6 +2560,7 @@ umass_cam_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
 		 */
 		xpt_freeze_devq(ccb->ccb_h.path, 1);
 		ccb->ccb_h.status = CAM_REQ_CMP_ERR | CAM_DEV_QFRZN;
+		printf("CMP ERROR %d\n", status);
 		xpt_done(ccb);
 		break;
 	}
@@ -2649,9 +2653,11 @@ umass_cam_sense_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
 				ccb->ccb_h.status = CAM_SCSI_STATUS_ERROR
 				    | CAM_AUTOSNS_VALID | CAM_DEV_QFRZN;
 				ccb->csio.scsi_status = SCSI_STATUS_CHECK_COND;
-			} else
+			} else {
 				ccb->ccb_h.status = CAM_AUTOSENSE_FAIL
 				    | CAM_DEV_QFRZN;
+				printf("AUTOSENSE FAIL\n");
+			}
 		}
 		xpt_done(ccb);
 		break;
@@ -2661,6 +2667,7 @@ umass_cam_sense_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
 		    "status %d\n", status);
 		xpt_freeze_devq(ccb->ccb_h.path, 1);
 		ccb->ccb_h.status = CAM_AUTOSENSE_FAIL | CAM_DEV_QFRZN;
+		printf("AUTOSENSE FAIL 2\n");
 		xpt_done(ccb);
 	}
 }
