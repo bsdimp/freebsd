@@ -2232,6 +2232,8 @@ daasync(void *callback_arg, uint32_t code,
 			} else if (asc == 0x28 && ascq == 0x00) {
 				/* 28/0: NOT READY TO READY CHANGE, MEDIUM MAY HAVE CHANGED */
 				cam_periph_assert(periph, MA_OWNED);
+				xpt_print(ccb->ccb_h.path,
+				    "NOT READY -> READY reprobing\n");
 				softc->flags &= ~DA_FLAG_PROBED;
 				disk_media_changed(softc->disk, M_NOWAIT);
 			} else if (asc == 0x3F && ascq == 0x03) {
@@ -2277,11 +2279,18 @@ daasync(void *callback_arg, uint32_t code,
 		break;
 	}
 	case AC_INQ_CHANGED:		/* Called for this path: periph locked */
+	{
+		union ccb *ccb;
+
+		ccb = (union ccb *)arg;
 		cam_periph_assert(periph, MA_OWNED);
 		softc = (struct da_softc *)periph->softc;
 		softc->flags &= ~DA_FLAG_PROBED;
+		xpt_print(ccb->ccb_h.path,
+		    "INQUIRY data has changed\n");
 		dareprobe(periph);
 		break;
+	}
 	default:
 		break;
 	}
@@ -6256,6 +6265,7 @@ daerror(union ccb *ccb, uint32_t cam_flags, uint32_t sense_flags)
 		} else if (sense_key == SSD_KEY_UNIT_ATTENTION &&
 		    asc == 0x28 && ascq == 0x00) {
 			/* 28/0: NOT READY TO READY CHANGE, MEDIUM MAY HAVE CHANGED */
+			xpt_print(periph->path, "NOT READY TO READY\n");
 			softc->flags &= ~DA_FLAG_PROBED;
 			disk_media_changed(softc->disk, M_NOWAIT);
 			/*
