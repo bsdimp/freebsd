@@ -23,8 +23,8 @@
  * SUCH DAMAGE.
  */
 
-#ifndef	_EFI_OSDEP_H_
-#define	_EFI_OSDEP_H_
+#ifndef	_SYS_EFI_EDK2_H_
+#define	_SYS_EFI_EDK2_H_
 
 /*
  * Defines to adjust the types that EDK2 uses for FreeBSD so we can
@@ -34,10 +34,8 @@
  * annoying dependencies that are difficult to satisfy.
  */
 
-#include <sys/cdefs.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <uuid.h>
 
 typedef int8_t INT8;
 typedef int16_t INT16;
@@ -107,4 +105,4 @@ typedef void VOID;
 #endif
 /* FreeBSD doesn't have/use MDE_CPU_EBC or MDE_CPU_IPF (ia64) */
 
-#endif /* _EFI_OSDEP_H_ */
+#endif /* _SYS_EFI_EDK2_H_ */
