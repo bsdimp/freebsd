@@ -87,6 +87,7 @@ Revision History
             }
 
 #define NextMemoryDescriptor(Ptr,Size)  ((EFI_MEMORY_DESCRIPTOR *) (((UINT8 *) Ptr) + Size))
+
 #include <sys/types.h>
 
 /*

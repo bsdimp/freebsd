@@ -180,6 +180,7 @@ bi_load_efi_data(struct preloaded_file *kfp, bool exit_bs)
 	UINT32 mmver;
 	struct efi_map_header *efihdr;
 	bool do_vmap;
+	EFI_TCG2_EVENT_LOG *event_log_buf = NULL;
 
 #ifdef MODINFOMD_EFI_FB
 	struct efi_fb efifb;
@@ -208,6 +209,14 @@ bi_load_efi_data(struct preloaded_file *kfp, bool exit_bs)
 		file_addmetadata(kfp, MODINFOMD_EFI_FB, sizeof(efifb), &efifb);
 	}
 #endif
+	/* Copy TCG2 event logs to kernel metadata */
+	event_log_buf = efitcg_get_event_log();
+	if (event_log_buf != NULL) {
+		file_addmetadata(kfp, MODINFOMD_TCG2_LOGBUF,
+		    event_log_buf->size + sizeof(EFI_TCG2_EVENT_LOG),
+		    event_log_buf);
+		free(event_log_buf);
+	}
 
 	do_vmap = true;
 	efi_novmap = getenv("efi_disable_vmap");

@@ -30,6 +30,7 @@
 
 #include <stand.h>
 #include <stdbool.h>
+#include <sys/tpmeventlog.h>
 #include <sys/queue.h>
 
 #include <Protocol/BlockIo.h>
@@ -156,5 +157,8 @@ bool efi_guid_to_name(EFI_GUID *, char **);
 
 /* efipart.c */
 int	efipart_inithandles(void);
+
+/* efitcg.c */
+EFI_TCG2_EVENT_LOG *efitcg_get_event_log(void);
 
 #endif	/* _LOADER_EFILIB_H */

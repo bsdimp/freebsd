@@ -40,21 +40,25 @@
 #include <sys/bus.h>
 #include <sys/callout.h>
 #include <sys/conf.h>
+#include <sys/linker.h>
 #include <sys/lock.h>
 #include <sys/module.h>
 #include <sys/rman.h>
 #include <sys/sx.h>
 #include <sys/taskqueue.h>
 #include <sys/uio.h>
+#include <vm/vm.h>
+#include <vm/pmap.h>
 
 #include <machine/bus.h>
 #include <machine/md_var.h>
 #include <machine/resource.h>
 
-#ifdef	DEV_ACPI
+#if defined(DEV_ACPI) || defined(DEV_TPM)
 #include <contrib/dev/acpica/include/acpi.h>
 #include <contrib/dev/acpica/include/accommon.h>
 #include <dev/acpica/acpivar.h>
+#include <sys/tpmeventlog.h>
 #endif
 
 #include "opt_tpm.h"
@@ -96,6 +100,7 @@
 #define	TPM_HEADER_SIZE			10
 
 #define	TPM_CDEV_NAME			"tpm0"
+#define	TPM_EVENTLOG_CDEV_NAME		"tpm0_eventlog"
 #define	TPM_CDEV_PERM_FLAG		0600
 
 #define	TPM2_START_METHOD_ACPI		2
@@ -104,6 +109,22 @@
 #define	TPM2_START_METHOD_CRB_ACPI	8
 
 MALLOC_DECLARE(M_TPM20);
+
+struct tpm_eventlog_sc {
+	struct tpm_sc	*parent_dev_sc;
+	struct cdev	*log_cdev;
+	struct sx 	dev_lock;
+
+	uint32_t	tbl_map_pages;
+	vm_paddr_t	final_tbl_paddr;
+
+	uint32_t	min_size;	/* Minimum event size */
+	uint32_t	pending_data_length;
+	uint32_t	pending_final_event_log;
+
+	EFI_TCG2_EVENT_LOG		*preloader_info;
+	EFI_TCG2_FINAL_EVENTS_TABLE	*final_tbl_vaddr;
+};
 
 struct tpm_sc {
 	device_t	dev;
@@ -133,6 +154,7 @@ struct tpm_sc {
 #endif
 
 	int		(*transmit)(struct tpm_sc *, size_t);
+	struct tpm_eventlog_sc	eventlog_sc;
 };
 
 int tpm20_suspend(device_t dev);
@@ -140,6 +162,10 @@ int tpm20_shutdown(device_t dev);
 int32_t tpm20_get_timeout(uint32_t command);
 int tpm20_init(struct tpm_sc *sc);
 void tpm20_release(struct tpm_sc *sc);
+
+/* TPM event log functions */
+int tpm20_eventlog_init(struct tpm_sc *sc);
+void tpm20_eventlog_release(struct tpm_sc *sc);
 
 /* Mode driver types */
 DECLARE_CLASS(tpmtis_driver);

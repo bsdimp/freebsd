@@ -130,6 +130,8 @@ skip_irq:
 	result = tpm20_init(sc);
 	if (result != 0)
 		tpmtis_detach(dev);
+	else if (tpm20_eventlog_init(sc))
+		device_printf(dev, "Failed to initialize TPM event log device node\n");
 
 	return (result);
 }
@@ -140,6 +142,7 @@ tpmtis_detach(device_t dev)
 	struct tpm_sc *sc;
 
 	sc = device_get_softc(dev);
+	tpm20_eventlog_release(sc);
 	tpm20_release(sc);
 
 	if (sc->intr_cookie != NULL)

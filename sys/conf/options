@@ -959,6 +959,7 @@ RANDOM_ENABLE_ETHER	opt_global.h
 
 # This options turns TPM into entropy source.
 TPM_HARVEST	opt_tpm.h
+DEV_TPM		opt_tpm.h
 
 # BHND(4) driver
 BHND_LOGLEVEL	opt_global.h
