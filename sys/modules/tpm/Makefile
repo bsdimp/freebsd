@@ -13,7 +13,8 @@ SRCS+=	isa_if.h
 .endif
 
 #TPM 2.0
-SRCS+=	tpm20.c tpm_tis_core.c
+SRCS+=	tpm20.c tpm20_eventlog.c tpm_tis_core.c
+CFLAGS+= -DDEV_TPM
 .if defined(${OPT_FDT})
 SRCS+=  tpm_spibus.c tpm_tis_spibus.c spibus_if.h
 .endif

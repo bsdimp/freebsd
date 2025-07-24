@@ -90,6 +90,7 @@ typedef uint32_t   UINTN;
 #include "efitcp.h"
 #include "efipoint.h"
 #include "efiuga.h"
+#include "efitcg.h"
 #include <sys/types.h>
 
 /*
