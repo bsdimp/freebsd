@@ -34,8 +34,16 @@
  * annoying dependencies that are difficult to satisfy.
  */
 
+#ifdef _KERNEL
+#undef TRUE
+#undef FALSE
+#undef MAX
+#undef MIN
+#undef MAC
+#else
 #include <stdlib.h>
 #include <stdint.h>
+#endif
 
 typedef int8_t INT8;
 typedef int16_t INT16;

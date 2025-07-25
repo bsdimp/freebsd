@@ -15,7 +15,8 @@ static d_close_t	tpm20_eventlog_close;
 static d_read_t		tpm20_eventlog_read;
 static d_ioctl_t	tpm20_eventlog_ioctl;
 
-static struct uuid tcg2_final_event_table = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
+//static struct uuid tcg2_final_event_table = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
+static efi_guid_t tcg2_final_event_table = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
 static uint32_t get_minimum_event_size(TCG_PCR_EVENT *event_header);
 static void remap_efi_table(struct tpm_eventlog_sc *sc);
 
@@ -34,12 +35,12 @@ get_minimum_event_size(TCG_PCR_EVENT *event_header)
 	TCG_EfiSpecIDEventStruct *efi_spec_id;
 	uint32_t i, min_event_size = 0;
 
-	min_event_size = offsetof(TCG_PCR_EVENT2, Digests);
+	min_event_size = offsetof(TCG_PCR_EVENT2, Digest.digests);
 	efi_spec_id = (TCG_EfiSpecIDEventStruct *)event_header->Event;
 
 	for (i = 0; i < efi_spec_id->numberOfAlgorithms; i++) {
-		min_event_size += efi_spec_id->digestSizes[i].digestSize;
-		min_event_size += sizeof(efi_spec_id->digestSizes[i].digestSize);
+		min_event_size += efi_spec_id->digestSize[i].digestSize;
+		min_event_size += sizeof(efi_spec_id->digestSize[i].digestSize);
 	}
 	min_event_size += sizeof(((TCG_PCR_EVENT2 *)0)->EventSize);
 	return min_event_size;

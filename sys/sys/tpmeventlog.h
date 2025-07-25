@@ -14,25 +14,7 @@
 #if defined (_KERNEL)
 #include <sys/efi.h>
 #include "opt_tpm.h"
-/* Ask Warner how to handle following header inclusion */
-#define INTERFACE_DECL(x)
-#define EFIAPI
-#include <contrib/dev/acpica/include/actypes.h>
-typedef uintptr_t UINTN;
-typedef UINT64 EFI_PHYSICAL_ADDRESS;
-typedef UINTN EFI_STATUS;
-#define IN
-#define OUT
-#define CONST const
-#define OPTIONAL
-/* Ask Warner how to handle common efitcg.h */
 #include <sys/efitcg.h>
-typedef struct {
-  uint32_t    Data1;
-  uint16_t    Data2;
-  uint16_t    Data3;
-  uint8_t     Data4[8];
-} EFI_GUID;
 #elif  defined(_STANDALONE)
 #include <stdio.h>
 #include <stdint.h>
@@ -58,7 +40,7 @@ validate_tcg2_event(TCG_PCR_EVENT2 *event,
     TCG_EfiSpecIDEventStruct *efi_spec_id)
 {
 
-	if (event->Count != efi_spec_id->numberOfAlgorithms)
+	if (event->Digest.count != efi_spec_id->numberOfAlgorithms)
 		return false;
 	return true;
 }
@@ -84,14 +66,14 @@ get_tcg2_event_size(TCG_PCR_EVENT2 *event, TCG_PCR_EVENT *event_header)
 		return 0;
 	}
 
-	off = (uint8_t *)(&event->Digests);
-	digests_count = event->Count;
+	off = (uint8_t *)(&event->Digest.digests);
+	digests_count = event->Digest.count;
 	for (i = 0; i < digests_count; i++) {
 		hashid = *((uint16_t *)(off));
 		for (j = 0; j < digests_count; j++) {
-			if (hashid == efi_spec_id->digestSizes[j].algorithmId) {
+			if (hashid == efi_spec_id->digestSize[j].algorithmId) {
 				off += sizeof(hashid);
-				off += efi_spec_id->digestSizes[j].digestSize;
+				off += efi_spec_id->digestSize[j].digestSize;
 				break;
 			}
 		}
