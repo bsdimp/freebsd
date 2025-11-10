@@ -15,7 +15,7 @@ static d_close_t	tpm20_eventlog_close;
 static d_read_t		tpm20_eventlog_read;
 static d_ioctl_t	tpm20_eventlog_ioctl;
 
-static struct uuid tcg2_final_event_table = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
+static EFI_GUID tcg2_final_event_table = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
 static uint32_t get_minimum_event_size(TCG_PCR_EVENT *event_header);
 static void remap_efi_table(struct tpm_eventlog_sc *sc);
 
@@ -28,18 +28,73 @@ static struct cdevsw tpm20_eventlog_cdevsw = {
 	.d_name = "tpm20_eventlog",
 };
 
+/* XXX Copied from stand/efi/libefi/efitcg.c, originally in sys/tcpeventlog.h */
+static inline bool
+validate_tcg2_event(TCG_PCR_EVENT2 *event,
+    TCG_EfiSpecIDEventStruct *efi_spec_id)
+{
+
+	if (event->Digest.count != efi_spec_id->numberOfAlgorithms)
+		return false;
+	return true;
+}
+
+/*
+ * Calculate the size of the TCG2 event. TCG2 event can contain more than one
+ * digests and can also contain variable length of data that is extended and
+ * logged. The first event provides metadata information the digest tyoe.
+ * Returns 0 if there is a failure in determining the event length.
+ */
+static inline uint32_t
+get_tcg2_event_size(TCG_PCR_EVENT2 *event, TCG_PCR_EVENT *event_header)
+{
+	TCG_EfiSpecIDEventStruct *efi_spec_id;
+	uint8_t *off;
+	uint32_t i, j, digests_count;
+	uint32_t event_size = 0;
+	uint16_t hashid;
+
+	efi_spec_id = (TCG_EfiSpecIDEventStruct *)event_header->Event;
+	if (!validate_tcg2_event(event, efi_spec_id)) {
+		printf("TCG2 final event validation failed\n");
+		return 0;
+	}
+
+	off = (uint8_t *)(&event->Digest);
+	digests_count = event->Digest.count;
+	for (i = 0; i < digests_count; i++) {
+		hashid = *((uint16_t *)(off));
+		for (j = 0; j < digests_count; j++) {
+			if (hashid == efi_spec_id->digestSize[j].algorithmId) {
+				off += sizeof(hashid);
+				off += efi_spec_id->digestSize[j].digestSize;
+				break;
+			}
+		}
+		if (j == digests_count) {
+			printf("TCG2 event hash algo ID:(%d) not supported\n",
+			    hashid);
+			return 0;
+		}
+	}
+	off += *(uint32_t *)(off) + sizeof(event->EventSize);
+	event_size = off - (uint8_t *)event;
+	return event_size;
+}
+/* XXX END OF DUP */
+
 static uint32_t
 get_minimum_event_size(TCG_PCR_EVENT *event_header)
 {
 	TCG_EfiSpecIDEventStruct *efi_spec_id;
 	uint32_t i, min_event_size = 0;
 
-	min_event_size = offsetof(TCG_PCR_EVENT2, Digests);
+	min_event_size = offsetof(TCG_PCR_EVENT2, Digest.digests);
 	efi_spec_id = (TCG_EfiSpecIDEventStruct *)event_header->Event;
 
 	for (i = 0; i < efi_spec_id->numberOfAlgorithms; i++) {
-		min_event_size += efi_spec_id->digestSizes[i].digestSize;
-		min_event_size += sizeof(efi_spec_id->digestSizes[i].digestSize);
+		min_event_size += efi_spec_id->digestSize[i].digestSize;
+		min_event_size += sizeof(efi_spec_id->digestSize[i].digestSize);
 	}
 	min_event_size += sizeof(((TCG_PCR_EVENT2 *)0)->EventSize);
 	return min_event_size;
@@ -80,7 +135,7 @@ tpm20_eventlog_read(struct cdev *dev, struct uio *uio, int flags)
 		sc->final_tbl_vaddr =
 		    (EFI_TCG2_FINAL_EVENTS_TABLE *)pmap_mapbios(sc->final_tbl_paddr,
 		    sc->tbl_map_pages * PAGE_SIZE);
-		off = (uint8_t *)(&sc->final_tbl_vaddr->Event);
+		off = (uint8_t *)(&sc->final_tbl_vaddr[1]);
 		event_header = (TCG_PCR_EVENT *)(sc->preloader_info->events);
 		for (i = 0; i < sc->final_tbl_vaddr->NumberOfEvents; i++) {
 			event_size = get_tcg2_event_size((TCG_PCR_EVENT2 *)off,
@@ -120,7 +175,7 @@ tpm20_eventlog_read(struct cdev *dev, struct uio *uio, int flags)
 
 	/* Copy the final event table data */
 	if (sc->pending_final_event_log > 0 && sc->pending_data_length == 0) {
-		log_ptr =  (uint8_t *)sc->final_tbl_vaddr->Event + \
+		log_ptr =  (uint8_t *)&sc->final_tbl_vaddr[1] + \
 		    sc->preloader_info->preloader_final_tblsz;
 		bytes_to_transfer = MIN(uio->uio_resid, sc->pending_final_event_log);
 		if (bytes_to_transfer > 0) {
@@ -152,6 +207,16 @@ tpm20_eventlog_ioctl(struct cdev *dev, u_long cmd, caddr_t data,
 {
 	return (ENOTTY);
 }
+
+/*
+ * Ideally, we'd avoid this altogether. However, we have to find an efi table,
+ * and this is the only way to do that is to call efi_get_table and that's an
+ * inline. EDK2 also defines the following, so we have to #undef them. We
+ * include this late to limit the blast radius.
+ */
+#undef EFI_PAGE_SIZE
+#undef EFI_PAGE_MASK
+#include <sys/efi.h>
 
 int
 tpm20_eventlog_init(struct tpm_sc *parent_dev_sc)
@@ -187,7 +252,7 @@ tpm20_eventlog_init(struct tpm_sc *parent_dev_sc)
 	sc->pending_data_length = info->size;
 	sc->pending_final_event_log = 0;
 
-	result = efi_get_table(&tcg2_final_event_table,
+	result = efi_get_table((efi_guid_t *)&tcg2_final_event_table,
 	    (void **)&final_event_table);
 	if (result != 0) {
 		device_printf(parent_dev_sc->dev,

@@ -15,6 +15,7 @@ SRCS+=	isa_if.h
 #TPM 2.0
 SRCS+=	tpm20.c tpm20_eventlog.c tpm_tis_core.c
 CFLAGS+= -DDEV_TPM
+CFLAGS+= -I${SRCTOP}/sys/contrib/edk2/Include
 .if defined(${OPT_FDT})
 SRCS+=  tpm_spibus.c tpm_tis_spibus.c spibus_if.h
 .endif

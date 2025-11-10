@@ -25,8 +25,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _TPM20_H_
-#define	_TPM20_H_
+#ifndef _DEV_TPM_TPM20_H_
+#define	_DEV_TPM_TPM20_H_
 
 #include "opt_acpi.h"
 #include <sys/cdefs.h>
@@ -59,6 +59,8 @@
 #include <contrib/dev/acpica/include/accommon.h>
 #include <dev/acpica/acpivar.h>
 #include <sys/tpmeventlog.h>
+#include <Uefi.h>
+#include <Protocol/Tcg2Protocol.h>
 #endif
 
 #include "opt_tpm.h"
@@ -78,10 +80,11 @@
  */
 #define	TPM_TIMEOUT_LONG		40000000
 
+#define	TPM_CC_CreateLoaded		0x00000191
+#if 0
 /* List of commands that require TPM_TIMEOUT_LONG time to complete */
 #define	TPM_CC_CreatePrimary		0x00000131
 #define	TPM_CC_Create			0x00000153
-#define	TPM_CC_CreateLoaded		0x00000191
 
 /* List of commands that require only TPM_TIMEOUT_C time to complete */
 #define	TPM_CC_SequenceComplete		0x0000013e
@@ -91,6 +94,7 @@
 #define	TPM_CC_PCR_Extend		0x00000182
 #define	TPM_CC_EventSequenceComplete	0x00000185
 #define	TPM_CC_HashSequenceStart	0x00000186
+#endif
 
 /* Timeout before data in read buffer is discarded */
 #define	TPM_READ_TIMEOUT		500000
@@ -199,4 +203,4 @@ OR4(struct tpm_sc *sc, bus_size_t off, uint32_t val)
 
 	TPM_WRITE_4(sc->dev, off, v | val);
 }
-#endif	/* _TPM20_H_ */
+#endif	/* _DEV_TPM_TPM20_H_ */

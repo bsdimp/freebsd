@@ -7,41 +7,8 @@
 #ifndef	_SYS_TPMEVENTLOG_H_
 #define	_SYS_TPMEVENTLOG_H_
 
+#include <sys/stdint.h>
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-#include <sys/stddef.h>
-#if defined (_KERNEL)
-#include <sys/efi.h>
-#include "opt_tpm.h"
-/* Ask Warner how to handle following header inclusion */
-#define INTERFACE_DECL(x)
-#define EFIAPI
-#include <contrib/dev/acpica/include/actypes.h>
-typedef uintptr_t UINTN;
-typedef UINT64 EFI_PHYSICAL_ADDRESS;
-typedef UINTN EFI_STATUS;
-#define IN
-#define OUT
-#define CONST const
-#define OPTIONAL
-/* Ask Warner how to handle common efitcg.h */
-#include <sys/efitcg.h>
-typedef struct {
-  uint32_t    Data1;
-  uint16_t    Data2;
-  uint16_t    Data3;
-  uint8_t     Data4[8];
-} EFI_GUID;
-#elif  defined(_STANDALONE)
-#include <stdio.h>
-#include <stdint.h>
-#include <stand.h>
-#include <efi.h>
-#include <efilib.h>
-#endif
-
-#if defined(_STANDALONE) || defined(DEV_TPM)
 typedef struct efi_tcg2_event_log {
 	uint32_t	size;
 	uint32_t	preloader_final_tblsz;
@@ -49,10 +16,8 @@ typedef struct efi_tcg2_event_log {
 	uint8_t		events[];
 } EFI_TCG2_EVENT_LOG;
 
-static inline bool validate_tcg2_event(TCG_PCR_EVENT2 *,
-    TCG_EfiSpecIDEventStruct *);
-static inline uint32_t get_tcg2_event_size(TCG_PCR_EVENT2 *, TCG_PCR_EVENT *);
-
+#if 0
+/* This is working way too hard to share, so maybe we don't */
 static inline bool
 validate_tcg2_event(TCG_PCR_EVENT2 *event,
     TCG_EfiSpecIDEventStruct *efi_spec_id)
@@ -106,5 +71,6 @@ get_tcg2_event_size(TCG_PCR_EVENT2 *event, TCG_PCR_EVENT *event_header)
 	return event_size;
 }
 
-#endif /* _STANDALONE || DEV_TPM */
+#else
+#endif /* 0 */
 #endif /* _SYS_TPMEVENTLOG_H_ */
