@@ -109,6 +109,7 @@
 #include <Protocol/SimpleTextInEx.h>
 #include <Protocol/SimpleTextOut.h>
 #include <Protocol/StatusCode.h>
+#include <Protocol/Tcg2Protocol.h>
 #include <Protocol/Tcp4.h>
 #include <Protocol/Tcp6.h>
 #include <Protocol/Timer.h>

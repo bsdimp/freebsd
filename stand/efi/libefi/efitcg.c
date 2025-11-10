@@ -8,11 +8,68 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include <Protocol/Tcg2Protocol.h>
+
+#define TCG2_SPECID_SIGNATURE "Spec ID Event03"
+
 static EFI_GUID tcg2_final_event_table = EFI_TCG2_FINAL_EVENTS_TABLE_GUID;
 static EFI_GUID tcg2_guid = EFI_TCG2_PROTOCOL_GUID;
 static uint32_t get_final_table_events_size(EFI_TCG2_FINAL_EVENTS_TABLE *,
 	TCG_PCR_EVENT *);
 
+
+static inline bool
+validate_tcg2_event(TCG_PCR_EVENT2 *event,
+    TCG_EfiSpecIDEventStruct *efi_spec_id)
+{
+
+	if (event->Digest.count != efi_spec_id->numberOfAlgorithms)
+		return false;
+	return true;
+}
+
+/*
+ * Calculate the size of the TCG2 event. TCG2 event can contain more than one
+ * digests and can also contain variable length of data that is extended and
+ * logged. The first event provides metadata information the digest tyoe.
+ * Returns 0 if there is a failure in determining the event length.
+ */
+static inline uint32_t
+get_tcg2_event_size(TCG_PCR_EVENT2 *event, TCG_PCR_EVENT *event_header)
+{
+	TCG_EfiSpecIDEventStruct *efi_spec_id;
+	uint8_t *off;
+	uint32_t i, j, digests_count;
+	uint32_t event_size = 0;
+	uint16_t hashid;
+
+	efi_spec_id = (TCG_EfiSpecIDEventStruct *)event_header->Event;
+	if (!validate_tcg2_event(event, efi_spec_id)) {
+		printf("TCG2 final event validation failed\n");
+		return 0;
+	}
+
+	off = (uint8_t *)(&event->Digest);
+	digests_count = event->Digest.count;
+	for (i = 0; i < digests_count; i++) {
+		hashid = *((uint16_t *)(off));
+		for (j = 0; j < digests_count; j++) {
+			if (hashid == efi_spec_id->digestSize[j].algorithmId) {
+				off += sizeof(hashid);
+				off += efi_spec_id->digestSize[j].digestSize;
+				break;
+			}
+		}
+		if (j == digests_count) {
+			printf("TCG2 event hash algo ID:(%d) not supported\n",
+			    hashid);
+			return 0;
+		}
+	}
+	off += *(uint32_t *)(off) + sizeof(event->EventSize);
+	event_size = off - (uint8_t *)event;
+	return event_size;
+}
 
 /*
  * Logic is derived from TCG EFI Protocol Spec Level 00, Revision 00.13
@@ -27,7 +84,7 @@ validate_tcg_eventlog_header(TCG_PCR_EVENT *event_header)
 
 	if (event_header->PCRIndex != 0 ||
 	    event_header->EventType != EV_NO_ACTION ||
-	    memcmp(event_header->Digest, zero_buf, sizeof(zero_buf)))
+	    memcmp(event_header->Digest.digest, zero_buf, sizeof(zero_buf)))
 		return false;
 
 	efi_spec_id = (TCG_EfiSpecIDEventStruct *)event_header->Event;
@@ -61,7 +118,7 @@ efitcg_get_event_log(void)
 	status = BS->LocateProtocol(&tcg2_guid, NULL, (VOID **)&tcg2_protocol);
 	if (status != EFI_SUCCESS) {
 		printf("Failed to locate TCG2 Protocol (%lu)\n",
-		    EFI_ERROR_CODE(status));
+		    EFI_ERRCODE(status));
 		return NULL;
 	}
 	/* Currently Log format 1.2 is not supported */
@@ -71,7 +128,7 @@ efitcg_get_event_log(void)
 
 	if (status != EFI_SUCCESS || first_event_addr == 0) {
 		printf("Failed to get TCG eventlog buffer (%lu)\n",
-		    EFI_ERROR_CODE(status));
+		    EFI_ERRCODE(status));
 		return NULL;
 	}
 
@@ -121,7 +178,8 @@ get_final_table_events_size(EFI_TCG2_FINAL_EVENTS_TABLE *final_tbl,
 	uint8_t *offset;
 	uint32_t i, event_size = 0, total_events_size = 0;
 
-	offset = (uint8_t *)&(final_tbl->Event);
+//	offset = (uint8_t *)&(final_tbl->Event);
+	offset = (uint8_t *)&final_tbl[1];
 	for (i = 0; i < final_tbl->NumberOfEvents; i++) {
 		event = (TCG_PCR_EVENT2 *)offset;
 		event_size = get_tcg2_event_size(event, event_header);
